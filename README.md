@@ -1,5 +1,9 @@
 # Klang Valley Blood Donation Forecasts
 
+**[Open the live dashboard](https://siobhangoh.github.io/klang-valley-blood-donation-dashboard/)**,
+refreshed every morning with the latest official data. The first visit takes up to a
+minute while your browser loads R.
+
 An R Shiny dashboard of daily blood-donation **collections** in the Klang Valley
 (Selangor + W.P. Kuala Lumpur), by ABO blood group. It uses the Government of
 Malaysia's open daily data and refreshes every day.
