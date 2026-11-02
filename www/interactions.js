@@ -416,24 +416,26 @@
     svg.__journey = true;
     var steps = $all(".jr-step", svg), bar = $(".jr-progress", svg), n = steps.length, k = 0;
     if (reduceMotion) { steps.forEach(function (s) { s.classList.add("is-lit"); }); if (bar) bar.style.strokeDashoffset = 0; return; }
+    var FLOW = 900, PAUSE = 450;   // FLOW matches the CSS transition on .jr-progress
+    function light(i) { steps[i].classList.add("is-lit"); }
+    function reset() {
+      steps.forEach(function (s) { s.classList.remove("is-lit"); });
+      bar.style.transition = "none";
+      bar.style.strokeDashoffset = 100;
+      void bar.getBoundingClientRect();
+      bar.style.transition = "";
+    }
+    // Step 1 lights; then the line flows to the next step, and only when it
+    // arrives does that step light up.
     function tick() {
       if (!document.body.contains(svg)) return;
-      if (k === n) {   // hold the finished path, then start again
-        k = -1;
-        setTimeout(tick, 2200);
-        return;
-      }
-      if (k === -1) {
-        steps.forEach(function (s) { s.classList.remove("is-lit"); });
-        bar.style.strokeDashoffset = 100;
-        k = 0;
-        setTimeout(tick, 700);
-        return;
-      }
-      steps[k].classList.add("is-lit");
+      if (k === 0) { reset(); light(0); k = 1; setTimeout(tick, PAUSE + 300); return; }
+      if (k === n) { k = 0; setTimeout(tick, 2200); return; }
       bar.style.strokeDashoffset = 100 - 100 * (k / Math.max(1, n - 1));
+      var i = k;
+      setTimeout(function () { light(i); }, FLOW);
       k += 1;
-      setTimeout(tick, 950);
+      setTimeout(tick, FLOW + PAUSE);
     }
     tick();
   }
