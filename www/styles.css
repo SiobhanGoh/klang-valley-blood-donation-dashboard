@@ -1736,3 +1736,63 @@ table.dataTable thead th { vertical-align: bottom; }
   background-image: none !important; border-bottom: 0 !important;
 }
 .dataTables_scrollBody thead { visibility: collapse; }
+
+/* ======================================================================
+   Mind maps and flows (same language as the compatibility explorer)
+   ====================================================================== */
+.viz { margin-top: 8px; }
+.viz-fallback { display: none; }
+.mm-svg { display: block; width: 100%; max-width: 1040px; height: auto; margin: 0 auto; overflow: visible; }
+.mm-title { font: 600 17px var(--font-text); fill: var(--ink); }
+.mm-sub { font: 400 14px var(--font-text); fill: var(--ink-soft); }
+.mm-node path { fill: var(--wine); transform-box: fill-box; transform-origin: 50% 70%; }
+.mm-node { animation: mm-in 600ms var(--ease-out) both; animation-delay: var(--d); cursor: default; }
+.mm-node:hover path { animation: cf-beat 1.2s ease-in-out infinite; }
+.mm-node:hover .mm-title { fill: var(--wine); }
+.mm-node.left path { fill: var(--rose); }
+@keyframes mm-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.mm-hub .mm-hub-core { fill: var(--wine-deep); }
+.mm-hub text { font: 500 21px var(--font-display); fill: #fff; letter-spacing: -0.01em; }
+.mm-hub .cf-halo { transform-box: fill-box; transform-origin: center; }
+.mm-hub.is-source .mm-hub-core { fill: var(--rose); }
+.mm-hub.is-source .cf-halo { fill: var(--blush-2); }
+
+/* Journey */
+.jr-track { fill: none; stroke: var(--surface-3); stroke-width: 10; stroke-linecap: round; }
+.jr-flow { stroke-width: 3; }
+.jr-dot { fill: var(--wine-deep); stroke: #fff; stroke-width: 4; }
+.jr-num { font: 600 15px var(--font-text); fill: #fff; pointer-events: none; }
+.jr-step { animation: mm-in 600ms var(--ease-out) both; animation-delay: var(--d); }
+.jr-step:hover .jr-dot { fill: var(--wine); }
+.journey .mm-title { font-size: 16px; }
+.journey .mm-sub { font-size: 13px; }
+
+/* Method flow */
+.mf-node rect { fill: var(--surface-2); stroke: var(--hairline-strong); stroke-width: 1; transition: fill var(--t-med); }
+.mf-node.is-best rect { fill: var(--wine-deep); stroke: none; }
+.mf-title { font: 600 16px var(--font-text); fill: var(--ink); }
+.mf-sub { font: 400 13px var(--font-text); fill: var(--ink-soft); }
+.mf-mae { font: 500 24px var(--font-display); fill: var(--wine); }
+.mf-node.is-best .mf-title, .mf-node.is-best .mf-mae { fill: #fff; }
+.mf-node.is-best .mf-sub { fill: rgba(255,255,255,.75); }
+.mf-caption { font: 600 11px var(--font-text); letter-spacing: .1em; text-transform: uppercase; fill: var(--muted); }
+.cf-link.is-dim { stroke: var(--surface-3); }
+.cf-link.is-best { stroke: var(--wine); stroke-width: 4; }
+
+/* Eligibility details, folded away under the map */
+.fact-details { margin-top: var(--space-4); border-radius: var(--r-md); background: var(--surface-2); padding: 4px 18px; }
+.fact-details summary { cursor: pointer; padding: 12px 0; font-weight: 600; font-size: 0.9rem; color: var(--wine); list-style: none; }
+.fact-details summary::-webkit-details-marker { display: none; }
+.fact-details summary::before { content: "+"; display: inline-block; width: 18px; font-weight: 700; transition: transform var(--t-med) var(--ease-out); }
+.fact-details[open] summary::before { content: "−"; }
+.fact-line { display: grid; grid-template-columns: 180px 1fr; gap: 12px; padding: 8px 0 12px; border-top: 1px solid var(--hairline); font-size: 0.9rem; color: var(--ink-soft); }
+.fact-line strong { color: var(--ink); }
+
+/* Phones: the diagrams' text would be too small, so show the lists instead */
+@media (max-width: 700px) {
+  .viz > svg { display: none; }
+  .viz-fallback { display: block; }
+  .fact-details { display: none; }
+  .fact-line { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .mm-node, .jr-step { animation: none; } }

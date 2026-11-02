@@ -36,7 +36,7 @@ runs the R app in the visitor's browser. Hosting is therefore free, has no usage
 limits and needs no server. The first visit downloads the R runtime, so it takes a
 little longer to open; a loading screen shows while it starts. To keep that download
 small, the published site ships only the code needed to display the precomputed
-results (`R/common.R`, `R/charts.R`, `R/content.R`, `R/reports.R`), not the data pipeline in
+results (`R/common.R`, `R/charts.R`, `R/content.R`, `R/reports.R`, `R/visuals.R`), not the data pipeline in
 `R/analysis.R`.
 
 ## What the dashboard shows
@@ -61,6 +61,11 @@ that states the main finding, written from the current results so it stays true 
 data changes, beside a small looping illustration. Short lines of narration lead from
 one chart to the next, and each section ends with a link to the next one. The Overview
 opens with an index of the five parts of the story.
+
+Wherever there would otherwise be lists of text, the same flowing-drop diagrams as the
+compatibility explorer carry the story: who can donate, the donation journey, aftercare,
+how the four methods turn past data into a forecast, and what the evaluation cannot show.
+On phones these switch back to plain lists so the text stays readable.
 
 Every chart is interactive: hover for exact values in a frosted-glass tooltip, and click a legend entry to hide
 a series. Bars rise and lines draw in as each chart appears. Filters are segmented
@@ -158,6 +163,7 @@ R/common.R               Shared constants and the light helpers the app needs
 R/analysis.R             Data loading (live or snapshot), forecasting and scoring (ported from the Rmd)
 R/charts.R               Interactive charts (plotly) in one shared style
 R/reports.R              The three printable reports and the CSV extract
+R/visuals.R              Mind-map and flow diagrams (eligibility, donation journey, aftercare, methods, limits)
 R/content.R              Blood 101 facts (with sources) and the compatibility rule
 scripts/build_data.R     Downloads the latest CSV and precomputes results for the site
 scripts/add_splash.R     Adds the loading screen (site/splash.html) to the published site

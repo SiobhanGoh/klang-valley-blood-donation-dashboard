@@ -67,6 +67,14 @@ DONATION_STEPS <- c(
   "Have the food and drink provided."
 )
 
+# Short titles for the diagrams; the full sentences above and below are the content.
+DONATION_STEP_TITLES <- c("Fill in the form", "Health check", "Register", "Short interview",
+                          "Donate", "Food and drink")
+DONATION_STEP_NOTES <- c(NA, "Weight, blood group and haemoglobin", NA,
+                         "With a doctor or health staff member, to confirm you can donate", NA, NA)
+AFTERCARE_TITLES <- c("Refreshments", "Extra water", "No alcohol", "Stay out of the sun",
+                      "Take it easy", "Feeling dizzy?")
+
 AFTERCARE <- c(
   "Eat and drink the refreshments provided before you leave.",
   "Drink extra water for the rest of the day.",

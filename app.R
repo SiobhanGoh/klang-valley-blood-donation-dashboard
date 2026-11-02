@@ -117,6 +117,14 @@ MIX_LINE <- if (diff(o_range) < 5) {
 wk <- pct_change(dash$latest$last7, dash$latest$last7_prev_year)
 WEEK_CHANGE <- if (is.na(wk)) "n/a" else paste0(if (wk >= 0) "+" else "\u2212", fmt(abs(wk), 1), "%")
 
+LIMITS_MAP <- list(
+  list(title = "Retrospective", sub = "Methods were developed on 2006–2025 data, so there is no untouched holdout"),
+  list(title = "Shared training data", sub = "Periods overlap and are not independent; no significance tests"),
+  list(title = "Window not tuned", sub = "The three-year window was not tuned or independently validated"),
+  list(title = "No outside factors", sub = "No intervals, weather, holidays, campaigns, stock or demand"),
+  list(title = "Zero days kept", sub = "Zero counts may be closures or reporting gaps"),
+  list(title = "Data can change", sub = "Official figures can be revised between daily refreshes"))
+
 method_phrase <- function(m) c("Seven-day baseline" = "seven-day lag",
                                "Weekday average" = "full-history weekday mean",
                                "Linear regression" = "linear regression",
@@ -479,6 +487,7 @@ region_view <- function(r) {
 }
 
 source("R/reports.R", local = TRUE)
+source("R/visuals.R", local = TRUE)
 
 # --- UI -------------------------------------------------------------------------------
 
@@ -737,13 +746,21 @@ ui <- page(
           section(
             "Can I donate?",
             sub = "The basics PDN checks before every donation.",
-            div(class = "fact-grid",
+            viz(mindmap(c("Can I", "donate?"),
+                        lapply(ELIGIBILITY, function(e) list(title = e$title, sub = e$value, tip = e$detail)),
+                        label = paste(vapply(ELIGIBILITY, function(e) paste0(e$title, ": ", e$value), ""),
+                                      collapse = "; ")),
+                div(class = "fact-grid",
+                    lapply(ELIGIBILITY, function(e)
+                      div(class = "fact",
+                          span(class = "fact-icon", icon(e$icon)),
+                          div(class = "fact-title", e$title),
+                          div(class = "fact-value", e$value),
+                          p(class = "fact-detail", e$detail))))),
+            tags$details(class = "fact-details",
+                tags$summary("Details for each requirement"),
                 lapply(ELIGIBILITY, function(e)
-                  div(class = "fact",
-                      span(class = "fact-icon", icon(e$icon)),
-                      div(class = "fact-title", e$title),
-                      div(class = "fact-value", e$value),
-                      p(class = "fact-detail", e$detail)))),
+                  div(class = "fact-line", strong(e$title), span(e$detail)))),
             div(class = "deferral",
                 h4("Some reasons to wait"),
                 tags$ul(lapply(DEFERRAL_EXAMPLES, function(d)
@@ -751,10 +768,14 @@ ui <- page(
                 p(class = "fine-print",
                   "Examples only. PDN's A–Z list covers many more conditions and medicines."))),
           narrate("On the day, a donation follows the same six steps."),
-          div(class = "two-up stage-3",
-              section("How a donation works", class = "",
-                      tags$ol(class = "steps", lapply(DONATION_STEPS, tags$li))),
-              section("After donating", class = "",
+          section("How a donation works",
+                  viz(journey(Map(function(t, s) list(title = t, sub = s), DONATION_STEP_TITLES, DONATION_STEP_NOTES),
+                              label = paste(DONATION_STEPS, collapse = " ")),
+                      tags$ol(class = "steps", lapply(DONATION_STEPS, tags$li)))),
+          section("After donating",
+                  viz(mindmap(c("After", "you give"),
+                              Map(function(t, s) list(title = t, sub = s), AFTERCARE_TITLES, AFTERCARE),
+                              label = paste(AFTERCARE, collapse = " ")),
                       tags$ul(class = "aftercare", lapply(AFTERCARE, tags$li)))),
           narrate("Where to go, wherever you are in Malaysia."),
           section(
@@ -800,15 +821,16 @@ ui <- page(
           section(
             "Four forecasting methods",
             sub = "Each one uses only data recorded before the day it predicts.",
+            viz(method_flow(latest_scores, LATEST_LABEL),
             div(class = "method-grid",
-                div(class = "method", span(class = "method-tag", "Benchmark"), h4("Seven-day baseline"),
-                    p("The count recorded for the same blood group seven calendar days earlier.")),
-                div(class = "method", span(class = "method-tag", "All history"), h4("Weekday average"),
-                    p("Mean for the blood group and weekday over all years before the evaluation year.")),
-                div(class = "method", span(class = "method-tag", "Trend"), h4("Linear regression"),
-                    p("A separate lm(donations ~ weekday + time_index) per blood group, fitted on all earlier years.")),
-                div(class = "method", span(class = "method-tag", "Last 3 years"), h4("Recent weekday average"),
-                    p("Mean for the blood group and weekday over the three complete years before the evaluation year.")))),
+                    div(class = "method", span(class = "method-tag", "Benchmark"), h4("Seven-day baseline"),
+                        p("The count recorded for the same blood group seven calendar days earlier.")),
+                    div(class = "method", span(class = "method-tag", "All history"), h4("Weekday average"),
+                        p("Mean for the blood group and weekday over all years before the evaluation year.")),
+                    div(class = "method", span(class = "method-tag", "Trend"), h4("Linear regression"),
+                        p("A separate lm(donations ~ weekday + time_index) per blood group, fitted on all earlier years.")),
+                    div(class = "method", span(class = "method-tag", "Last 3 years"), h4("Recent weekday average"),
+                        p("Mean for the blood group and weekday over the three complete years before the evaluation year."))))),
           narrate(sprintf("What did the regression learn from 2006 to %d? Associations, not causes.",
                           LATEST - 1L)),
           div(class = "two-up stage-3",
@@ -836,18 +858,21 @@ ui <- page(
           narrate("And be clear about what this cannot show."),
           section(
             "Validation limits",
+            viz(mindmap(c("What this", "can't show"), LIMITS_MAP,
+                        label = paste(vapply(LIMITS_MAP, function(b) paste0(b$title, ": ", b$sub), ""),
+                                      collapse = "; ")),
             tags$ul(class = "limits",
-              tags$li("Results are retrospective. The method choices were developed on the ",
-                      "2006–2025 data, so earlier evaluation years are not untouched holdouts."),
-              tags$li("Evaluation periods share overlapping training data and are not ",
-                      "independent experiments. No significance testing is done."),
-              tags$li("The three-year window for the recent weekday mean was not tuned or ",
-                      "independently validated."),
-              tags$li("No forecast intervals, weather, holiday, campaign, inventory or ",
-                      "hospital-demand data are used."),
-              tags$li("Zero counts are kept; they may be closures or reporting gaps."),
-              tags$li("The official data can be revised, so past numbers may change slightly ",
-                      "between daily refreshes."))),
+                  tags$li("Results are retrospective. The method choices were developed on the ",
+                          "2006–2025 data, so earlier evaluation years are not untouched holdouts."),
+                  tags$li("Evaluation periods share overlapping training data and are not ",
+                          "independent experiments. No significance testing is done."),
+                  tags$li("The three-year window for the recent weekday mean was not tuned or ",
+                          "independently validated."),
+                  tags$li("No forecast intervals, weather, holiday, campaign, inventory or ",
+                          "hospital-demand data are used."),
+                  tags$li("Zero counts are kept; they may be closures or reporting gaps."),
+                  tags$li("The official data can be revised, so past numbers may change slightly ",
+                          "between daily refreshes.")))),
           section(
             "Source, licence and origin",
             div(class = "prose",
