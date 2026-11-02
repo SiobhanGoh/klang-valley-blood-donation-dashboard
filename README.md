@@ -15,15 +15,40 @@ against the outputs saved by the original analysis.
 
 ## What the dashboard shows
 
-| Tab | Contents |
+A left rail (a bottom tab bar on phones) switches between sections:
+
+| Section | Contents |
 |---|---|
-| Overview | Headline errors and pooled MAE for 2023–2025 across four methods |
-| Data audit | Snapshot checksum, coverage, missing/duplicate/negative/zero checks, ALL-category reconciliation |
-| Patterns | Weekly, weekday and annual donation patterns, filterable by blood group and year |
-| Forecast comparison | MAE/RMSE by year and blood group; actual vs predicted daily counts |
+| Overview | Headline errors as flip cards, and pooled MAE for 2023–2025 across four methods |
+| Beat the forecast | A game: guess a real 2025 day's recorded donations and try to beat the four methods |
+| Compare methods | MAE/RMSE by year and blood group; actual vs predicted daily counts |
 | Low-collection days | 2025 errors on days at or below each group's training-period lower quartile |
+| Patterns | Weekly, weekday and annual donation patterns, filterable by blood group and year |
 | Model explanation | Regression coefficients, signed error and monthly error in 2025 |
+| Data audit | Snapshot checksum, coverage, missing/duplicate/negative/zero checks, ALL-category reconciliation |
 | Methods & limits | Method definitions and validation limits |
+
+### Beat the forecast
+
+Each round shows a real 2025 date and blood group. It also gives the typical range for
+that group and weekday over 2022–2024, the window the recent weekday mean uses. You
+guess the recorded count, and the game compares your error with each method's:
+- 10 XP for each method you beat;
+- 15 XP more for landing within 10% of the actual count;
+- levels every 100 XP;
+- badges such as *Clean sweep* (beat all four) and *Low-day detective* (beat regression
+  on a low-collection day);
+- XP for exploring each section.
+
+Progress lasts for the browser session. Rounds replay past days; the game does not
+forecast future collections.
+
+### Interface
+
+The interface uses frosted-glass cards on a pastel mesh gradient. The navigation rail
+expands on hover, and each section springs out of its icon when opened. A quick-action
+button gives shortcuts. The headline cards tilt and flip to explain each number. Motion is
+switched off for anyone who has "reduce motion" set on their device.
 
 ## Methods
 
@@ -92,14 +117,19 @@ outputs (in `reference/`) to within 1e-8. This covers:
 - pooled and per-group MAE/RMSE for all four methods and three years
 - low-collection diagnostics and regression coefficients
 
-The tests also check that the claims written on the Overview tab hold, and that every app
-output renders. They run on each push via GitHub Actions.
+The tests also check:
+- that the claims written on the Overview tab hold;
+- the game's scoring, badges and levels;
+- a full simulated game round;
+- that every app output renders. They run on each push via GitHub Actions.
 
 ## Repository layout
 
 ```
 app.R                    Shiny UI and server
 R/analysis.R             Data preparation, forecasting and scoring (ported from the Rmd)
+R/game.R                 "Beat the forecast" rounds, scoring, badges and levels
+www/                     Styles and interaction scripts
 data/                    Frozen public data snapshot (gzip-compressed, MD5-checked)
 reference/               Outputs saved by the original R Markdown analysis (test oracle)
 tests/testthat/          Reproduction and app tests

@@ -154,7 +154,7 @@ predict_evaluation_year <- function(data, evaluation_year, recent_years = 3L) {
     stopifnot(n_distinct(year(recent_data$date)) == recent_years)
 
     annual_model <- lm(donations ~ weekday + time_index, data = earlier_data)
-    year_data$regression_prediction <- predict(annual_model, newdata = year_data)
+    year_data$regression_prediction <- unname(predict(annual_model, newdata = year_data))
 
     weekday_means <- earlier_data |>
       group_by(weekday) |>
