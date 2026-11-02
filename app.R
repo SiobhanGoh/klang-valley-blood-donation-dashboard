@@ -49,23 +49,25 @@ fmt_int <- function(x) formatC(round(x), format = "d", big.mark = ",")
 fmt_date <- function(x) format(x, "%d %b %Y")
 pct_change <- function(now, before) if (before > 0) 100 * (now - before) / before else NA_real_
 
-INK <- "#3B2F45"
-PASTEL_METHOD <- c("Seven-day baseline" = "#E8A0AE",
-                   "Weekday average" = "#B8B3C9",
-                   "Linear regression" = "#86C5B0",
-                   "Recent weekday average" = "#B79BE0")
-PASTEL_GROUP <- c("A" = "#EE9AB4", "AB" = "#B9A2E3", "B" = "#8CC6DA", "O" = "#93CDA2")
+# One colour family: blood reds from blush to wine. Methods run light to
+# dark in the order they improve, so the strongest red is the best method.
+INK <- "#4A1426"
+PASTEL_METHOD <- c("Seven-day baseline" = "#F2C2CC",
+                   "Weekday average" = "#E3909F",
+                   "Linear regression" = "#C45A72",
+                   "Recent weekday average" = "#7D2440")
+PASTEL_GROUP <- c("A" = "#F2B3C0", "AB" = "#E07D93", "B" = "#B8445F", "O" = "#6E1D37")
 
 base_theme <- theme_minimal(base_size = 13, base_family = "sans") +
   theme(panel.grid.minor = element_blank(),
-        panel.grid.major = element_line(colour = "#E4DAEC", linewidth = 0.4),
+        panel.grid.major = element_line(colour = "#F0DCE1", linewidth = 0.4),
         plot.background = element_rect(fill = "transparent", colour = NA),
         panel.background = element_rect(fill = "transparent", colour = NA),
         legend.background = element_rect(fill = "transparent", colour = NA),
         strip.text = element_text(colour = INK, face = "bold", size = 12),
-        axis.text = element_text(colour = "#6C5F78"),
+        axis.text = element_text(colour = "#8A6470"),
         axis.title = element_text(colour = INK),
-        plot.subtitle = element_text(colour = "#6C5F78"),
+        plot.subtitle = element_text(colour = "#8A6470"),
         text = element_text(colour = INK),
         plot.title.position = "plot",
         legend.position = "bottom")
@@ -115,7 +117,22 @@ flip_card <- function(label, value, unit, back_title, back_text, tone) {
   )
 }
 
-finding <- function(colour, text) tags$li(style = paste0("--dot:", colour), text)
+# Numbers that count up when their page opens (see www/interactions.js).
+count_span <- function(x, digits = 0) {
+  span(class = "countup", `data-count` = x, `data-decimals` = digits,
+       if (digits == 0) fmt_int(x) else fmt(x, digits))
+}
+
+# Highlight the terms a reader should remember: method names and key phrases.
+KEY_TERMS <- c(METHODS, "recent weekday average", "linear regression", "seven-day lag",
+               "full-history weekday mean", "low-collection days", "overpredicts every one")
+emphasise <- function(text) {
+  pattern <- paste0("(", paste(unique(KEY_TERMS), collapse = "|"), ")")
+  parts <- regmatches(text, gregexpr(pattern, text, ignore.case = TRUE), invert = NA)[[1]]
+  tagList(lapply(seq_along(parts), function(i) if (i %% 2 == 0) tags$mark(parts[i]) else parts[i]))
+}
+
+finding <- function(colour, text) tags$li(style = paste0("--dot:", colour), emphasise(text))
 
 # ASCII-art blood drop. Characters get denser towards the lit side of the
 # drop; CSS fills them with a pastel mesh gradient.
@@ -171,11 +188,18 @@ rail <- tags$nav(
       }))
 )
 
+# The level indicator is a blood drop that fills as XP builds towards the
+# next level; the liquid surface is a gentle wave.
+DROP_PATH <- "M22 3 C22 3 7 20 7 30 a15 15 0 0 0 30 0 C37 20 22 3 22 3 Z"
 level_ring <- tags$svg(
-  class = "level-ring", viewBox = "0 0 44 44", `aria-hidden` = "true",
-  tags$circle(class = "ring-track", cx = "22", cy = "22", r = "18"),
-  tags$circle(class = "ring-fill", cx = "22", cy = "22", r = "18",
-              `stroke-dasharray` = "113.1", `stroke-dashoffset` = "113.1")
+  class = "level-drop", viewBox = "0 0 44 48", `aria-hidden` = "true",
+  tags$defs(tags$clipPath(id = "drop-clip", tags$path(d = DROP_PATH))),
+  tags$path(class = "drop-shell", d = DROP_PATH),
+  tags$g(`clip-path` = "url(#drop-clip)",
+         tags$g(class = "drop-liquid",
+                tags$path(class = "drop-wave",
+                          d = "M-44 6 q11 -5 22 0 t22 0 t22 0 t22 0 t22 0 V60 H-44 Z"))),
+  tags$path(class = "drop-gloss", d = "M15 24 q-2 6 1 11")
 )
 
 hud <- div(
@@ -260,7 +284,7 @@ ui <- page(
     tags$link(rel = "preconnect", href = "https://fonts.googleapis.com"),
     tags$link(rel = "preconnect", href = "https://fonts.gstatic.com", crossorigin = NA),
     tags$link(rel = "stylesheet", href = paste0(
-      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap")),
+      "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,500..800,100&family=Inter:wght@400;500;600;700;800&display=swap")),
     tags$link(rel = "stylesheet", href = "styles.css"),
     tags$script(src = "interactions.js", defer = NA)
   ),
@@ -273,7 +297,8 @@ ui <- page(
       div(class = "topbar",
           div(class = "topbar-meta",
               span(class = "live-dot", `aria-hidden` = "true"),
-              paste0("Data to ", fmt_date(DATA_END), ", refreshed daily from data.gov.my")),
+              paste0("Data to ", fmt_date(DATA_END), ". Refreshed ",
+                     format(dash$built, "%d %b"), " from data.gov.my")),
           hud),
       navset_hidden(
         id = "pages",
@@ -297,35 +322,42 @@ ui <- page(
                         tags$button(class = "btn-pill btn-ghost-glass", type = "button",
                                     `data-target` = "live", icon("tower-broadcast"),
                                     "See the latest data"))),
-                ascii_drop()),
-            div(class = "stage-2", flip_card(
+                ascii_drop(),
+                tags$svg(class = "ecg", viewBox = "0 0 600 60", preserveAspectRatio = "none",
+                         `aria-hidden` = "true",
+                         tags$path(d = paste("M0 34 H210 l12 0 l10 -22 l12 44 l10 -30 l8 8",
+                                             "H330 l8 -6 l8 6 H600")))),
+            div(class = "stage-2 drop-card",
+                style = sprintf("--fill:%.2f", min(1, dash$latest$latest_total /
+                  max(tail(dash$latest$daily$total, 60)))),
+                flip_card(
               paste0("Latest day, ", format(DATA_END, "%d %b")),
-              fmt_int(dash$latest$latest_total), "donations recorded",
+              count_span(dash$latest$latest_total), "donations recorded",
               "What this counts",
               paste("All four ABO groups, Selangor and W.P. Kuala Lumpur combined, on",
                     fmt_date(DATA_END), "- the newest day in the official data."),
-              "tone-peach")),
+              "tone-hero")),
             div(class = "stage-2", flip_card(
               "Recent weekday mean, MAE",
-              fmt(latest_mae("Recent weekday average")),
+              count_span(latest_mae("Recent weekday average"), 2),
               paste("donations per group-day,", LATEST_LABEL),
               "Recent weekday mean",
               paste("Predicts each day as the average for that blood group and weekday over",
-                    "the three complete years before it."), "tone-lilac")),
+                    "the three complete years before it."), "tone-best")),
             div(class = "stage-2", flip_card(
               "Linear regression, MAE",
-              fmt(latest_mae("Linear regression")),
+              count_span(latest_mae("Linear regression"), 2),
               paste("donations per group-day,", LATEST_LABEL),
               "Linear regression",
               paste("One model per blood group using weekday and a straight-line time trend,",
-                    "fitted on all earlier years."), "tone-mint")),
+                    "fitted on all earlier years."), "tone-glass")),
             div(class = "stage-2", flip_card(
               "Seven-day lag, MAE",
-              fmt(latest_mae("Seven-day baseline")),
+              count_span(latest_mae("Seven-day baseline"), 2),
               paste("donations per group-day,", LATEST_LABEL),
               "Seven-day lag",
               paste("Uses the count recorded one week earlier: the simplest benchmark the",
-                    "other methods have to beat."), "tone-rose")),
+                    "other methods have to beat."), "tone-glass")),
             card(class = "span-3 row-2 stage-3",
                  card_header("Pooled error by evaluation period (lower is better)"),
                  plotOutput("overview_plot", height = 380),
@@ -348,14 +380,12 @@ ui <- page(
                     paste0("The newest official data, to ", fmt_date(DATA_END),
                            ", with forecasts for the next seven days.")),
           div(class = "kpi-row stage-2",
-              kpi("Latest day", fmt_int(dash$latest$latest_total),
-                  paste("donations on", fmt_date(DATA_END)), "tone-peach"),
-              kpi("Last 7 days", fmt_int(dash$latest$last7),
-                  uiOutput("live_change7", inline = TRUE), "tone-lilac"),
-              kpi(paste0(format(DATA_END, "%Y"), " so far"), fmt_int(dash$latest$ytd),
-                  uiOutput("live_change_ytd", inline = TRUE), "tone-mint"),
-              kpi("Data refreshed", format(dash$built, "%d %b"),
-                  dash$audit$source, "tone-rose")),
+              kpi("Latest day", count_span(dash$latest$latest_total),
+                  paste("donations recorded on", fmt_date(DATA_END)), "kpi-hero"),
+              kpi("Last 7 days", count_span(dash$latest$last7),
+                  uiOutput("live_change7", inline = TRUE)),
+              kpi(paste0(format(DATA_END, "%Y"), " so far"), count_span(dash$latest$ytd),
+                  uiOutput("live_change_ytd", inline = TRUE))),
           section(
             "Recent days and the next seven",
             sub = paste("Recorded donations for the last 60 days, each method's forecast for",
@@ -509,7 +539,7 @@ ui <- page(
                           "eligibility on the day; check PDN for the latest requirements.")),
           section(
             "Can I donate?",
-            div(class = "fact-grid",
+            div(class = "fact-grid masonry",
                 lapply(ELIGIBILITY, function(e)
                   div(class = "fact glass",
                       span(class = "fact-icon", icon(e$icon)),
@@ -535,7 +565,7 @@ ui <- page(
             sub = paste("PDN's fixed donation centres. Mobile blood drives run across the",
                         "region; PDN publishes their locations."),
             class = "stage-3",
-            div(class = "centre-grid",
+            div(class = "centre-grid masonry",
                 lapply(DONATION_CENTRES, function(ct)
                   div(class = "centre glass",
                       span(class = "centre-icon", icon("location-dot")),
@@ -738,7 +768,7 @@ server <- function(input, output, session) {
     req(r)
     yr <- as.integer(format(r$date, "%Y"))
     div(class = "round-head",
-        span(class = paste0("group-chip group-", r$blood_type), r$blood_type),
+        span(class = paste0("group-chip group-", r$blood_type), span(r$blood_type)),
         div(class = "round-meta",
             div(class = "round-date", format(r$date, "%A %d %B %Y")),
             div(class = "round-hint",
@@ -836,7 +866,7 @@ server <- function(input, output, session) {
     ahead <- dash$next_days |> filter(blood_type == g)
     ggplot() +
       annotate("rect", xmin = DATA_END + 0.5, xmax = max(ahead$date) + 0.5,
-               ymin = -Inf, ymax = Inf, fill = "#E9DDF6", alpha = 0.6) +
+               ymin = -Inf, ymax = Inf, fill = "#FBE1E6", alpha = 0.6) +
       geom_line(data = past, aes(date, prediction, colour = factor(method, levels = METHODS)),
                 linewidth = 0.6, alpha = 0.85) +
       geom_line(data = ahead, aes(date, prediction, colour = factor(method, levels = METHODS)),

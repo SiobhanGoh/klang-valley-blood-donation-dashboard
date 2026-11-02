@@ -118,7 +118,7 @@
       var pane = document.querySelector(e.target.getAttribute("href"));
       var value = e.target.getAttribute("data-value");
       setActive(value);
-      if (pane) springIn(pane);
+      if (pane) { springIn(pane); setTimeout(function () { countUpIn(pane); }, 220); }
       window.dispatchEvent(new Event("resize"));   // let plots resize
     });
   }
@@ -225,19 +225,39 @@
   }
 
   // ---------- Count-up numbers ----------
-  function countTo(el, to, ms) {
+  function countTo(el, to, ms, decimals, from) {
     if (!el) return;
-    var from = parseFloat((el.textContent || "0").replace(/,/g, "")) || 0;
-    if (reduceMotion || from === to) { el.textContent = Math.round(to).toLocaleString(); return; }
+    decimals = decimals || 0;
+    var show = function (v) {
+      el.textContent = v.toLocaleString(undefined, { minimumFractionDigits: decimals,
+                                                     maximumFractionDigits: decimals });
+    };
+    if (from === undefined) from = parseFloat((el.textContent || "0").replace(/,/g, "")) || 0;
+    if (reduceMotion || from === to) { show(to); return; }
     var start = performance.now();
     function frame(now) {
       var t = Math.min(1, (now - start) / ms);
       var eased = 1 - Math.pow(1 - t, 3);
-      el.textContent = Math.round(from + (to - from) * eased).toLocaleString();
+      show(from + (to - from) * eased);
       if (t < 1) requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
   }
+
+  // Headline numbers count up from zero each time their page opens.
+  function countUpIn(root) {
+    $all(".countup", root).forEach(function (el, i) {
+      var to = parseFloat(el.getAttribute("data-count"));
+      if (isNaN(to)) return;
+      var dec = parseInt(el.getAttribute("data-decimals") || "0", 10);
+      el.classList.remove("is-counting"); void el.offsetWidth; el.classList.add("is-counting");
+      countTo(el, to, 1100, dec, 0);
+    });
+  }
+  window.addEventListener("load", function () {
+    var first = document.querySelector(".tab-pane.active");
+    if (first) setTimeout(function () { countUpIn(first); }, 250);
+  });
 
   // ---------- Guess readout follows the slider ----------
   // Shiny and ion.rangeSlider fire jQuery events, so listen through jQuery.
@@ -322,8 +342,9 @@
     $("#hud-level").textContent = m.level;
     $("#hud-streak").textContent = m.streak;
     $("#hud-badges").textContent = m.badges;
-    var ring = $(".ring-fill");
-    if (ring) ring.style.strokeDashoffset = (113.1 * (1 - m.progress)).toFixed(1);
+    // The level drop fills with liquid as XP builds towards the next level.
+    var liquid = $(".drop-liquid");
+    if (liquid) liquid.style.transform = "translateY(" + (46 - 40 * m.progress).toFixed(1) + "px)";
     (m.held || []).forEach(function (id) {
       var tile = $("#badge-" + id);
       if (tile) tile.classList.add("is-earned");
