@@ -42,37 +42,30 @@ A left rail (a bottom tab bar on phones) switches between sections:
 
 | Section | Contents |
 |---|---|
-| Overview | Latest day, headline errors as flip cards, pooled MAE by period and findings generated from the results |
+| Overview | Latest day and headline errors as flip cards, a four-chapter story index, pooled MAE by period and findings generated from the results |
 | Live tracker | Latest day, last 7 days and year to date against a year earlier; the last 60 days and a 7-day forecast |
-| Beat the forecast | A game: guess a real recent day's recorded donations and try to beat the four methods |
 | Compare methods | MAE/RMSE by period and blood group; actual vs predicted daily counts |
 | Low-collection days | Errors on days at or below each group's lower quartile from earlier years |
 | Patterns | Weekly, weekday and annual patterns, and the blood-type mix of donations by year |
 | Blood 101: Malaysia | Who can donate, the donation steps, aftercare, Klang Valley donation centres and a compatibility explorer, all sourced from Pusat Darah Negara and two national blood services |
 | About the data | Methods, what the regression learned, data audit, limits, source and licence |
 
-### Beat the forecast
-
-Each round shows a real date and blood group from the latest evaluation period. It also
-gives the typical range for that group and weekday over the previous three years, the
-window the recent weekday mean uses. You
-guess the recorded count, and the game compares your error with each method's:
-- 10 XP for each method you beat;
-- 15 XP more for landing within 10% of the actual count;
-- levels every 100 XP;
-- badges such as *Clean sweep* (beat all four) and *Low-day detective* (beat regression
-  on a low-collection day);
-- XP for exploring each section.
-
-Progress lasts for the browser session. Rounds replay past days; the game does not
-forecast future collections.
-
 ### Interface
 
-The interface uses frosted-glass cards on a pastel mesh gradient. The navigation rail
-expands on hover, and each section springs out of its icon when opened. A quick-action
-button gives shortcuts. The headline cards tilt and flip to explain each number. Motion is
-switched off for anyone who has "reduce motion" set on their device.
+Each section opens like a chapter of a story: its headline states the main finding,
+written from the current results so it stays true as the data changes. Short lines of
+narration lead from one chart to the next.
+
+Every chart is interactive: hover for exact values, and click a legend entry to hide
+a series. Bars rise and lines draw in as each chart appears. Filters are segmented
+switches and toggle chips. The navigation rail expands on hover and marks the open
+section in dark wine; on phones it becomes a bottom tab bar. The headline cards flip to
+show a breakdown. Motion is switched off for anyone who has "reduce motion" set on
+their device.
+
+The visual design combines two style references, Apple (one accent colour, pill
+controls, restrained shadows) and Oura (serif display type, warm canvas, soft cards,
+generous spacing), recoloured in a blood-red palette.
 
 ## Methods
 
@@ -115,7 +108,7 @@ blood group per day, pooled over the four groups.
 Requires R (≥ 4.3). Install the packages once:
 
 ```r
-install.packages(c("shiny", "bslib", "DT", "ggplot2", "dplyr", "tidyr",
+install.packages(c("shiny", "bslib", "DT", "plotly", "dplyr", "tidyr",
                    "readr", "lubridate", "janitor", "testthat"))
 ```
 
@@ -147,8 +140,7 @@ The tests also check:
 - that the next-7-day forecasts follow the method definitions;
 - that a failed download falls back safely;
 - that the claims written on the Overview tab hold;
-- the game's scoring, badges and levels;
-- a full simulated game round;
+- the blood-type compatibility rule;
 - that every app output renders. They run on each push via GitHub Actions.
 
 ## Repository layout
@@ -156,7 +148,7 @@ The tests also check:
 ```
 app.R                    Shiny UI and server
 R/analysis.R             Data loading (live or snapshot), forecasting and scoring (ported from the Rmd)
-R/game.R                 "Beat the forecast" rounds, scoring, badges and levels
+R/charts.R               Interactive charts (plotly) in one shared style
 R/content.R              Blood 101 facts (with sources) and the compatibility rule
 scripts/build_data.R     Downloads the latest CSV and precomputes results for the site
 .github/workflows/       Tests on every push; daily data refresh and Pages deployment

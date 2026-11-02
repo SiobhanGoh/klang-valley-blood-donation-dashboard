@@ -39,7 +39,7 @@ jobs:
             any::shiny
             any::bslib
             any::DT
-            any::ggplot2
+            any::plotly
             any::dplyr
             any::tidyr
             any::readr
