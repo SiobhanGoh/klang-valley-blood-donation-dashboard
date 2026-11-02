@@ -424,12 +424,17 @@ compat_flow <- function(t) {
     sprintf("%s can receive from %d types and give to %d.", t, length(ins), length(outs))
   }
   div(class = "cf",
-      tags$svg(class = "cf-svg", viewBox = sprintf("0 0 %d %d", W, H), role = "img",
+      tags$svg(class = "cf-svg", viewBox = sprintf("0 -6 %d %d", W, H + 56), role = "img",
                `aria-label` = sprintf("%s receives red cells from %s and gives to %s", t,
                                       paste(cmp$receives_from, collapse = ", "),
                                       paste(cmp$gives_to, collapse = ", ")),
                tags$text(class = "cf-head", x = lx, y = 14, `text-anchor` = "middle", "Receives from"),
                tags$text(class = "cf-head", x = rx, y = 14, `text-anchor` = "middle", "Gives to"),
+               tags$text(class = "cf-count in", x = lx, y = H + 34, `text-anchor` = "middle",
+                         tags$tspan(class = "cf-count-num", length(ins)), " of 8 types"),
+               tags$text(class = "cf-count out", x = rx, y = H + 34, `text-anchor` = "middle",
+                         tags$tspan(class = "cf-count-num", length(outs)), " of 8 types"),
+               tags$path(class = "cf-stem", d = sprintf("M%.1f %.1f V%.1f", cx, cy + 46, H + 44)),
                lapply(seq_along(ins), function(k) link(lx + 14, ys[ins[k]], cx - 46, cy, k, "in")),
                lapply(seq_along(outs), function(k) link(cx + 46, cy, rx - 14, ys[outs[k]], k + length(ins), "out")),
                lapply(seq_along(BLOOD_TYPES), function(i)
@@ -440,10 +445,7 @@ compat_flow <- function(t) {
                       tags$circle(class = "cf-halo", r = 58),
                       tags$path(d = "M0 -48 C0 -48 -34 -8 -34 14 a34 34 0 0 0 68 0 C34 -8 0 -48 0 -48 Z"),
                       tags$text(y = 22, `text-anchor` = "middle", t))),
-      div(class = "cf-summary",
-          div(class = "cf-stat", span(class = "cf-num", length(ins)), span("of 8 types it can receive from")),
-          div(class = "cf-stat", span(class = "cf-num", length(outs)), span("of 8 types it can give to")),
-          p(class = "cf-note", note)))
+      p(class = "cf-note", note))
 }
 
 region_view <- function(r) {
