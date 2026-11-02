@@ -360,6 +360,22 @@
     bar.style.transform = "scaleX(" + (max > 0 ? Math.min(1, window.scrollY / max) : 0) + ")";
   }, { passive: true });
 
+
+  // ---------- The aurora leans gently towards the pointer ----------
+  if (!reduceMotion && window.matchMedia("(hover: hover)").matches) {
+    document.addEventListener("pointermove", function (e) {
+      var head = e.target.closest && e.target.closest(".chapter-head, .intro");
+      $all(".tab-pane.active .aurora").forEach(function (orb) {
+        if (!head) { orb.style.setProperty("--mx", "0px"); orb.style.setProperty("--my", "0px"); return; }
+        var r = orb.getBoundingClientRect();
+        var dx = (e.clientX - (r.left + r.width / 2)) / window.innerWidth;
+        var dy = (e.clientY - (r.top + r.height / 2)) / window.innerHeight;
+        orb.style.setProperty("--mx", (dx * 80).toFixed(1) + "px");
+        orb.style.setProperty("--my", (dy * 60).toFixed(1) + "px");
+      });
+    }, { passive: true });
+  }
+
   // ---------- Count-up numbers ----------
   function countTo(el, to, ms, decimals, from) {
     if (!el) return;

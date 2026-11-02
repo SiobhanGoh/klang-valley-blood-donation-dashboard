@@ -239,43 +239,23 @@ chapter_head <- function(id, headline, subtitle = NULL, stat = NULL) {
               span(class = "chapter-name", sct$label)),
           h2(class = "chapter-title", headline),
           if (!is.null(subtitle)) p(class = "chapter-sub", subtitle)),
-      div(class = paste("chapter-art", paste0("art-", id), if (!is.null(stat)) "has-stat"),
-          chapter_art(id),
-          if (!is.null(stat)) div(class = "chapter-stat", stat)))
+      chapter_art(id),
+      if (!is.null(stat)) div(class = "chapter-stat", stat))
 }
 
-# A small looping illustration for each chapter (decorative).
+# A soft aurora of drifting colour behind each chapter headline (decorative). It
+# fades into the page canvas, so it reads as part of the background.
 chapter_art <- function(id) {
-  svg <- function(...) tags$svg(class = "art-svg", viewBox = "0 0 240 160", `aria-hidden` = "true", ...)
-  drop <- "M0 -26 C0 -26 -18 -4 -18 8 a18 18 0 0 0 36 0 C18 -4 0 -26 0 -26 Z"
-  switch(id,
-    live = svg(
-      tags$path(class = "art-grid", d = "M0 120 H240 M0 80 H240 M0 40 H240"),
-      tags$path(class = "art-ecg", d = "M0 92 H70 l10 0 l8 -40 l12 70 l10 -52 l8 22 H150 l8 -10 l8 10 H240"),
-      tags$circle(class = "art-ping", cx = "200", cy = "92", r = "6")),
-    compare = svg(lapply(seq_len(4), function(i)
-      tags$rect(class = paste0("art-bar b", i), x = 28 + (i - 1) * 50, y = 30, width = 32,
-                height = 110, rx = 8))),
-    low = svg(
-      tags$path(class = "art-grid", d = "M0 130 H240"),
-      lapply(seq_len(3), function(i)
-        tags$g(transform = sprintf("translate(%d 24)", 60 + (i - 1) * 60),
-               tags$g(class = paste0("art-fall f", i), tags$path(d = drop))))),
-    patterns = svg(
-      tags$path(class = "art-wave w1", d = "M-40 90 C0 50 40 50 80 90 S160 130 200 90 S280 50 320 90"),
-      tags$path(class = "art-wave w2", d = "M-40 105 C0 75 40 75 80 105 S160 135 200 105 S280 75 320 105")),
-    blood101 = svg(
-      tags$defs(tags$clipPath(id = "art-drop-clip",
-                              tags$path(transform = "translate(120 92) scale(2.4)", d = drop))),
-      tags$path(class = "art-drop-shell", transform = "translate(120 92) scale(2.4)", d = drop),
-      tags$g(`clip-path` = "url(#art-drop-clip)",
-             tags$path(class = "art-drop-fill",
-                       d = "M40 100 Q70 90 100 100 T160 100 T220 100 V170 H40 Z"))),
-    about = svg(
-      tags$circle(class = "art-ring r1", cx = "120", cy = "80", r = "58"),
-      tags$circle(class = "art-ring r2", cx = "120", cy = "80", r = "38"),
-      tags$circle(class = "art-core", cx = "120", cy = "80", r = "10")),
-    NULL)
+  ribbon <- function(cls, y, amp) {
+    d <- sprintf("M-200 %d C 0 %d, 200 %d, 400 %d S 800 %d, 1000 %d S 1400 %d, 1600 %d",
+                 y, y - amp, y + amp, y, y - amp, y, y + amp, y)
+    tags$path(class = cls, d = d)
+  }
+  div(class = paste("aurora", paste0("aurora-", id)), `aria-hidden` = "true",
+      div(class = "au au1"), div(class = "au au2"), div(class = "au au3"), div(class = "au au4"),
+      tags$svg(class = "silk", viewBox = "0 0 1200 300", preserveAspectRatio = "none",
+               ribbon("s1", 150, 70), ribbon("s2", 170, 50), ribbon("s3", 130, 90),
+               ribbon("s4", 190, 40)))
 }
 story_card <- function(target, title, value, text) {
   sct <- SECTIONS[[match(target, vapply(SECTIONS, `[[`, "", "id"))]]

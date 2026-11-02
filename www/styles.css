@@ -1423,44 +1423,39 @@ html.reveal-ready .reveal.is-in {
   box-shadow: 0 6px 14px rgba(94, 20, 40, 0.25);
 }
 
-/* Chapter art beside the headline */
-.chapter-head { grid-template-columns: minmax(0, 1fr) minmax(220px, 320px); align-items: center; }
-.chapter-art { position: relative; height: 200px; display: grid; place-items: center; }
-.art-svg { width: 100%; height: 100%; overflow: visible; }
-.chapter-art.has-stat .art-svg { position: absolute; inset: 0; opacity: 0.55; }
-.chapter-art.has-stat .chapter-stat { position: relative; z-index: 1; }
-.art-grid { stroke: var(--surface-3); stroke-width: 1.5; fill: none; }
-.art-ecg {
-  fill: none; stroke: var(--wine); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round;
-  stroke-dasharray: 420; stroke-dashoffset: 420; animation: art-trace 3.2s var(--ease-out) infinite;
+/* Chapter art: an aurora that drifts behind the headline and melts into the canvas */
+.chapter-head { position: relative; isolation: isolate; grid-template-columns: minmax(0, 1fr) auto; align-items: end; min-height: 240px; }
+.chapter-head > :not(.aurora) { position: relative; z-index: 1; }
+.aurora {
+  --mx: 0px; --my: 0px;
+  position: absolute; z-index: 0; pointer-events: none;
+  top: -70px; right: -48px; width: min(820px, 72%); height: calc(100% + 120px);
+  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 68% 45%, #000 20%, transparent 72%);
+          mask-image: radial-gradient(ellipse 70% 65% at 68% 45%, #000 20%, transparent 72%);
 }
-@keyframes art-trace { 0% { stroke-dashoffset: 420; } 60%, 100% { stroke-dashoffset: 0; } }
-.art-ping { fill: var(--wine); transform-box: fill-box; transform-origin: center; animation: art-ping 3.2s ease-out infinite; }
-@keyframes art-ping { 0%, 55% { opacity: 0; transform: scale(0.4); } 65% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0; transform: scale(2.4); } }
-.art-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: art-bars 3.6s var(--ease-out) infinite alternate; }
-.art-bar.b1 { fill: #F2C2CC; animation-delay: 0s; }
-.art-bar.b2 { fill: #E3909F; animation-delay: .25s; }
-.art-bar.b3 { fill: #C45A72; animation-delay: .5s; }
-.art-bar.b4 { fill: #7D2440; animation-delay: .75s; }
-@keyframes art-bars { 0% { transform: scaleY(0.95); } 50% { transform: scaleY(0.55); } 100% { transform: scaleY(0.35); } }
-.art-fall path { fill: var(--rose); }
-.art-fall { animation: art-fall 2.8s cubic-bezier(.55, 0, .7, .4) infinite; }
-.art-fall.f2 { animation-delay: .9s; }
-.art-fall.f3 { animation-delay: 1.8s; }
-@keyframes art-fall { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(104px); opacity: 0; } }
-.art-wave { fill: none; stroke-width: 5; stroke-linecap: round; animation: art-wave 6s ease-in-out infinite alternate; }
-.art-wave.w1 { stroke: var(--wine); }
-.art-wave.w2 { stroke: var(--rose); opacity: .6; animation-duration: 4.5s; animation-direction: alternate-reverse; }
-@keyframes art-wave { from { transform: translateX(-40px); } to { transform: translateX(0); } }
-.art-drop-shell { fill: var(--blush); }
-.art-drop-fill { fill: var(--wine); animation: art-fill 4.5s cubic-bezier(.45,0,.2,1) infinite; }
-@keyframes art-fill { 0% { transform: translate(-30px, 60px); } 70%, 100% { transform: translate(0, -18px); } }
-.art-ring { fill: none; stroke-width: 3; stroke-dasharray: 14 10; transform-box: fill-box; transform-origin: center; }
-.art-ring.r1 { stroke: var(--rose); animation: art-spin 18s linear infinite; }
-.art-ring.r2 { stroke: var(--wine); animation: art-spin 11s linear infinite reverse; }
-.art-core { fill: var(--wine-deep); animation: art-beat 1.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
-@keyframes art-spin { to { transform: rotate(360deg); } }
-@keyframes art-beat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.35); } 30% { transform: scale(1); } 45% { transform: scale(1.2); } }
+.au {
+  position: absolute; border-radius: 50%;
+  filter: blur(56px); opacity: 0.55; mix-blend-mode: multiply;
+  translate: var(--mx) var(--my);
+  transition: translate 2.4s cubic-bezier(.22, 1, .36, 1);
+}
+.au1 { width: 46%; height: 70%; left: 30%; top: 10%; background: #F2B3C0; animation: au-a 26s ease-in-out infinite alternate; }
+.au2 { width: 38%; height: 58%; left: 52%; top: 26%; background: #E07D93; animation: au-b 32s ease-in-out infinite alternate; }
+.au3 { width: 30%; height: 46%; left: 64%; top: 4%; background: #C45A72; opacity: 0.35; animation: au-c 22s ease-in-out infinite alternate; }
+.au4 { width: 40%; height: 50%; left: 18%; top: 42%; background: #F6DCE1; opacity: 0.8; animation: au-d 38s ease-in-out infinite alternate; }
+@keyframes au-a { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(14%, 10%) scale(1.15); } 100% { transform: translate(-10%, 6%) scale(0.92); } }
+@keyframes au-b { 0% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-18%, -12%) scale(1.2); } 100% { transform: translate(8%, 14%) scale(0.95); } }
+@keyframes au-c { 0% { transform: translate(0, 0) scale(0.9); } 100% { transform: translate(-30%, 40%) scale(1.25); } }
+@keyframes au-d { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(40%, -20%) scale(1.1); } }
+/* Each chapter leans the aurora a little differently, so they feel related but not identical. */
+.aurora-compare .au2 { background: #C45A72; }
+.aurora-low { right: auto; left: 30%; }
+.aurora-patterns .au1 { background: #F9C7B6; }
+.aurora-blood101 .au3 { background: #A3213F; opacity: 0.3; }
+.aurora-about .au2 { background: #F2B3C0; }
+.chapter-stat { align-self: end; }
+@media (prefers-reduced-motion: reduce) { .au { animation: none !important; } }
+@media (max-width: 760px) { .aurora { width: 100%; right: -30%; opacity: 0.8; } .chapter-head { min-height: 0; } }
 
 /* Overview story cards: icon instead of a number */
 .story-icon {
@@ -1571,10 +1566,24 @@ html.reveal-ready .reveal.is-in {
 
 @media (max-width: 980px) {
   .chapter-head { grid-template-columns: minmax(0, 1fr); }
-  .chapter-art { height: 150px; max-width: 320px; }
-  .chapter-art:not(.has-stat) { display: none; }
   .cf { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   .art-ecg { stroke-dashoffset: 0; }
 }
+.app-shell { overflow-x: clip; }
+/* Aurora, refined: lighter washes plus slow silk ribbons */
+.au { filter: blur(70px); opacity: 0.42; }
+.au1 { width: 60%; height: 60%; }
+.au2 { width: 46%; height: 52%; opacity: 0.34; }
+.au3 { opacity: 0.22; }
+.au4 { opacity: 0.7; }
+.silk { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.silk path { fill: none; stroke-linecap: round; animation: silk 18s ease-in-out infinite alternate; }
+.silk .s1 { stroke: rgba(163, 33, 63, 0.22); stroke-width: 1.6; }
+.silk .s2 { stroke: rgba(224, 125, 147, 0.35); stroke-width: 1.2; animation-duration: 23s; animation-direction: alternate-reverse; }
+.silk .s3 { stroke: rgba(196, 90, 114, 0.18); stroke-width: 1; animation-duration: 27s; }
+.silk .s4 { stroke: rgba(242, 179, 192, 0.5); stroke-width: 2; animation-duration: 31s; animation-direction: alternate-reverse; }
+@keyframes silk { from { transform: translateX(-180px) scaleY(0.85); } to { transform: translateX(40px) scaleY(1.2); } }
+@media (prefers-reduced-motion: reduce) { .silk path { animation: none !important; } }
+.silk path { transform-box: fill-box; transform-origin: center; }
