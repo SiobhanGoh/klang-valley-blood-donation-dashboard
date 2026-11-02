@@ -109,6 +109,8 @@
   document.addEventListener("change", function (e) {
     var seg = e.target.closest && e.target.closest(".seg");
     if (seg) placeThumb(seg);
+    // Switching report type reveals other controls; place their thumbs once visible.
+    if (e.target.name === "report_type") setTimeout(function () { $all(".seg").forEach(placeThumb); }, 80);
   });
   if (window.jQuery) {
     jQuery(document).on("shiny:connected shiny:bound", function () {
@@ -406,6 +408,63 @@
       setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
     });
   }
+
+
+  // ---------- Donation journey lights up one step at a time ----------
+  function runJourney(svg) {
+    if (svg.__journey) return;
+    svg.__journey = true;
+    var steps = $all(".jr-step", svg), bar = $(".jr-progress", svg), n = steps.length, k = 0;
+    if (reduceMotion) { steps.forEach(function (s) { s.classList.add("is-lit"); }); if (bar) bar.style.strokeDashoffset = 0; return; }
+    function tick() {
+      if (!document.body.contains(svg)) return;
+      if (k === n) {   // hold the finished path, then start again
+        k = -1;
+        setTimeout(tick, 2200);
+        return;
+      }
+      if (k === -1) {
+        steps.forEach(function (s) { s.classList.remove("is-lit"); });
+        bar.style.strokeDashoffset = 100;
+        k = 0;
+        setTimeout(tick, 700);
+        return;
+      }
+      steps[k].classList.add("is-lit");
+      bar.style.strokeDashoffset = 100 - 100 * (k / Math.max(1, n - 1));
+      k += 1;
+      setTimeout(tick, 950);
+    }
+    tick();
+  }
+  if ("IntersectionObserver" in window) {
+    var jObs = new IntersectionObserver(function (es) {
+      es.forEach(function (e) { if (e.isIntersecting) { runJourney(e.target); jObs.unobserve(e.target); } });
+    }, { threshold: 0.4 });
+    document.addEventListener("DOMContentLoaded", function () { $all(".journey").forEach(function (s) { jObs.observe(s); }); });
+  }
+
+  // ---------- Sources & notes drawer ----------
+  var lastFocus = null;
+  function openDrawer() {
+    var d = $("#sources-drawer"); if (!d) return;
+    lastFocus = document.activeElement;
+    d.classList.add("is-open"); d.setAttribute("aria-hidden", "false");
+    document.documentElement.classList.add("drawer-open");
+    var c = $(".drawer-close", d); if (c) setTimeout(function () { c.focus(); }, 60);
+    closeQuickActions();
+  }
+  function closeDrawer() {
+    var d = $("#sources-drawer"); if (!d || !d.classList.contains("is-open")) return;
+    d.classList.remove("is-open"); d.setAttribute("aria-hidden", "true");
+    document.documentElement.classList.remove("drawer-open");
+    if (lastFocus) lastFocus.focus();
+  }
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("[data-open='sources']")) { e.preventDefault(); e.stopPropagation(); openDrawer(); return; }
+    if (e.target.closest("[data-close='sources']")) { closeDrawer(); }
+  }, true);
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeDrawer(); });
 
   // ---------- Count-up numbers ----------
   function countTo(el, to, ms, decimals, from) {

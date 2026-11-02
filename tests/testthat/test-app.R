@@ -51,7 +51,7 @@ test_that("all app outputs render and headline values match the report", {
                         rep_dates = as.Date(c("2025-01-01", "2025-01-31")), rep_extra = "forecasts")
       expect_match(as.character(output$report_preview$html), "31 in this extract", fixed = TRUE)
       session$setInputs(report_type = "card", card_type = "O-", card_region = "Northern",
-                        card_last = as.Date("2025-10-01"))
+                        card_day = "1", card_month = "10", card_year = "2025")
       card <- as.character(output$report_preview$html)
       expect_match(card, "universal red-cell donor", fixed = TRUE)
       expect_match(card, "1 January 2026", fixed = TRUE)

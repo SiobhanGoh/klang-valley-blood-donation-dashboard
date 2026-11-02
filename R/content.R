@@ -75,6 +75,8 @@ DONATION_STEP_NOTES <- c(NA, "Weight, blood group and haemoglobin", NA,
 AFTERCARE_TITLES <- c("Refreshments", "Extra water", "No alcohol", "Stay out of the sun",
                       "Take it easy", "Feeling dizzy?")
 
+AFTERCARE_ART <- c("cup", "water", "noalcohol", "sun", "rest", "dizzy")
+
 AFTERCARE <- c(
   "Eat and drink the refreshments provided before you leave.",
   "Drink extra water for the rest of the day.",

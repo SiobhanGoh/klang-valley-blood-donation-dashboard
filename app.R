@@ -297,6 +297,8 @@ chapter_nav <- function(id) {
   i <- match(id, ids)
   nxt <- if (i < length(SECTIONS)) SECTIONS[[i + 1]] else SECTIONS[[1]]
   div(class = "chapter-nav",
+      tags$button(class = "link-btn chapter-sources", type = "button", `data-open` = "sources",
+                  icon("book-open"), "Sources & notes"),
       tags$button(class = "chapter-next", type = "button", `data-target` = nxt$id,
                   span(class = "cn-label", if (i < length(SECTIONS)) "Next" else "Back to the start"),
                   span(class = "cn-name", nxt$label), icon("arrow-right")))
@@ -386,6 +388,8 @@ quick_actions <- div(
       tags$button(class = "qa-item", type = "button", role = "menuitem",
                   `data-target` = "blood101", icon("hand-holding-medical"),
                   span("Can I donate?")),
+      tags$button(class = "qa-item", type = "button", role = "menuitem",
+                  `data-open` = "sources", icon("book-open"), span("Sources & notes")),
       tags$button(class = "qa-item", type = "button", role = "menuitem",
                   `data-target` = "overview", icon("droplet"), span("Back to overview")))
 )
@@ -489,6 +493,53 @@ region_view <- function(r) {
 source("R/reports.R", local = TRUE)
 source("R/visuals.R", local = TRUE)
 
+# Every source and footnote in one drawer, so they never interrupt the story.
+sources_drawer <- div(
+  class = "drawer", id = "sources-drawer", role = "dialog", `aria-modal` = "true",
+  `aria-labelledby` = "drawer-title", `aria-hidden` = "true",
+  div(class = "drawer-scrim", `data-close` = "sources"),
+  div(class = "drawer-panel",
+      div(class = "drawer-head",
+          h2(id = "drawer-title", "Sources & notes"),
+          tags$button(class = "drawer-close", type = "button", `data-close` = "sources",
+                      `aria-label` = "Close", icon("xmark"))),
+      div(class = "drawer-body",
+          h3("The data"),
+          p(HTML(paste0(
+            "Government of Malaysia. <em>Daily Blood Donations by Blood Group &amp; State</em>. ",
+            "data.gov.my. <a href=\"https://data.gov.my/data-catalogue/blood_donations_state\" ",
+            "target=\"_blank\" rel=\"noopener\">Catalogue page</a>. Open data under the ",
+            "<a href=\"https://creativecommons.org/licenses/by/4.0/\" target=\"_blank\" ",
+            "rel=\"noopener\">Creative Commons Attribution 4.0 licence</a>. Refreshed daily."))),
+          p("Records come from the Blood Bank Information System of 22 main Ministry of Health ",
+            "collection sites, which cover most but not all national donations. W.P. Kuala Lumpur ",
+            "includes Putrajaya and mobile campaigns around Selangor, so the two regions are combined."),
+          h3("Blood 101"),
+          p("Summarised in our own words; accessed 2 November 2026. Requirements can change, so ",
+            "check Pusat Darah Negara before donating."),
+          tags$ul(class = "source-list",
+            tags$li(source_link(PDN_SOURCES$booklet)),
+            tags$li(source_link(PDN_SOURCES$az)),
+            tags$li(source_link(PDN_SOURCES$centres)),
+            tags$li(source_link(COMPAT_SOURCES$nhsbt)),
+            tags$li(source_link(COMPAT_SOURCES$hemaq))),
+          h3("Notes"),
+          tags$ul(class = "note-list",
+            tags$li("The reasons to wait are examples only. PDN's A–Z list covers many more ",
+                    "conditions and medicines."),
+            tags$li("The compatibility explorer is a simplified educational guide to red-cell ABO and ",
+                    "RhD compatibility. Real transfusions are matched in a laboratory and decided by ",
+                    "clinicians. The donation data records ABO groups only, not RhD."),
+            tags$li("A lower-quartile count is not a clinical shortage threshold, and nothing here ",
+                    "forecasts blood demand, stock or shortage.")),
+          h3("Where this comes from"),
+          p("This dashboard extends the BloodReady AI analysis submitted for FIT5145 Foundations of ",
+            "Data Science (Monash University, 2026). The repository's tests check that the methods ",
+            "reproduce that report's results on its frozen snapshot."),
+          p(a("Source code on GitHub", href = "https://github.com/SiobhanGoh/klang-valley-blood-donation-dashboard",
+              target = "_blank", rel = "noopener"), " (MIT licence).")))
+)
+
 # --- UI -------------------------------------------------------------------------------
 
 ui <- page(
@@ -502,7 +553,7 @@ ui <- page(
     tags$meta(name = "description", content = paste(
       "Daily blood donation collections in the Klang Valley, Malaysia: live data,",
       "four forecasting methods compared, and general blood donation information.")),
-    tags$link(rel = "icon", href = "data:,"),
+    tags$link(rel = "icon", type = "image/svg+xml", href = "favicon.svg"),
     tags$link(rel = "preconnect", href = "https://fonts.googleapis.com"),
     tags$link(rel = "preconnect", href = "https://fonts.gstatic.com", crossorigin = NA),
     tags$link(rel = "stylesheet", href = paste0(
@@ -765,8 +816,9 @@ ui <- page(
                 h4("Some reasons to wait"),
                 tags$ul(lapply(DEFERRAL_EXAMPLES, function(d)
                   tags$li(strong(d$what), span(d$wait)))),
-                p(class = "fine-print",
-                  "Examples only. PDN's A–Z list covers many more conditions and medicines."))),
+                p(class = "viz-note", "Examples only. ",
+                  tags$button(class = "link-btn", type = "button", `data-open` = "sources",
+                              "Sources & notes")))),
           narrate("On the day, a donation follows the same six steps."),
           section("How a donation works",
                   viz(journey(Map(function(t, s) list(title = t, sub = s), DONATION_STEP_TITLES, DONATION_STEP_NOTES),
@@ -774,7 +826,8 @@ ui <- page(
                       tags$ol(class = "steps", lapply(DONATION_STEPS, tags$li)))),
           section("After donating",
                   viz(mindmap(c("After", "you give"),
-                              Map(function(t, s) list(title = t, sub = s), AFTERCARE_TITLES, AFTERCARE),
+                              Map(function(t, s, k) list(title = t, sub = s, art = k),
+                                  AFTERCARE_TITLES, AFTERCARE, AFTERCARE_ART),
                               label = paste(AFTERCARE, collapse = " ")),
                       tags$ul(class = "aftercare", lapply(AFTERCARE, tags$li)))),
           narrate("Where to go, wherever you are in Malaysia."),
@@ -795,19 +848,9 @@ ui <- page(
                               type = "button", `data-type` = t, role = "radio",
                               `aria-checked` = if (t == "O+") "true" else "false", t))),
             uiOutput("compat_result"),
-            p(class = "fine-print",
-              "A simplified educational guide to red-cell ABO and RhD compatibility. Real ",
-              "transfusions are matched in a laboratory and decided by clinicians. The donation ",
-              "data records ABO groups only, not RhD.")),
-          section(
-            "Sources",
-            sub = "Summarised in our own words; accessed 2 November 2026.",
-            tags$ul(class = "source-list",
-              tags$li(source_link(PDN_SOURCES$booklet)),
-              tags$li(source_link(PDN_SOURCES$az)),
-              tags$li(source_link(PDN_SOURCES$centres)),
-              tags$li(source_link(COMPAT_SOURCES$nhsbt)),
-              tags$li(source_link(COMPAT_SOURCES$hemaq)))),
+            p(class = "viz-note", "A simplified guide, not medical advice. ",
+              tags$button(class = "link-btn", type = "button", `data-open` = "sources",
+                          "Sources & notes"))),
           chapter_nav("blood101")
         ),
 
@@ -873,22 +916,6 @@ ui <- page(
                   tags$li("Zero counts are kept; they may be closures or reporting gaps."),
                   tags$li("The official data can be revised, so past numbers may change slightly ",
                           "between daily refreshes.")))),
-          section(
-            "Source, licence and origin",
-            div(class = "prose",
-                p(HTML(paste0(
-                  "Government of Malaysia. <em>Daily Blood Donations by Blood Group &amp; State</em>. ",
-                  "data.gov.my. <a href=\"https://data.gov.my/data-catalogue/blood_donations_state\" ",
-                  "target=\"_blank\" rel=\"noopener\">Catalogue page</a>. Open data under the ",
-                  "<a href=\"https://creativecommons.org/licenses/by/4.0/\" target=\"_blank\" ",
-                  "rel=\"noopener\">Creative Commons Attribution 4.0 licence</a>."))),
-                p("Records come from the Blood Bank Information System of 22 main Ministry of ",
-                  "Health collection sites, which cover most but not all national donations. ",
-                  "W.P. Kuala Lumpur includes Putrajaya and mobile campaigns around Selangor, ",
-                  "so the two regions are combined."),
-                p("This dashboard extends the BloodReady AI analysis submitted for FIT5145 ",
-                  "Foundations of Data Science (Monash University, 2026). The repository's tests ",
-                  "check that the methods reproduce that report's results on its frozen snapshot."))),
           chapter_nav("about")
         ),
 
@@ -923,9 +950,20 @@ ui <- page(
                       conditionalPanel("input.report_type == 'card'",
                         seg("card_type", "My blood type", BLOOD_TYPES, "O+"),
                         seg("card_region", "My region", names(MALAYSIA_REGIONS), "Central"),
-                        div(class = "control",
-                            span(class = "control-label", "Last donation (optional)"),
-                            dateInput("card_last", NULL, value = NA, max = Sys.Date()))),
+                        tags$details(class = "date-pick",
+                            tags$summary(span(class = "control-label", "Last donation (optional)"),
+                                         uiOutput("card_last_label", inline = TRUE)),
+                            div(class = "date-pick-row",
+                                selectInput("card_day", "Day", c("Day" = "", 1:31), selectize = FALSE),
+                                selectInput("card_month", "Month",
+                                            c("Month" = "", setNames(1:12, month.name)), selectize = FALSE),
+                                selectInput("card_year", "Year",
+                                            c("Year" = "", as.character(seq(as.integer(format(Sys.Date(), "%Y")),
+                                                                              by = -1, length.out = 6))),
+                                            selectize = FALSE)),
+                            div(class = "date-pick-foot",
+                                uiOutput("card_last_check", inline = TRUE),
+                                actionLink("card_clear", "Clear")))),
                       div(class = "report-actions",
                           tags$button(class = "btn-pill btn-primary-solid js-print", type = "button",
                                       icon("file-pdf"), "Save as PDF"),
@@ -939,7 +977,8 @@ ui <- page(
         )
       )
     ),
-    quick_actions
+    quick_actions,
+    sources_drawer
   )
 )
 
@@ -1016,10 +1055,32 @@ server <- function(input, output, session) {
         t <- if (is.null(input$card_type) || !input$card_type %in% BLOOD_TYPES) "O+" else input$card_type
         r <- if (is.null(input$card_region) || !input$card_region %in% names(MALAYSIA_REGIONS)) "Central"
              else input$card_region
-        last <- input$card_last
-        report_card(t, r, if (length(last) && !is.na(last)) last else NULL)
+        last <- card_last()
+        report_card(t, r, if (!is.null(last) && !is.na(last)) last else NULL)
       })
   })
+  card_last <- reactive({
+    d <- suppressWarnings(as.integer(input$card_day)); m <- suppressWarnings(as.integer(input$card_month))
+    y <- suppressWarnings(as.integer(input$card_year))
+    if (any(is.na(c(d, m, y))) || !length(c(d, m, y)) ) return(NULL)
+    dt <- suppressWarnings(as.Date(sprintf("%04d-%02d-%02d", y, m, d)))
+    if (is.na(dt) || dt > Sys.Date()) return(NA)
+    dt
+  })
+  output$card_last_label <- renderUI({
+    v <- card_last()
+    span(class = "date-pick-value",
+         if (is.null(v)) "Not set" else if (is.na(v)) "Check the date" else format(v, "%a %e %b %Y"))
+  })
+  output$card_last_check <- renderUI({
+    v <- card_last()
+    if (!is.null(v) && is.na(v)) span(class = "date-pick-warn", icon("circle-exclamation"),
+                                     "That date doesn't exist or is in the future.")
+  })
+  observeEvent(input$card_clear, {
+    for (id in c("card_day", "card_month", "card_year")) updateSelectInput(session, id, selected = "")
+  })
+
   observeEvent(input$csv_go, {
     d <- rep_dates()
     df <- data_extract(if (is.null(input$rep_group)) "all" else input$rep_group, d[1], d[2],

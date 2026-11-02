@@ -61,9 +61,11 @@ mindmap <- function(centre, branches, label, key = NULL) {
     tags$g(class = paste("mm-node", side, if (on) "is-on" else "is-off"),
            style = sprintf("--d:%dms", 90 * i),
            if (!is.null(b$tip)) tags$title(b$tip),
-           tags$path(transform = sprintf("translate(%.1f %.1f)", x, y), d = DROP_D),
-           svg_label(if (side == "left") x - 22 else x + 22, y - 2, b$title, b$sub,
-                     anchor = if (side == "left") "end" else "start"))
+           if (is.null(b$art)) tags$path(transform = sprintf("translate(%.1f %.1f)", x, y), d = DROP_D)
+           else tags$g(class = "art-badge", transform = sprintf("translate(%.1f %.1f)", x, y),
+                       tags$circle(class = "art-bg", r = 28), art_icon(b$art)),
+           svg_label(if (side == "left") x - (if (is.null(b$art)) 22 else 40) else x + (if (is.null(b$art)) 22 else 40),
+                     y - 2, b$title, b$sub, anchor = if (side == "left") "end" else "start"))
   }
   links <- c(
     lapply(seq_along(left), function(k) flow_link(cx - 70, cy, lx + 14, yl[k], k, "in")),
@@ -90,10 +92,11 @@ journey <- function(steps, label) {
                  }, ""), collapse = ""))
   tags$svg(class = "mm-svg journey", viewBox = sprintf("0 0 %d %d", W, H), role = "img", `aria-label` = label,
            tags$path(class = "jr-track", d = path),
-           tags$path(class = "cf-link out jr-flow", d = path, style = "--d:0ms"),
+           tags$path(class = "jr-progress", d = path, pathLength = "100"),
            lapply(seq_len(n), function(i) {
              above <- i %% 2 == 1
              tags$g(class = "jr-step", style = sprintf("--d:%dms", 120 * i),
+                    tags$circle(class = "jr-ring", cx = xs[i], cy = ys[i], r = 20),
                     tags$circle(class = "jr-dot", cx = xs[i], cy = ys[i], r = 20),
                     tags$text(class = "jr-num", x = xs[i], y = ys[i] + 6, `text-anchor` = "middle", i),
                     svg_label(xs[i], if (above) ys[i] - 42 - 18 * n_sub(steps[[i]]$sub) else ys[i] + 50,
@@ -134,4 +137,35 @@ method_flow <- function(scores, period_label) {
                      paste("Average error,", period_label)),
            hub(lx, H / 2, c("Past", "donations"), r = 58, cls = "is-source"),
            hub(rx, H / 2, c("Each day's", "forecast"), r = 58))
+}
+
+# Small looping icons for the aftercare map, each about one tip.
+art_icon <- function(name) {
+  switch(name,
+    cup = tags$g(class = "ai ai-cup",
+      tags$path(d = "M-10 -2 h18 v9 a7 7 0 0 1 -7 7 h-4 a7 7 0 0 1 -7 -7 Z"),
+      tags$path(d = "M8 1 h3 a3.5 3.5 0 0 1 0 7 h-3"),
+      tags$path(class = "ai-steam s1", d = "M-5 -7 c-2 -3 2 -5 0 -8"),
+      tags$path(class = "ai-steam s2", d = "M2 -7 c-2 -3 2 -5 0 -8")),
+    water = tags$g(class = "ai ai-water",
+      tags$defs(tags$clipPath(id = "ai-glass", tags$path(d = "M-9 -12 h18 l-2.5 24 h-13 Z"))),
+      tags$g(`clip-path` = "url(#ai-glass)",
+             tags$path(class = "ai-fill", d = "M-24 0 q6 -3 12 0 t12 0 t12 0 t12 0 V20 H-24 Z")),
+      tags$path(d = "M-9 -12 h18 l-2.5 24 h-13 Z")),
+    noalcohol = tags$g(class = "ai ai-noalc",
+      tags$path(d = "M-7 -12 h14 c0 9 -4 12 -7 12 c-3 0 -7 -3 -7 -12 Z M0 0 v9 M-5 11 h10"),
+      tags$path(class = "ai-slash", d = "M-12 12 L12 -12")),
+    sun = tags$g(class = "ai ai-sun",
+      tags$circle(r = 6),
+      tags$g(class = "ai-rays", lapply(0:7, function(k) {
+        a <- k * pi / 4
+        tags$path(d = sprintf("M%.1f %.1f L%.1f %.1f", 10 * cos(a), 10 * sin(a), 14 * cos(a), 14 * sin(a)))
+      }))),
+    rest = tags$g(class = "ai ai-rest",
+      tags$text(class = "ai-z z1", x = -8, y = 8, "z"),
+      tags$text(class = "ai-z z2", x = -1, y = 2, "z"),
+      tags$text(class = "ai-z z3", x = 6, y = -4, "z")),
+    dizzy = tags$g(class = "ai ai-dizzy",
+      tags$path(d = "M0 0 m-1 0 a1 1 0 1 1 2 0 a3 3 0 1 1 -6 0 a5 5 0 1 1 10 0 a7 7 0 1 1 -14 0 a9 9 0 1 1 18 0")),
+    NULL)
 }
