@@ -1,6 +1,7 @@
 # "Beat the forecast" game logic. Kept separate from the Shiny UI so it can be
-# tested directly. Every round is a real 2025 group-day from the evaluation:
-# the player guesses the recorded count and is compared with the four methods.
+# tested directly. Every round is a real group-day from the most recent
+# evaluation period: the player guesses the recorded count and is compared with
+# the four methods.
 
 GAME_XP_PER_METHOD <- 10L
 GAME_XP_CLOSE_BONUS <- 15L     # guess within 10% of the actual count
@@ -25,10 +26,10 @@ BADGES <- list(
 )
 
 # Typical range (25th–75th percentile) for a blood group and weekday over the
-# three years before 2025 — the same window the recent weekday mean uses.
-game_hint_table <- function(model_data) {
+# three years before `year` — the same window the recent weekday mean uses.
+game_hint_table <- function(model_data, year) {
   model_data |>
-    filter(year(date) >= 2022L, year(date) <= 2024L) |>
+    filter(year(date) >= year - 3L, year(date) <= year - 1L) |>
     mutate(blood_type = as.character(blood_type),
            weekday = as.character(weekday)) |>
     group_by(blood_type, weekday) |>
@@ -37,14 +38,15 @@ game_hint_table <- function(model_data) {
               .groups = "drop")
 }
 
-# One row per 2025 group-day with the actual count and all four predictions.
-game_pool <- function(predictions, low_cutoffs, hints) {
+# One row per group-day of `year` with the actual count and all four predictions.
+game_pool <- function(predictions, low_cutoffs, hints, year) {
+  cutoffs <- low_cutoffs[low_cutoffs$evaluation_year == year, c("blood_type", "low_cutoff")]
   predictions |>
-    filter(evaluation_year == 2025L) |>
+    filter(evaluation_year == year) |>
     mutate(weekday = as.character(weekday)) |>
     select(date, blood_type, weekday, donations, method, prediction) |>
     tidyr::pivot_wider(names_from = method, values_from = prediction) |>
-    left_join(low_cutoffs, by = "blood_type") |>
+    left_join(cutoffs, by = "blood_type") |>
     left_join(hints, by = c("blood_type", "weekday")) |>
     mutate(low_day = donations <= low_cutoff) |>
     arrange(date, blood_type)

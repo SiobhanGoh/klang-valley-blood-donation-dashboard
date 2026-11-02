@@ -1,8 +1,8 @@
 root <- normalizePath(file.path("..", ".."))
 source(file.path(root, "R", "analysis.R"))
 source(file.path(root, "R", "game.R"))
-d <- build_dashboard_data(file.path(root, SNAPSHOT_PATH))
-pool <- game_pool(d$predictions, d$low_cutoffs_2025, game_hint_table(d$model_data))
+d <- build_report_data(file.path(root, SNAPSHOT_PATH))
+pool <- game_pool(d$predictions, d$low_cutoffs, game_hint_table(d$model_data, 2025L), 2025L)
 
 test_that("the game pool is exactly the 2025 evaluation rows", {
   expect_equal(nrow(pool), 1460)
@@ -52,4 +52,17 @@ test_that("badges are awarded once and levels advance every 100 XP", {
   expect_equal(level_for(0)$level, 1)
   expect_equal(level_for(250)$level, 3)
   expect_equal(level_for(250)$progress, 0.5)
+})
+
+test_that("red-cell compatibility follows the standard rule", {
+  source(file.path(root, "R", "content.R"))
+  # O- gives to everyone; AB+ receives from everyone (NHSBT, Héma-Québec).
+  expect_setequal(compatibility_for("O-")$gives_to, BLOOD_TYPES)
+  expect_setequal(compatibility_for("AB+")$receives_from, BLOOD_TYPES)
+  expect_setequal(compatibility_for("O-")$receives_from, "O-")
+  expect_setequal(compatibility_for("AB+")$gives_to, "AB+")
+  expect_setequal(compatibility_for("A+")$receives_from, c("O-", "O+", "A-", "A+"))
+  expect_setequal(compatibility_for("B-")$gives_to, c("B-", "B+", "AB-", "AB+"))
+  # Every type can receive its own type.
+  for (t in BLOOD_TYPES) expect_true(can_give_red_cells(t, t))
 })

@@ -3,8 +3,10 @@
 
 root <- normalizePath(file.path("..", ".."))
 source(file.path(root, "R", "analysis.R"))
-d <- build_dashboard_data(file.path(root, SNAPSHOT_PATH))
-ref <- function(name) read_csv(file.path(root, "reference", name),
+d <- build_report_data(file.path(root, SNAPSHOT_PATH))
+low25 <- filter(d$low_errors, evaluation_year == 2025L)
+cut25 <- filter(d$low_cutoffs, evaluation_year == 2025L)
+ref <- function(name) readr::read_csv(file.path(root, "reference", name),
                                show_col_types = FALSE)
 tol <- 1e-8
 
@@ -73,15 +75,15 @@ test_that("headline 2025 figures are as reported", {
 })
 
 test_that("low-collection diagnostics reproduce the Rmd", {
-  join_and_compare(d$low_errors_2025, ref("low_collection_day_errors.csv"),
+  join_and_compare(low25, ref("low_collection_day_errors.csv"),
                    c("blood_type", "method", "day_category"),
                    c("days", "mean_actual", "MAE",
                      "overprediction_percent", "mean_excess"))
-  join_and_compare(d$low_errors_2025, ref("final_four_method_low_O.csv"),
+  join_and_compare(low25, ref("final_four_method_low_O.csv"),
                    c("blood_type", "method", "day_category"),
                    c("days", "mean_actual", "MAE",
                      "overprediction_percent", "mean_excess"))
-  cut <- setNames(d$low_cutoffs_2025$low_cutoff, d$low_cutoffs_2025$blood_type)
+  cut <- setNames(cut25$low_cutoff, cut25$blood_type)
   expect_equal(unname(cut[c("A", "AB", "B", "O")]), c(82.75, 19, 91, 139))
 })
 
@@ -114,12 +116,12 @@ test_that("claims written on the Overview tab hold in the data", {
   ab25 <- filter(ab, evaluation_year == 2025L)
   expect_true(ab25$`Weekday average` < ab25$`Recent weekday average`)
 
-  low <- d$low_errors_2025 |>
+  low <- low25 |>
     select(blood_type, method, day_category, MAE) |>
     pivot_wider(names_from = day_category, values_from = MAE)
   lr <- filter(low, method %in% c("Linear regression", "Recent weekday average"))
   expect_true(all(lr$`Low collection` > lr$`Other days`))
-  low_only <- filter(d$low_errors_2025, day_category == "Low collection")
+  low_only <- filter(low25, day_category == "Low collection")
   best_low <- low_only |> group_by(blood_type) |>
     summarise(best = method[which.min(MAE)])
   expect_true(all(best_low$best[best_low$blood_type != "AB"] == "Weekday average"))

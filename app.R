@@ -1,9 +1,16 @@
-# Klang Valley Blood Donation Forecast Dashboard
+# Klang Valley Blood Donation Forecasts
 #
-# An interactive view of the retrospective analysis from the BloodReady AI
-# FIT5145 project. It forecasts *recorded blood donations* (collections) for
-# Selangor + W.P. Kuala Lumpur by ABO group. It does not model blood demand,
-# inventory, shortage risk or clinical need.
+# An interactive dashboard built on the BloodReady AI FIT5145 analysis. It
+# forecasts *recorded blood donations* (collections) for Selangor and
+# W.P. Kuala Lumpur by ABO group, using the Government of Malaysia's open
+# daily data. It does not model blood demand, inventory, shortage risk or
+# clinical need.
+#
+# Data source (set KVBD_SOURCE):
+#   auto   (default) use app_data/dashboard.rds if present, else download the
+#          latest CSV, else fall back to the frozen snapshot
+#   live   always download the latest CSV
+#   report the frozen snapshot to 2025, exactly as in the FIT5145 report
 #
 # Run from this folder with:  shiny::runApp()
 
@@ -15,15 +22,33 @@ suppressPackageStartupMessages({
 })
 source("R/analysis.R")
 source("R/game.R")
+source("R/content.R")
 
-dash <- build_dashboard_data()
-game_rows <- game_pool(dash$predictions, dash$low_cutoffs_2025,
-                       game_hint_table(dash$model_data))
+load_dashboard <- function(source = Sys.getenv("KVBD_SOURCE", "auto")) {
+  if (identical(source, "report")) return(build_report_data())
+  if (identical(source, "auto") && file.exists("app_data/dashboard.rds")) {
+    return(readRDS("app_data/dashboard.rds"))
+  }
+  build_live_data()
+}
+
+dash <- load_dashboard()
+LATEST <- dash$latest_year
+PERIOD_LABEL <- setNames(dash$periods$label, dash$periods$evaluation_year)
+PERIOD_CHOICES <- setNames(dash$periods$evaluation_year, dash$periods$label)
+LATEST_LABEL <- PERIOD_LABEL[[as.character(LATEST)]]
+DATA_END <- dash$panel_summary$last_date
+game_rows <- game_pool(dash$predictions, dash$low_cutoffs,
+                       game_hint_table(dash$model_data, LATEST), LATEST)
+period_label_vec <- function(years) unname(PERIOD_LABEL[as.character(years)])
+
+# --- Formatting and theme -----------------------------------------------------
 
 fmt <- function(x, digits = 2) formatC(x, format = "f", digits = digits, big.mark = ",")
-fmt_int <- function(x) formatC(x, format = "d", big.mark = ",")
+fmt_int <- function(x) formatC(round(x), format = "d", big.mark = ",")
+fmt_date <- function(x) format(x, "%d %b %Y")
+pct_change <- function(now, before) if (before > 0) 100 * (now - before) / before else NA_real_
 
-# Pastel palette for the dashboard (the original Rmd colours live in R/analysis.R).
 INK <- "#3B2F45"
 PASTEL_METHOD <- c("Seven-day baseline" = "#E8A0AE",
                    "Weekday average" = "#B8B3C9",
@@ -53,18 +78,20 @@ glass_plot <- function(expr) {
 
 dt_table <- function(df, digits_cols = NULL, digits = 2, page_length = 10) {
   out <- datatable(df, rownames = FALSE,
-                   options = list(pageLength = page_length, dom = "tip",
-                                  scrollX = TRUE))
+                   options = list(pageLength = page_length, dom = "tip", scrollX = TRUE))
   if (length(digits_cols)) out <- formatRound(out, digits_cols, digits)
   out
 }
+
+source_link <- function(src) a(src$title, href = src$url, target = "_blank", rel = "noopener")
+
+# --- UI building blocks ---------------------------------------------------------
 
 scope_note <- div(
   class = "scope-note", role = "note",
   strong("Scope: "),
   "these forecasts estimate recorded donation collections. They are not ",
-  "predictions of blood demand, hospital inventory, shortage risk or ",
-  "clinical need, and the evaluation is retrospective."
+  "predictions of blood demand, hospital inventory, shortage risk or clinical need."
 )
 
 # A headline card that tilts under the pointer and flips (click, Enter or
@@ -88,7 +115,7 @@ flip_card <- function(label, value, unit, back_title, back_text, tone) {
   )
 }
 
-finding <- function(colour, ...) tags$li(style = paste0("--dot:", colour), ...)
+finding <- function(colour, text) tags$li(style = paste0("--dot:", colour), text)
 
 # ASCII-art blood drop. Characters get denser towards the lit side of the
 # drop; CSS fills them with a pastel mesh gradient.
@@ -98,9 +125,9 @@ ascii_drop <- function(width = 32, height = 24) {
   for (y in seq_len(height)) {
     line <- character(width)
     for (x in seq_len(width)) {
-      u <- (x - (width + 1) / 2) / (width / 2)      # -1..1 across
-      v <- (y - 1) / (height - 1)                    #  0..1 down
-      # Teardrop: a round bottom (ellipse centred at v = 0.66) that narrows
+      u <- (x - (width + 1) / 2) / (width / 2)
+      v <- (y - 1) / (height - 1)
+      # Teardrop: a round bottom (ellipse centred at v = 0.52) that narrows
       # to a point at the top.
       cy <- 0.52
       inside <- if (v >= cy) u^2 + ((v - cy) / (1.03 - cy))^2 <= 1
@@ -117,13 +144,13 @@ ascii_drop <- function(width = 32, height = 24) {
 
 SECTIONS <- list(
   list(id = "overview", label = "Overview", icon = "droplet"),
+  list(id = "live", label = "Live tracker", icon = "tower-broadcast"),
   list(id = "play", label = "Beat the forecast", icon = "gamepad"),
   list(id = "compare", label = "Compare methods", icon = "scale-balanced"),
   list(id = "low", label = "Low-collection days", icon = "arrow-trend-down"),
   list(id = "patterns", label = "Patterns", icon = "chart-line"),
-  list(id = "explain", label = "Model explanation", icon = "lightbulb"),
-  list(id = "audit", label = "Data audit", icon = "clipboard-check"),
-  list(id = "methods", label = "Methods & limits", icon = "book-open")
+  list(id = "blood101", label = "Blood 101: Malaysia", icon = "hand-holding-medical"),
+  list(id = "about", label = "About the data", icon = "circle-info")
 )
 
 rail <- tags$nav(
@@ -172,20 +199,34 @@ quick_actions <- div(
       tags$button(class = "qa-item glass", type = "button", role = "menuitem",
                   `data-action` = "play", icon("gamepad"), span("Play a round")),
       tags$button(class = "qa-item glass", type = "button", role = "menuitem",
-                  `data-target` = "compare", icon("scale-balanced"),
-                  span("Compare 2025 results")),
+                  `data-target` = "live", icon("tower-broadcast"), span("Latest data")),
       tags$button(class = "qa-item glass", type = "button", role = "menuitem",
-                  `data-target` = "low", icon("arrow-trend-down"),
-                  span("Low-collection days")),
+                  `data-target` = "blood101", icon("hand-holding-medical"),
+                  span("Can I donate?")),
       tags$button(class = "qa-item glass", type = "button", role = "menuitem",
-                  `data-target` = "overview", icon("droplet"),
-                  span("Back to overview")))
+                  `data-target` = "overview", icon("droplet"), span("Back to overview")))
 )
 
 page_head <- function(title, subtitle = NULL) {
   div(class = "page-head stage-1",
       h2(class = "page-title", title),
       if (!is.null(subtitle)) p(class = "page-sub", subtitle))
+}
+
+# A titled block of content with consistent vertical rhythm.
+section <- function(title, ..., sub = NULL, class = "stage-2") {
+  tags$section(class = paste("block", class),
+               div(class = "block-head",
+                   h3(class = "block-title", title),
+                   if (!is.null(sub)) p(class = "block-sub", sub)),
+               ...)
+}
+
+kpi <- function(label, value_ui, detail_ui = NULL, tone = "") {
+  div(class = paste("kpi glass", tone),
+      div(class = "kpi-label", label),
+      div(class = "kpi-value", value_ui),
+      if (!is.null(detail_ui)) div(class = "kpi-detail", detail_ui))
 }
 
 badge_tile <- function(id) {
@@ -196,26 +237,30 @@ badge_tile <- function(id) {
       span(class = "badge-text", b$text))
 }
 
-# --- UI -----------------------------------------------------------------------
+latest_mae <- function(m) {
+  s <- dash$scores_overall
+  s$MAE[s$evaluation_year == LATEST & s$method == m]
+}
+
+# --- UI -------------------------------------------------------------------------
 
 ui <- page(
   theme = bs_theme(version = 5, bg = "#F5F0FA", fg = INK, primary = "#7E5AA8",
                    secondary = "#B8B3C9",
-                   base_font = font_collection("-apple-system", "SF Pro Text",
-                                               "Inter", "Segoe UI", "system-ui",
-                                               "sans-serif"),
-                   heading_font = font_collection("-apple-system", "SF Pro Display",
-                                                  "Inter", "Segoe UI", "system-ui",
-                                                  "sans-serif")),
+                   base_font = font_collection("-apple-system", "SF Pro Text", "Inter",
+                                               "Segoe UI", "system-ui", "sans-serif"),
+                   heading_font = font_collection("-apple-system", "SF Pro Display", "Inter",
+                                                  "Segoe UI", "system-ui", "sans-serif")),
   title = "Klang Valley Blood Donation Forecasts",
   tags$head(
+    tags$meta(name = "description", content = paste(
+      "Daily blood donation collections in the Klang Valley, Malaysia: live data,",
+      "four forecasting methods compared, and general blood donation information.")),
     tags$link(rel = "icon", href = "data:,"),
     tags$link(rel = "preconnect", href = "https://fonts.googleapis.com"),
-    tags$link(rel = "preconnect", href = "https://fonts.gstatic.com",
-              crossorigin = NA),
+    tags$link(rel = "preconnect", href = "https://fonts.gstatic.com", crossorigin = NA),
     tags$link(rel = "stylesheet", href = paste0(
-      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800",
-      "&display=swap")),
+      "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap")),
     tags$link(rel = "stylesheet", href = "styles.css"),
     tags$script(src = "interactions.js", defer = NA)
   ),
@@ -227,12 +272,13 @@ ui <- page(
       class = "stage",
       div(class = "topbar",
           div(class = "topbar-meta",
-              paste0("Analysis 2006–2025, data to ",
-                     format(dash$audit$last_date, "%d %b %Y"))),
+              span(class = "live-dot", `aria-hidden` = "true"),
+              paste0("Data to ", fmt_date(DATA_END), ", refreshed daily from data.gov.my")),
           hud),
       navset_hidden(
         id = "pages",
 
+        # Overview ----------------------------------------------------------------
         nav_panel_hidden(
           "overview",
           div(
@@ -240,77 +286,104 @@ ui <- page(
             div(class = "glass intro span-2 row-2 stage-1",
                 div(class = "intro-copy",
                     h1("How well can past collections predict tomorrow's donations?"),
-                    p("Four simple forecasting methods compared on daily recorded ",
-                      "donations in Selangor and W.P. Kuala Lumpur, by ABO blood group, ",
-                      "for 2023, 2024 and 2025."),
+                    p("Four simple forecasting methods compared on daily recorded donations ",
+                      "in Selangor and W.P. Kuala Lumpur, by ABO blood group, updated with ",
+                      "the newest official data."),
                     scope_note,
-                    tags$button(class = "btn-pill btn-primary-glass", type = "button",
-                                `data-action` = "play", icon("gamepad"),
-                                "Try to beat the forecast")),
+                    div(class = "intro-actions",
+                        tags$button(class = "btn-pill btn-primary-glass", type = "button",
+                                    `data-action` = "play", icon("gamepad"),
+                                    "Try to beat the forecast"),
+                        tags$button(class = "btn-pill btn-ghost-glass", type = "button",
+                                    `data-target` = "live", icon("tower-broadcast"),
+                                    "See the latest data"))),
                 ascii_drop()),
             div(class = "stage-2", flip_card(
-              "Recent weekday mean, 2025 MAE",
-              textOutput("headline_recent", inline = TRUE),
-              "donations per group-day", "Recent weekday mean",
-              paste("Predicts each day as the average for that blood group and",
-                    "weekday over 2022–2024. Lowest pooled error in all three",
-                    "evaluation years."), "tone-lilac")),
-            div(class = "stage-2", flip_card(
-              "Linear regression, 2025 MAE",
-              textOutput("headline_lm", inline = TRUE),
-              "donations per group-day", "Linear regression",
-              paste("One model per blood group using weekday and a straight-line",
-                    "time trend, fitted on 2006–2024."), "tone-mint")),
-            div(class = "stage-2", flip_card(
-              "Seven-day lag, 2025 MAE",
-              textOutput("headline_lag", inline = TRUE),
-              "donations per group-day", "Seven-day lag",
-              paste("Uses the count recorded one week earlier. The simplest",
-                    "benchmark: every other method has lower pooled error in every year."),
-              "tone-rose")),
-            div(class = "stage-2", flip_card(
-              "Study panel", fmt_int(dash$panel_summary$rows),
-              "group-days, 2006–2025", "What a group-day is",
-              paste("One blood group on one date: 7,305 dates × 4 groups,",
-                    "summed over the two regions. The ALL category is excluded."),
+              paste0("Latest day, ", format(DATA_END, "%d %b")),
+              fmt_int(dash$latest$latest_total), "donations recorded",
+              "What this counts",
+              paste("All four ABO groups, Selangor and W.P. Kuala Lumpur combined, on",
+                    fmt_date(DATA_END), "- the newest day in the official data."),
               "tone-peach")),
+            div(class = "stage-2", flip_card(
+              "Recent weekday mean, MAE",
+              fmt(latest_mae("Recent weekday average")),
+              paste("donations per group-day,", LATEST_LABEL),
+              "Recent weekday mean",
+              paste("Predicts each day as the average for that blood group and weekday over",
+                    "the three complete years before it."), "tone-lilac")),
+            div(class = "stage-2", flip_card(
+              "Linear regression, MAE",
+              fmt(latest_mae("Linear regression")),
+              paste("donations per group-day,", LATEST_LABEL),
+              "Linear regression",
+              paste("One model per blood group using weekday and a straight-line time trend,",
+                    "fitted on all earlier years."), "tone-mint")),
+            div(class = "stage-2", flip_card(
+              "Seven-day lag, MAE",
+              fmt(latest_mae("Seven-day baseline")),
+              paste("donations per group-day,", LATEST_LABEL),
+              "Seven-day lag",
+              paste("Uses the count recorded one week earlier: the simplest benchmark the",
+                    "other methods have to beat."), "tone-rose")),
             card(class = "span-3 row-2 stage-3",
-                 card_header("Pooled error by evaluation year (lower is better)"),
+                 card_header("Pooled error by evaluation period (lower is better)"),
                  plotOutput("overview_plot", height = 380),
                  card_footer(
-                   "Each year's averages and regression are fitted only on earlier ",
-                   "years. Training windows overlap, so the three years are not ",
-                   "independent tests.")),
+                   "Each period's averages and regression are fitted only on earlier years. ",
+                   "Training windows overlap, so the periods are not independent tests.")),
             card(class = "row-2 stage-3",
-                 card_header("What the analysis shows"),
-                 tags$ul(
-                   class = "findings",
-                   finding(PASTEL_METHOD[["Recent weekday average"]],
-                           "The recent weekday mean has the lowest pooled MAE and RMSE ",
-                           "in each of 2023, 2024 and 2025."),
-                   finding(PASTEL_METHOD[["Linear regression"]],
-                           "Linear regression beats the seven-day lag for every blood ",
-                           "group in all three years, and the full-history weekday mean ",
-                           "for A, B and O."),
-                   finding(PASTEL_GROUP[["AB"]],
-                           "AB is the exception: the full-history weekday mean is ",
-                           "slightly better than regression in every year, and in 2025 ",
-                           "marginally better than the recent mean too."),
-                   finding(PASTEL_METHOD[["Seven-day baseline"]],
-                           "On 2025 low-collection days, regression and the recent mean ",
-                           "make much larger errors than on other days. The full-history ",
-                           "mean has the smallest low-day errors for A, B and O, but it ",
-                           "still overpredicts every one of those days.")
-                 ))
+                 card_header("What the data shows"),
+                 tags$ul(class = "findings",
+                         Map(finding,
+                             rep(unname(PASTEL_METHOD), length.out = length(dash$findings)),
+                             dash$findings)))
           )
         ),
 
+        # Live tracker --------------------------------------------------------------
+        nav_panel_hidden(
+          "live",
+          page_head("Live tracker",
+                    paste0("The newest official data, to ", fmt_date(DATA_END),
+                           ", with forecasts for the next seven days.")),
+          div(class = "kpi-row stage-2",
+              kpi("Latest day", fmt_int(dash$latest$latest_total),
+                  paste("donations on", fmt_date(DATA_END)), "tone-peach"),
+              kpi("Last 7 days", fmt_int(dash$latest$last7),
+                  uiOutput("live_change7", inline = TRUE), "tone-lilac"),
+              kpi(paste0(format(DATA_END, "%Y"), " so far"), fmt_int(dash$latest$ytd),
+                  uiOutput("live_change_ytd", inline = TRUE), "tone-mint"),
+              kpi("Data refreshed", format(dash$built, "%d %b"),
+                  dash$audit$source, "tone-rose")),
+          section(
+            "Recent days and the next seven",
+            sub = paste("Recorded donations for the last 60 days, each method's forecast for",
+                        "those days, and its forecast for the coming week (shaded)."),
+            div(class = "chip-row", role = "radiogroup", `aria-label` = "Blood group",
+                lapply(ABO_GROUPS, function(g)
+                  tags$button(class = paste("group-pick", if (g == "O") "is-on"),
+                              type = "button", `data-group` = g, role = "radio",
+                              `aria-checked` = if (g == "O") "true" else "false",
+                              span(class = paste0("dot group-", g)), paste("Group", g)))),
+            card(plotOutput("live_plot", height = 400),
+                 card_footer("The seven-day lag can only look one week ahead, so the ",
+                             "forecast window is seven days."))),
+          section(
+            "Forecasts for the next seven days",
+            sub = paste("Expected donations by the recent weekday mean, the method with the",
+                        "lowest error so far. Like every method here, it overestimates",
+                        "unusually low days. The chart above shows all four methods."),
+            card(class = "next-card", tableOutput("next_table")))
+        ),
+
+        # Game -----------------------------------------------------------------------
         nav_panel_hidden(
           "play",
           page_head("Beat the forecast",
-                    paste("Each round is a real 2025 day. Guess how many donations",
-                          "that blood group recorded, then see whether you beat the",
-                          "four forecasting methods.")),
+                    paste("Each round is a real recorded day from", LATEST_LABEL,
+                          "- guess how many donations that blood group recorded, then see",
+                          "whether you beat the four forecasting methods.")),
           div(
             class = "play-grid",
             div(class = "glass round-card stage-2",
@@ -322,161 +395,187 @@ ui <- page(
                     sliderInput("guess", NULL, min = 0, max = 400, value = 0,
                                 step = 1, ticks = FALSE, width = "100%")),
                 div(class = "round-actions",
-                    actionButton("lock_guess", "Lock in guess",
-                                 icon = icon("lock"), class = "btn-pill btn-primary-glass"),
+                    actionButton("lock_guess", "Lock in guess", icon = icon("lock"),
+                                 class = "btn-pill btn-primary-glass"),
                     actionButton("new_round", "New day", icon = icon("shuffle"),
                                  class = "btn-pill btn-ghost-glass"))),
             div(class = "glass result-card stage-3", uiOutput("game_result")),
             div(class = "glass badges-card stage-3",
-                h3(class = "card-title", "Badges"),
+                h3(class = "block-title", "Badges"),
                 div(class = "badge-grid", lapply(names(BADGES), badge_tile)),
                 uiOutput("game_stats"))
           ),
           p(class = "fine-print",
-            "Typical ranges come from 2022–2024, the window the recent weekday mean uses. ",
-            "Rounds replay past days; nothing here forecasts future collections.")
+            "Typical ranges come from the three years before each round's year, the window ",
+            "the recent weekday mean uses. Rounds replay past days.")
         ),
 
+        # Compare ------------------------------------------------------------------
         nav_panel_hidden(
           "compare",
           page_head("Compare methods",
-                    "Errors by year and blood group, and the daily forecasts behind them."),
+                    "Errors by period and blood group, and the daily forecasts behind them."),
           layout_sidebar(
             class = "stage-2",
-            sidebar = sidebar(width = 300,
-              selectInput("cmp_year", "Evaluation year", EVALUATION_YEARS,
-                          selected = 2025),
+            sidebar = sidebar(
+              width = 300,
+              selectInput("cmp_year", "Evaluation period", PERIOD_CHOICES, selected = LATEST),
               checkboxGroupInput("cmp_methods", "Methods", METHODS, selected = METHODS),
               hr(),
               h6("Daily detail"),
               selectInput("cmp_group", "Blood group", ABO_GROUPS, selected = "O"),
               dateRangeInput("cmp_dates", "Dates",
-                             start = as.Date("2025-01-01"), end = as.Date("2025-01-31"),
-                             min = as.Date("2023-01-01"), max = as.Date("2025-12-31"))
+                             start = max(DATA_END - 30, min(dash$predictions$date)),
+                             end = DATA_END,
+                             min = min(dash$predictions$date), max = DATA_END)
             ),
-            card(card_header("MAE by blood group"),
-                 plotOutput("cmp_group_plot", height = 380)),
+            card(card_header("MAE by blood group"), plotOutput("cmp_group_plot", height = 380)),
             card(card_header("Scores"), DTOutput("cmp_table")),
             card(card_header("Actual versus predicted daily donations"),
                  plotOutput("cmp_daily_plot", height = 380),
-                 card_footer("Dark line: recorded donations. The seven-day baseline ",
-                             "uses the count observed a week earlier, so it is a ",
-                             "rolling benchmark rather than a fixed forecast issued ",
-                             "at the start of the year."))
+                 card_footer("Dark line: recorded donations. The seven-day baseline uses the ",
+                             "count observed a week earlier, so it is a rolling benchmark ",
+                             "rather than a forecast issued at the start of the period."))
           )
         ),
 
+        # Low-collection days -------------------------------------------------------
         nav_panel_hidden(
           "low",
           page_head("Low-collection days",
-                    paste("2025 days at or below each group's 2006–2024 lower quartile.",
-                          "An after-the-fact error audit, not an early warning.")),
-          div(class = "stage-2", scope_note),
+                    paste("Days at or below each group's lower quartile over the years before",
+                          "the period. An after-the-fact error audit, not an early warning.")),
+          div(class = "toolbar stage-2",
+              selectInput("low_year", "Evaluation period", PERIOD_CHOICES,
+                          selected = LATEST, width = "260px")),
           layout_columns(
             class = "stage-2",
             col_widths = c(4, 8),
-            card(card_header("Training-period thresholds"), tableOutput("cutoff_table"),
+            card(card_header("Thresholds"), tableOutput("cutoff_table"),
                  card_footer("A lower-quartile count is not a clinical shortage threshold.")),
-            card(card_header("Low-day MAE by method"),
+            card(card_header("MAE on low-collection days and other days"),
                  plotOutput("low_plot", height = 340))
           ),
           card(class = "stage-3", card_header("Low-day errors"), DTOutput("low_table"),
-               card_footer("'Mean excess forecast' averages only the amount by which ",
-                           "the forecast exceeded the actual count, counting zero ",
-                           "when it did not.")),
+               card_footer("'Mean excess forecast' averages only the amount by which the ",
+                           "forecast exceeded the actual count, counting zero when it did not.")),
           card(class = "stage-3", card_header("Why overprediction is unavoidable here"),
                DTOutput("min_pred_table"),
-               card_footer("When a method's smallest prediction for a group is above ",
-                           "that group's threshold, it must overpredict every low day."))
+               card_footer("When a method's smallest prediction for a group is above that ",
+                           "group's threshold, it must overpredict every low day."))
         ),
 
+        # Patterns -----------------------------------------------------------------
         nav_panel_hidden(
           "patterns",
-          page_head("Patterns", "Weekly, weekday and annual recorded donations, 2006–2025."),
+          page_head("Patterns",
+                    paste0("Recorded donations from 2006 to ", fmt_date(DATA_END), ".")),
           layout_sidebar(
             class = "stage-2",
-            sidebar = sidebar(width = 300,
+            sidebar = sidebar(
+              width = 300,
               checkboxGroupInput("pattern_groups", "Blood groups", ABO_GROUPS,
                                  selected = ABO_GROUPS),
-              sliderInput("pattern_years", "Years", min = 2006, max = 2025,
-                          value = c(2006, 2025), sep = "", step = 1)
+              sliderInput("pattern_years", "Years", min = 2006,
+                          max = as.integer(format(DATA_END, "%Y")),
+                          value = c(2006, as.integer(format(DATA_END, "%Y"))),
+                          sep = "", step = 1)
             ),
             card(card_header("Weekly recorded donations"),
                  plotOutput("weekly_plot", height = 360),
-                 card_footer("Weekly totals of daily counts; partial first/last ",
-                             "weeks of the range contain fewer days.")),
+                 card_footer("Weekly totals; partial first and last weeks contain fewer days.")),
             layout_columns(
               col_widths = c(6, 6),
               card(card_header("Mean daily donations by weekday"),
                    plotOutput("weekday_plot", height = 320)),
               card(card_header("Mean daily donations by year"),
-                   plotOutput("annual_plot", height = 320))
-            )
-          )
-        ),
-
-        nav_panel_hidden(
-          "explain",
-          page_head("Model explanation", "What the 2006–2024 regression learned, and where 2025 errors fell."),
-          layout_columns(
-            class = "stage-2",
-            col_widths = c(6, 6),
-            card(card_header("Linear regression coefficients (fitted 2006–2024)"),
-                 tableOutput("coef_table"),
-                 card_footer("Associations in historical data, not causal effects. ",
-                             "The Sunday contrast holds the time index fixed.")),
-            card(card_header("Signed error in 2025 (actual − predicted)"),
-                 DTOutput("bias_table"),
-                 card_footer("Near-zero averages mean positive and negative errors ",
-                             "cancel; they do not mean the daily forecasts are accurate."))
+                   plotOutput("annual_plot", height = 320)))
           ),
-          card(class = "stage-3", card_header("Monthly MAE in 2025"),
-               selectInput("month_methods", NULL, METHODS, multiple = TRUE,
-                           selected = c("Seven-day baseline", "Linear regression",
-                                        "Recent weekday average")),
-               plotOutput("monthly_plot", height = 340))
-        ),
-
-        nav_panel_hidden(
-          "audit",
-          page_head("Data audit", "Checks on the frozen public snapshot before any analysis."),
-          layout_columns(
-            class = "stage-2",
-            col_widths = c(6, 6),
-            card(card_header("Raw snapshot checks"), tableOutput("audit_table")),
-            card(card_header("Analysis panel"), tableOutput("panel_table"),
-                 card_footer("The ALL category is excluded from modelling to avoid ",
-                             "double counting. 2026 rows are excluded so that only ",
-                             "complete calendar years are analysed."))
-          ),
-          card(
+          section(
+            "Blood-type mix of donations",
+            sub = paste("Share of recorded Klang Valley donations by ABO group each year.",
+                        "This describes who donated, not how common each blood type is in",
+                        "the population."),
             class = "stage-3",
-            card_header("Source and licence"),
-            p("Government of Malaysia (2026). ",
-              em("Daily Blood Donations by Blood Group & State"), ". data.gov.my. ",
-              a("Catalogue page",
-                href = "https://data.gov.my/data-catalogue/blood_donations_state",
-                target = "_blank"),
-              ". Published under the ",
-              a("Creative Commons Attribution 4.0 International licence",
-                href = "https://creativecommons.org/licenses/by/4.0/", target = "_blank"),
-              ". The repository includes the unchanged snapshot (gzip-compressed) ",
-              "used in the original analysis; the app checks its MD5 before use."),
-            p("Official metadata: records come from the Blood Bank Information System ",
-              "of 22 main Ministry of Health collection sites, which cover most but not ",
-              "all national donations. The W.P. Kuala Lumpur category includes ",
-              "Putrajaya and mobile campaigns around Selangor, which is why the two ",
-              "regions are combined.")
-          )
+            card(plotOutput("mix_plot", height = 340)))
         ),
 
+        # Blood 101 ------------------------------------------------------------------
         nav_panel_hidden(
-          "methods",
-          page_head("Methods & limits"),
-          card(
-            class = "stage-2",
-            card_header("Forecasting methods"),
-            tags$dl(class = "methods",
+          "blood101",
+          page_head("Blood 101: Malaysia",
+                    paste("General information about donating blood in Malaysia, summarised",
+                          "from Pusat Darah Negara (National Blood Centre). Staff confirm",
+                          "eligibility on the day; check PDN for the latest requirements.")),
+          section(
+            "Can I donate?",
+            div(class = "fact-grid",
+                lapply(ELIGIBILITY, function(e)
+                  div(class = "fact glass",
+                      span(class = "fact-icon", icon(e$icon)),
+                      div(class = "fact-title", e$title),
+                      div(class = "fact-value", e$value),
+                      p(class = "fact-detail", e$detail)))),
+            div(class = "glass deferral",
+                h4("Some reasons to wait"),
+                tags$ul(lapply(DEFERRAL_EXAMPLES, function(d)
+                  tags$li(strong(d$what), span(d$wait)))),
+                p(class = "fine-print",
+                  "Examples only. PDN's A–Z list covers many more conditions and medicines."))),
+          layout_columns(
+            class = "stage-3",
+            col_widths = c(6, 6),
+            section("How a donation works", class = "",
+                    tags$ol(class = "steps glass", lapply(DONATION_STEPS, tags$li))),
+            section("After donating", class = "",
+                    tags$ul(class = "aftercare glass", lapply(AFTERCARE, tags$li)))
+          ),
+          section(
+            "Where to donate in the Klang Valley",
+            sub = paste("PDN's fixed donation centres. Mobile blood drives run across the",
+                        "region; PDN publishes their locations."),
+            class = "stage-3",
+            div(class = "centre-grid",
+                lapply(DONATION_CENTRES, function(ct)
+                  div(class = "centre glass",
+                      span(class = "centre-icon", icon("location-dot")),
+                      div(class = "centre-name", ct$name),
+                      div(class = "centre-area", ct$area),
+                      div(class = "centre-hours", ct$hours))))),
+          section(
+            "Blood type compatibility explorer",
+            sub = paste("Pick a blood type to see whose red cells it can receive and whom it",
+                        "can give red cells to."),
+            class = "stage-3",
+            div(class = "glass compat",
+                div(class = "type-grid", role = "radiogroup", `aria-label` = "Blood type",
+                    lapply(BLOOD_TYPES, function(t)
+                      tags$button(class = paste("type-pick", if (t == "O+") "is-on"),
+                                  type = "button", `data-type` = t, role = "radio",
+                                  `aria-checked` = if (t == "O+") "true" else "false", t))),
+                uiOutput("compat_result"),
+                p(class = "fine-print",
+                  "A simplified educational guide to red-cell ABO and RhD compatibility. ",
+                  "Real transfusions are matched in a laboratory and decided by clinicians. ",
+                  "The donation data records ABO groups only, not RhD."))),
+          div(class = "sources glass stage-3",
+              h4("Sources"),
+              tags$ul(
+                tags$li(source_link(PDN_SOURCES$booklet)),
+                tags$li(source_link(PDN_SOURCES$az)),
+                tags$li(source_link(PDN_SOURCES$centres)),
+                tags$li(source_link(COMPAT_SOURCES$nhsbt)),
+                tags$li(source_link(COMPAT_SOURCES$hemaq))),
+              p(class = "fine-print", "Summarised in our own words; accessed 2 November 2026."))
+        ),
+
+        # About -----------------------------------------------------------------------
+        nav_panel_hidden(
+          "about",
+          page_head("About the data and methods"),
+          section(
+            "Forecasting methods",
+            card(tags$dl(class = "methods",
               tags$dt("Seven-day baseline"),
               tags$dd("The count recorded for the same blood group seven calendar days earlier."),
               tags$dt("Weekday average (full history)"),
@@ -484,36 +583,66 @@ ui <- page(
               tags$dt("Linear regression"),
               tags$dd("A separate lm(donations ~ weekday + time_index) for each blood group, fitted on all earlier years."),
               tags$dt("Recent weekday average"),
-              tags$dd("Mean for the blood group and weekday over the three complete years before the evaluation year.")
-            )
-          ),
-          card(
-            class = "stage-3",
-            card_header("Validation limits"),
-            tags$ul(
-              tags$li("Results are retrospective. The evaluation years were inspected ",
-                      "during exploration, so they are not untouched confirmatory holdouts."),
-              tags$li("The three evaluation years use overlapping training data and ",
-                      "are not independent experiments. No significance testing was done."),
-              tags$li("The recent three-year window is a reasoned choice, not a tuned ",
-                      "or independently validated setting."),
+              tags$dd("Mean for the blood group and weekday over the three complete years before the evaluation year.")))),
+          section(
+            "What the regression learned",
+            sub = paste0("Fitted on 2006 to ", LATEST - 1L, ". Associations in historical data, ",
+                         "not causal effects."),
+            layout_columns(
+              col_widths = c(6, 6),
+              card(card_header("Coefficients"), tableOutput("coef_table"),
+                   card_footer("The Sunday contrast holds the time index fixed.")),
+              card(card_header("Signed error (actual minus predicted)"), DTOutput("bias_table"),
+                   card_footer("Near-zero averages mean positive and negative errors cancel; ",
+                               "they do not mean the daily forecasts are accurate."))),
+            card(card_header("Monthly MAE"),
+                 div(class = "toolbar",
+                     selectInput("month_year", "Period", PERIOD_CHOICES, selected = LATEST,
+                                 width = "240px"),
+                     selectInput("month_methods", "Methods", METHODS, multiple = TRUE,
+                                 selected = c("Seven-day baseline", "Linear regression",
+                                              "Recent weekday average"))),
+                 plotOutput("monthly_plot", height = 340))),
+          section(
+            "Data audit",
+            layout_columns(
+              col_widths = c(6, 6),
+              card(card_header("Raw data checks"), tableOutput("audit_table")),
+              card(card_header("Analysis panel"), tableOutput("panel_table"),
+                   card_footer("The ALL category is excluded from modelling to avoid ",
+                               "double counting.")))),
+          section(
+            "Validation limits",
+            card(tags$ul(class = "limits",
+              tags$li("Results are retrospective. The method choices were developed on the ",
+                      "2006–2025 data, so earlier evaluation years are not untouched holdouts."),
+              tags$li("Evaluation periods share overlapping training data and are not ",
+                      "independent experiments. No significance testing is done."),
+              tags$li("The three-year window for the recent weekday mean was not tuned or ",
+                      "independently validated."),
               tags$li("No forecast intervals, weather, holiday, campaign, inventory or ",
                       "hospital-demand data are used."),
-              tags$li("Zero counts are kept; they may be closures or reporting gaps ",
-                      "rather than genuine zero collections."),
-              tags$li("Nothing here measures operational or clinical benefit. A prospective, ",
-                      "governed pilot would be needed before any planning use.")
-            )
-          ),
-          card(
-            class = "stage-3",
-            card_header("Origin"),
-            p("This dashboard is an interactive companion to the BloodReady AI analysis ",
-              "submitted for FIT5145 Foundations of Data Science (Monash University, ",
-              "2026). All numbers are recomputed in R from the frozen snapshot, and the ",
-              "repository's tests check them against the outputs saved by the original ",
-              "R Markdown analysis.")
-          )
+              tags$li("Zero counts are kept; they may be closures or reporting gaps."),
+              tags$li("The official data can be revised, so past numbers may change slightly ",
+                      "between daily refreshes.")))),
+          section(
+            "Source, licence and origin",
+            card(
+              p("Government of Malaysia. ", em("Daily Blood Donations by Blood Group & State"),
+                ". data.gov.my. ",
+                a("Catalogue page", href = "https://data.gov.my/data-catalogue/blood_donations_state",
+                  target = "_blank", rel = "noopener"),
+                ". Open data under the ",
+                a("Creative Commons Attribution 4.0 licence",
+                  href = "https://creativecommons.org/licenses/by/4.0/",
+                  target = "_blank", rel = "noopener"), "."),
+              p("Records come from the Blood Bank Information System of 22 main Ministry of ",
+                "Health collection sites, which cover most but not all national donations. ",
+                "W.P. Kuala Lumpur includes Putrajaya and mobile campaigns around Selangor, ",
+                "so the two regions are combined."),
+              p("This dashboard extends the BloodReady AI analysis submitted for FIT5145 ",
+                "Foundations of Data Science (Monash University, 2026). The repository's tests ",
+                "check that the methods reproduce that report's results on its frozen snapshot.")))
         )
       )
     ),
@@ -521,7 +650,7 @@ ui <- page(
   )
 )
 
-# --- Server -------------------------------------------------------------------
+# --- Server ---------------------------------------------------------------------
 
 server <- function(input, output, session) {
 
@@ -532,29 +661,24 @@ server <- function(input, output, session) {
     !is.null(w) && w < 640
   }
   method_legend <- function(id) {
-    if (narrow(id)) {
-      guides(fill = guide_legend(ncol = 1), colour = guide_legend(ncol = 1))
-    } else {
-      guides(fill = guide_legend(nrow = 1), colour = guide_legend(nrow = 1))
-    }
+    if (narrow(id)) guides(fill = guide_legend(ncol = 1), colour = guide_legend(ncol = 1))
+    else guides(fill = guide_legend(nrow = 1), colour = guide_legend(nrow = 1))
   }
-  # base_theme is a complete theme, so narrow-screen tweaks are added after it.
   theme_for <- function(id) {
     if (!narrow(id)) return(base_theme)
     base_theme + theme(legend.text = element_text(size = 8.5),
                        axis.title.y = element_text(size = 8),
                        legend.key.size = unit(0.8, "lines"))
   }
+  period_lab <- function(y) PERIOD_LABEL[[as.character(y)]]
 
-
-  # --- Navigation -----------------------------------------------------------
-  # The rail and quick actions send the section id; the hidden tabset switches.
+  # --- Navigation ---------------------------------------------------------------
   observeEvent(input$rail_go, {
     req(input$rail_go %in% vapply(SECTIONS, `[[`, "", "id"))
     nav_select("pages", input$rail_go)
   })
 
-  # --- Game state -----------------------------------------------------------
+  # --- Game state ---------------------------------------------------------------
   st <- reactiveValues(xp = 0L, rounds = 0L, streak = 0L, best_streak = 0L,
                        beaten_total = 0L, badges = character(),
                        visited = "overview", round = NULL, result = NULL)
@@ -565,8 +689,7 @@ server <- function(input, output, session) {
       xp = st$xp, level = lv$level, progress = lv$progress,
       streak = st$streak, badges = length(st$badges),
       held = as.list(st$badges), gained = gained, source = source,
-      new_badges = lapply(new_badges, function(id)
-        list(id = id, name = BADGES[[id]]$name))
+      new_badges = lapply(new_badges, function(id) list(id = id, name = BADGES[[id]]$name))
     ))
   }
 
@@ -576,13 +699,11 @@ server <- function(input, output, session) {
     ids
   }
 
-  # Visiting every section earns XP once per section and the Explorer badge.
   observeEvent(input$pages, {
     if (input$pages %in% st$visited) return()
     st$visited <- c(st$visited, input$pages)
     st$xp <- st$xp + EXPLORER_XP
-    new <- if (length(st$visited) == length(SECTIONS)) award_badges("explorer")
-           else character()
+    new <- if (length(st$visited) == length(SECTIONS)) award_badges("explorer") else character()
     push_hud(EXPLORER_XP, new, source = "rail")
   }, ignoreInit = TRUE)
 
@@ -596,9 +717,7 @@ server <- function(input, output, session) {
   }
   observeEvent(TRUE, start_round(), once = TRUE)
   observeEvent(input$new_round, start_round())
-  observeEvent(input$qa_play, {
-    if (!is.null(st$result)) start_round()
-  })
+  observeEvent(input$qa_play, { if (!is.null(st$result)) start_round() })
 
   observeEvent(input$lock_guess, {
     req(st$round, is.null(st$result), is.numeric(input$guess))
@@ -617,13 +736,14 @@ server <- function(input, output, session) {
   output$game_round <- renderUI({
     r <- st$round
     req(r)
+    yr <- as.integer(format(r$date, "%Y"))
     div(class = "round-head",
         span(class = paste0("group-chip group-", r$blood_type), r$blood_type),
         div(class = "round-meta",
             div(class = "round-date", format(r$date, "%A %d %B %Y")),
             div(class = "round-hint",
-                sprintf("Typical for group %s on a %s in 2022–2024: %s–%s donations",
-                        r$blood_type, r$weekday,
+                sprintf("Typical for group %s on a %s in %d–%d: %s–%s donations",
+                        r$blood_type, r$weekday, yr - 3L, yr - 1L,
                         fmt(r$typical_low, 0), fmt(r$typical_high, 0)))))
   })
 
@@ -647,10 +767,8 @@ server <- function(input, output, session) {
                          "--c:", if (is_you) INK else PASTEL_METHOD[[nm]]),
           span(class = "race-name", nm),
           div(class = "race-track", div(class = "race-bar")),
-          span(class = "race-val",
-               sprintf("guess %s, off by %s", fmt(pred, 0), fmt(errs[[nm]], 0))),
-          span(class = "race-mark",
-               if (!is_you) (if (beaten) icon("check") else icon("xmark"))))
+          span(class = "race-val", sprintf("guess %s, off by %s", fmt(pred, 0), fmt(errs[[nm]], 0))),
+          span(class = "race-mark", if (!is_you) (if (beaten) icon("check") else icon("xmark"))))
     })
     tagList(
       div(class = "result-head",
@@ -666,8 +784,7 @@ server <- function(input, output, session) {
         else if (length(res$beaten) == length(METHODS)) "Clean sweep: you beat all four methods."
         else sprintf("You beat %d of 4 methods%s.", length(res$beaten),
                      if (res$close) ", and landed within 10%" else ""),
-        if (r$low_day) span(class = "low-flag", icon("arrow-trend-down"),
-                            "low-collection day")),
+        if (r$low_day) span(class = "low-flag", icon("arrow-trend-down"), "low-collection day")),
       div(class = "race", rows),
       p(class = "race-cap", "Bars show absolute error (shorter is better).")
     )
@@ -676,74 +793,207 @@ server <- function(input, output, session) {
   output$game_stats <- renderUI({
     div(class = "stats-row",
         div(class = "stat", span(class = "stat-num", st$rounds), span("rounds")),
-        div(class = "stat", span(class = "stat-num", st$beaten_total),
-            span("methods beaten")),
-        div(class = "stat", span(class = "stat-num", st$best_streak),
-            span("best streak")))
+        div(class = "stat", span(class = "stat-num", st$beaten_total), span("methods beaten")),
+        div(class = "stat", span(class = "stat-num", st$best_streak), span("best streak")))
   })
 
-  headline <- function(m) {
-    s <- dash$scores_overall
-    fmt(s$MAE[s$evaluation_year == 2025L & s$method == m])
-  }
-  output$headline_recent <- renderText(headline("Recent weekday average"))
-  output$headline_lm <- renderText(headline("Linear regression"))
-  output$headline_lag <- renderText(headline("Seven-day baseline"))
-
+  # --- Overview -----------------------------------------------------------------
   output$overview_plot <- glass_plot({
-    ggplot(dash$scores_overall,
-           aes(factor(evaluation_year), MAE,
-               fill = factor(method, levels = METHODS))) +
+    dash$scores_overall |>
+      mutate(period = factor(period_label_vec(evaluation_year), levels = dash$periods$label)) |>
+      ggplot(aes(period, MAE, fill = factor(method, levels = METHODS))) +
       geom_col(position = position_dodge(width = 0.8), width = 0.75) +
       { if (!narrow("overview_plot"))
           geom_text(aes(label = fmt(MAE)), position = position_dodge(width = 0.8),
-                    vjust = -0.4, size = 3.4) } +
+                    vjust = -0.4, size = 3.2) } +
       method_legend("overview_plot") +
       scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
       scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
-      labs(x = "Evaluation year", y = "MAE (donations per group-day)") +
+      labs(x = NULL, y = "MAE (donations per group-day)") +
       theme_for("overview_plot")
   })
 
-  # Data audit
-  output$audit_table <- renderTable({
-    a <- dash$audit
-    data.frame(
-      Check = c("MD5 checksum", "Rows × columns", "Date range", "Distinct dates",
-                "Regions", "Blood-type values (incl. ALL)", "Missing values",
-                "Duplicate rows", "Duplicate date-state-type keys",
-                "Negative counts", "Zero counts",
-                "ALL vs A+B+AB+O mismatches", "Largest ALL mismatch"),
-      Result = c(a$checksum, paste(fmt_int(a$rows), "×", a$columns),
-                 paste(a$first_date, "to", a$last_date), fmt_int(a$distinct_dates),
-                 a$regions, a$blood_type_values, a$missing_values, a$duplicate_rows,
-                 a$duplicate_keys, a$negative_values,
-                 sprintf("%s (%.2f%%)", fmt_int(a$zero_values), 100 * a$zero_values / a$rows),
-                 sprintf("%s of %s date-state totals", fmt_int(a$all_mismatches),
-                         fmt_int(a$all_rows_checked)),
-                 a$all_max_abs_difference)
-    )
+  # --- Live tracker -------------------------------------------------------------
+  change_ui <- function(now, before, what) {
+    ch <- pct_change(now, before)
+    if (is.na(ch)) return(span(what))
+    span(class = if (ch >= 0) "up" else "down",
+         icon(if (ch >= 0) "arrow-up" else "arrow-down"),
+         sprintf("%s%% vs %s", fmt(abs(ch), 1), what))
+  }
+  output$live_change7 <- renderUI(change_ui(dash$latest$last7, dash$latest$last7_prev_year,
+                                            "same week last year"))
+  output$live_change_ytd <- renderUI(change_ui(dash$latest$ytd, dash$latest$ytd_prev_year,
+                                               "same days last year"))
+
+  live_group <- reactive(if (is.null(input$live_group)) "O" else input$live_group)
+
+  output$live_plot <- glass_plot({
+    g <- live_group()
+    from <- DATA_END - 59
+    actual <- dash$panel |> filter(blood_type == g, date >= from)
+    past <- dash$predictions |> filter(blood_type == g, date >= from)
+    ahead <- dash$next_days |> filter(blood_type == g)
+    ggplot() +
+      annotate("rect", xmin = DATA_END + 0.5, xmax = max(ahead$date) + 0.5,
+               ymin = -Inf, ymax = Inf, fill = "#E9DDF6", alpha = 0.6) +
+      geom_line(data = past, aes(date, prediction, colour = factor(method, levels = METHODS)),
+                linewidth = 0.6, alpha = 0.85) +
+      geom_line(data = ahead, aes(date, prediction, colour = factor(method, levels = METHODS)),
+                linewidth = 0.9, linetype = "22") +
+      geom_point(data = ahead, aes(date, prediction, colour = factor(method, levels = METHODS)),
+                 size = 1.4) +
+      geom_line(data = actual, aes(date, donations), colour = INK, linewidth = 0.9) +
+      geom_point(data = actual, aes(date, donations), colour = INK, size = 1.1) +
+      method_legend("live_plot") +
+      scale_colour_manual(values = PASTEL_METHOD, name = NULL) +
+      scale_x_date(date_labels = "%d %b") +
+      labs(x = NULL, y = "Donations per day",
+           subtitle = paste0("Blood group ", g, ". Dark line: recorded. Shaded: next 7 days.")) +
+      theme_for("live_plot")
   })
 
-  output$panel_table <- renderTable({
-    p <- dash$panel_summary
-    data.frame(
-      Item = c("Regions combined", "Blood groups", "Period", "Group-days",
-               "Distinct dates", "Zero group-days"),
-      Value = c("Selangor + W.P. Kuala Lumpur", "A, AB, B, O",
-                paste(p$first_date, "to", p$last_date), fmt_int(p$rows),
-                fmt_int(p$dates),
-                sprintf("%d (%.2f%%)", p$zero_values, 100 * p$zero_values / p$rows))
-    )
+  output$next_table <- renderTable({
+    dash$next_days |>
+      filter(method == "Recent weekday average") |>
+      select(date, blood_type, prediction) |>
+      tidyr::pivot_wider(names_from = blood_type, values_from = prediction) |>
+      mutate(Total = A + AB + B + O) |>
+      transmute(Day = format(date, "%a %d %b"),
+                A = fmt_int(A), AB = fmt_int(AB), B = fmt_int(B), O = fmt_int(O),
+                Total = fmt_int(Total))
+  }, align = "lrrrrr", striped = FALSE, width = "100%")
+
+  # --- Compatibility explorer ---------------------------------------------------
+  output$compat_result <- renderUI({
+    t <- if (is.null(input$bt_pick) || !input$bt_pick %in% BLOOD_TYPES) "O+" else input$bt_pick
+    cmp <- compatibility_for(t)
+    chips <- function(on) div(class = "type-chips",
+      lapply(BLOOD_TYPES, function(x) span(class = paste("type-chip", if (x %in% on) "is-on"), x)))
+    div(class = "compat-result",
+        div(class = "compat-col",
+            h4(sprintf("%s can receive red cells from", t)),
+            chips(cmp$receives_from),
+            p(class = "compat-note", sprintf("%d of 8 types", length(cmp$receives_from)))),
+        div(class = "compat-col",
+            h4(sprintf("%s can give red cells to", t)),
+            chips(cmp$gives_to),
+            p(class = "compat-note", sprintf("%d of 8 types", length(cmp$gives_to)))))
   })
 
-  # Patterns
+  # --- Compare --------------------------------------------------------------------
+  cmp_scores <- reactive({
+    req(input$cmp_methods, input$cmp_year)
+    dash$scores_by_group |>
+      filter(evaluation_year == as.integer(input$cmp_year), method %in% input$cmp_methods)
+  })
+
+  output$cmp_group_plot <- glass_plot({
+    ggplot(cmp_scores(), aes(factor(method, levels = METHODS), MAE,
+                             fill = factor(method, levels = METHODS))) +
+      geom_col(width = 0.7) +
+      geom_text(aes(label = fmt(MAE, 1)), vjust = -0.4, size = 3.4) +
+      facet_wrap(~ blood_type, ncol = 4, scales = "free_y") +
+      method_legend("cmp_group_plot") +
+      scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
+      scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+      labs(x = NULL, y = "MAE (donations per day)",
+           subtitle = paste0(period_lab(input$cmp_year), "; y-axes differ by group")) +
+      theme_for("cmp_group_plot") + theme(axis.text.x = element_blank())
+  })
+
+  output$cmp_table <- renderDT({
+    req(input$cmp_methods)
+    pooled <- dash$scores_overall |>
+      filter(evaluation_year == as.integer(input$cmp_year), method %in% input$cmp_methods) |>
+      mutate(blood_type = "All (pooled)")
+    bind_rows(pooled, cmp_scores()) |>
+      arrange(blood_type != "All (pooled)", blood_type, factor(method, levels = METHODS)) |>
+      transmute(`Blood group` = blood_type, Method = method, Days = observations, MAE, RMSE,
+                `Mean signed error` = mean_signed_error) |>
+      dt_table(c("MAE", "RMSE", "Mean signed error"), page_length = 20)
+  })
+
+  output$cmp_daily_plot <- glass_plot({
+    req(input$cmp_methods, input$cmp_dates)
+    rng <- input$cmp_dates
+    shown <- dash$predictions |>
+      filter(blood_type == input$cmp_group, method %in% input$cmp_methods,
+             date >= rng[1], date <= rng[2])
+    validate(need(nrow(shown) > 0, "No evaluation days in the selected range."))
+    actual <- distinct(shown, date, donations)
+    ggplot(shown, aes(date, prediction, colour = factor(method, levels = METHODS))) +
+      geom_line(linewidth = 0.7) +
+      geom_line(data = actual, aes(date, donations), inherit.aes = FALSE,
+                colour = INK, linewidth = 0.9) +
+      geom_point(data = actual, aes(date, donations), inherit.aes = FALSE,
+                 colour = INK, size = 1.2) +
+      method_legend("cmp_daily_plot") +
+      scale_colour_manual(values = PASTEL_METHOD, name = NULL) +
+      labs(x = NULL, y = "Donations per day", subtitle = paste("Blood group", input$cmp_group)) +
+      theme_for("cmp_daily_plot")
+  })
+
+  # --- Low-collection days --------------------------------------------------------
+  low_y <- reactive(as.integer(if (is.null(input$low_year)) LATEST else input$low_year))
+
+  output$cutoff_table <- renderTable({
+    y <- low_y()
+    low_days <- dash$low_errors |>
+      filter(evaluation_year == y, day_category == "Low collection") |>
+      distinct(blood_type, days, mean_actual)
+    dash$low_cutoffs |>
+      filter(evaluation_year == y) |>
+      left_join(low_days, by = "blood_type") |>
+      transmute(`Blood group` = blood_type,
+                `Threshold (≤)` = fmt(low_cutoff),
+                `Low days` = ifelse(is.na(days), 0L, days),
+                `Mean actual on low days` = ifelse(is.na(mean_actual), "–", fmt(mean_actual)))
+  })
+
+  output$low_plot <- glass_plot({
+    dash$low_errors |>
+      filter(evaluation_year == low_y()) |>
+      ggplot(aes(factor(method, levels = METHODS), MAE,
+                 fill = factor(method, levels = METHODS), alpha = day_category)) +
+      geom_col(position = position_dodge(width = 0.8), width = 0.75) +
+      facet_wrap(~ blood_type, ncol = 4, scales = "free_y") +
+      method_legend("low_plot") +
+      scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
+      scale_alpha_manual(values = c("Low collection" = 1, "Other days" = 0.35), name = NULL) +
+      guides(alpha = "none") +
+      labs(x = NULL, y = "MAE (donations per day)",
+           subtitle = "Solid bars: low-collection days. Faded bars: other days.") +
+      theme_for("low_plot") + theme(axis.text.x = element_blank())
+  })
+
+  output$low_table <- renderDT({
+    dash$low_errors |>
+      filter(evaluation_year == low_y(), day_category == "Low collection") |>
+      arrange(blood_type, factor(method, levels = METHODS)) |>
+      transmute(`Blood group` = blood_type, Method = method, `Low days` = days, MAE,
+                `Overpredicted (%)` = overprediction_percent,
+                `Mean excess forecast` = mean_excess) |>
+      dt_table(c("MAE", "Overpredicted (%)", "Mean excess forecast"), page_length = 16)
+  })
+
+  output$min_pred_table <- renderDT({
+    dash$min_predictions |>
+      filter(evaluation_year == low_y()) |>
+      arrange(blood_type, factor(method, levels = METHODS)) |>
+      transmute(`Blood group` = blood_type, Method = method,
+                `Smallest prediction` = minimum_prediction,
+                `Low-day threshold` = low_cutoff,
+                `All predictions above threshold` = ifelse(all_predictions_above_cutoff, "Yes", "No")) |>
+      dt_table(c("Smallest prediction", "Low-day threshold"), page_length = 16)
+  })
+
+  # --- Patterns ---------------------------------------------------------------------
   pattern_panel <- reactive({
     req(input$pattern_groups)
     yrs <- input$pattern_years
     dash$panel |>
-      filter(blood_type %in% input$pattern_groups,
-             year(date) >= yrs[1], year(date) <= yrs[2])
+      filter(blood_type %in% input$pattern_groups, year(date) >= yrs[1], year(date) <= yrs[2])
   })
 
   output$weekly_plot <- glass_plot({
@@ -756,8 +1006,7 @@ server <- function(input, output, session) {
 
   output$weekday_plot <- glass_plot({
     pattern_panel() |>
-      mutate(weekday = factor(WEEKDAYS[wday(date, week_start = 1)],
-                              levels = WEEKDAYS)) |>
+      mutate(weekday = factor(WEEKDAYS[wday(date, week_start = 1)], levels = WEEKDAYS)) |>
       group_by(blood_type, weekday) |>
       summarise(mean_donations = mean(donations), .groups = "drop") |>
       ggplot(aes(weekday, mean_donations, fill = blood_type)) +
@@ -775,118 +1024,52 @@ server <- function(input, output, session) {
       labs(x = NULL, y = "Mean daily donations") + base_theme
   })
 
-  # Forecast comparison
-  cmp_scores <- reactive({
-    req(input$cmp_methods)
-    dash$scores_by_group |>
-      filter(evaluation_year == as.integer(input$cmp_year),
-             method %in% input$cmp_methods)
+  output$mix_plot <- glass_plot({
+    end_year <- as.integer(format(DATA_END, "%Y"))
+    partial <- DATA_END < as.Date(paste0(end_year, "-12-31"))
+    dash$blood_mix |>
+      mutate(blood_type = factor(blood_type, levels = c("O", "B", "A", "AB")),
+             year_lab = ifelse(year == end_year & partial, paste0(year, "*"), as.character(year))) |>
+      ggplot(aes(factor(year_lab, levels = unique(year_lab)), share, fill = blood_type)) +
+      geom_col(width = 0.8) +
+      scale_fill_manual(values = PASTEL_GROUP, name = "Blood group") +
+      scale_y_continuous(labels = function(x) paste0(round(100 * x), "%"),
+                         expand = expansion(mult = c(0, 0.02))) +
+      labs(x = NULL, y = "Share of recorded donations",
+           subtitle = if (partial) paste0("* ", end_year, " to ", fmt_date(DATA_END)) else NULL) +
+      base_theme + theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 9))
   })
 
-  output$cmp_group_plot <- glass_plot({
-    ggplot(cmp_scores(), aes(factor(method, levels = METHODS), MAE,
-                             fill = factor(method, levels = METHODS))) +
-      geom_col(width = 0.7) +
-      geom_text(aes(label = fmt(MAE, 1)), vjust = -0.4, size = 3.4) +
-      facet_wrap(~ blood_type, ncol = 4, scales = "free_y") +
-      method_legend("cmp_group_plot") +
-      scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
-      scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
-      labs(x = NULL, y = "MAE (donations per day)",
-           subtitle = paste0("Evaluation year ", input$cmp_year,
-                             "; y-axes differ by group")) +
-      theme_for("cmp_group_plot") + theme(axis.text.x = element_blank())
+  # --- About ------------------------------------------------------------------------
+  output$audit_table <- renderTable({
+    a <- dash$audit
+    data.frame(
+      Check = c("Source", "MD5 checksum", "Rows × columns", "Date range", "Distinct dates",
+                "Regions", "Blood-type values (incl. ALL)", "Missing values",
+                "Duplicate rows", "Duplicate date-state-type keys", "Negative counts",
+                "Zero counts", "ALL vs A+B+AB+O mismatches", "Largest ALL mismatch"),
+      Result = c(a$source, a$checksum, paste(fmt_int(a$rows), "×", a$columns),
+                 paste(a$first_date, "to", a$last_date), fmt_int(a$distinct_dates),
+                 a$regions, a$blood_type_values, a$missing_values, a$duplicate_rows,
+                 a$duplicate_keys, a$negative_values,
+                 sprintf("%s (%.2f%%)", fmt_int(a$zero_values), 100 * a$zero_values / a$rows),
+                 sprintf("%s of %s date-state totals", fmt_int(a$all_mismatches),
+                         fmt_int(a$all_rows_checked)),
+                 a$all_max_abs_difference)
+    )
   })
 
-  output$cmp_table <- renderDT({
-    req(input$cmp_methods)
-    pooled <- dash$scores_overall |>
-      filter(evaluation_year == as.integer(input$cmp_year),
-             method %in% input$cmp_methods) |>
-      mutate(blood_type = "All (pooled)")
-    bind_rows(pooled, cmp_scores()) |>
-      arrange(blood_type != "All (pooled)", blood_type,
-              factor(method, levels = METHODS)) |>
-      transmute(`Blood group` = blood_type, Method = method,
-                Days = observations, MAE, RMSE,
-                `Mean signed error` = mean_signed_error) |>
-      dt_table(c("MAE", "RMSE", "Mean signed error"), page_length = 20)
+  output$panel_table <- renderTable({
+    p <- dash$panel_summary
+    data.frame(
+      Item = c("Regions combined", "Blood groups", "Period", "Group-days",
+               "Distinct dates", "Zero group-days"),
+      Value = c("Selangor + W.P. Kuala Lumpur", "A, AB, B, O",
+                paste(p$first_date, "to", p$last_date), fmt_int(p$rows), fmt_int(p$dates),
+                sprintf("%d (%.2f%%)", p$zero_values, 100 * p$zero_values / p$rows))
+    )
   })
 
-  output$cmp_daily_plot <- glass_plot({
-    req(input$cmp_methods, input$cmp_dates)
-    rng <- input$cmp_dates
-    shown <- dash$predictions |>
-      filter(blood_type == input$cmp_group, method %in% input$cmp_methods,
-             date >= rng[1], date <= rng[2])
-    validate(need(nrow(shown) > 0, "No evaluation days in the selected range (2023–2025 only)."))
-    actual <- distinct(shown, date, donations)
-    ggplot(shown, aes(date, prediction, colour = factor(method, levels = METHODS))) +
-      geom_line(linewidth = 0.7) +
-      geom_line(data = actual, aes(date, donations), inherit.aes = FALSE,
-                colour = INK, linewidth = 0.9) +
-      geom_point(data = actual, aes(date, donations), inherit.aes = FALSE,
-                 colour = INK, size = 1.2) +
-      method_legend("cmp_daily_plot") +
-      scale_colour_manual(values = PASTEL_METHOD, name = NULL) +
-      labs(x = NULL, y = "Donations per day",
-           subtitle = paste("Blood group", input$cmp_group)) + theme_for("cmp_daily_plot")
-  })
-
-  # Low-collection days
-  output$cutoff_table <- renderTable({
-    low_days <- dash$low_errors_2025 |>
-      filter(day_category == "Low collection") |>
-      distinct(blood_type, days, mean_actual)
-    dash$low_cutoffs_2025 |>
-      left_join(low_days, by = "blood_type") |>
-      transmute(`Blood group` = blood_type,
-                `Threshold (≤)` = fmt(low_cutoff),
-                `Low days in 2025` = days,
-                `Mean actual on low days` = fmt(mean_actual))
-  })
-
-  output$low_plot <- glass_plot({
-    dash$low_errors_2025 |>
-      ggplot(aes(factor(method, levels = METHODS), MAE,
-                 fill = factor(method, levels = METHODS),
-                 alpha = day_category)) +
-      geom_col(position = position_dodge(width = 0.8), width = 0.75) +
-      facet_wrap(~ blood_type, ncol = 4, scales = "free_y") +
-      method_legend("low_plot") +
-      scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
-      scale_alpha_manual(values = c("Low collection" = 1, "Other days" = 0.35),
-                         name = NULL) +
-      guides(alpha = "none") +
-      labs(x = NULL, y = "MAE (donations per day)",
-           subtitle = "Solid bars: low-collection days. Faded bars: other days.") +
-      theme_for("low_plot") + theme(axis.text.x = element_blank())
-  })
-
-  output$low_table <- renderDT({
-    dash$low_errors_2025 |>
-      filter(day_category == "Low collection") |>
-      arrange(blood_type, factor(method, levels = METHODS)) |>
-      transmute(`Blood group` = blood_type, Method = method, `Low days` = days,
-                MAE, `Overpredicted (%)` = overprediction_percent,
-                `Mean excess forecast` = mean_excess) |>
-      dt_table(c("MAE", "Overpredicted (%)", "Mean excess forecast"),
-               page_length = 16)
-  })
-
-  output$min_pred_table <- renderDT({
-    dash$min_predictions_2025 |>
-      arrange(blood_type, factor(method, levels = METHODS)) |>
-      transmute(`Blood group` = blood_type, Method = method,
-                `Smallest 2025 prediction` = minimum_prediction,
-                `Low-day threshold` = low_cutoff,
-                `All predictions above threshold` =
-                  ifelse(all_predictions_above_cutoff, "Yes", "No")) |>
-      dt_table(c("Smallest 2025 prediction", "Low-day threshold"),
-               page_length = 16)
-  })
-
-  # Model explanation
   output$coef_table <- renderTable({
     dash$coefficients |>
       transmute(`Blood group` = blood_type,
@@ -897,7 +1080,7 @@ server <- function(input, output, session) {
 
   output$bias_table <- renderDT({
     dash$scores_by_group |>
-      filter(evaluation_year == 2025L) |>
+      filter(evaluation_year == LATEST) |>
       arrange(blood_type, factor(method, levels = METHODS)) |>
       transmute(`Blood group` = blood_type, Method = method,
                 `Mean signed error` = mean_signed_error, MAE) |>
@@ -906,8 +1089,9 @@ server <- function(input, output, session) {
 
   output$monthly_plot <- glass_plot({
     req(input$month_methods)
-    dash$monthly_2025 |>
-      filter(method %in% input$month_methods) |>
+    y <- as.integer(if (is.null(input$month_year)) LATEST else input$month_year)
+    dash$monthly |>
+      filter(evaluation_year == y, method %in% input$month_methods) |>
       mutate(month = as.Date(paste0(month, "-01"))) |>
       ggplot(aes(month, MAE, colour = factor(method, levels = METHODS))) +
       geom_line() + geom_point() +

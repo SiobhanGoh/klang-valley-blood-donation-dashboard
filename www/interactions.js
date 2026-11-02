@@ -37,7 +37,7 @@
     if (e.animationName === "squash") e.target.classList.remove("is-squash");
   });
   document.addEventListener("pointerdown", function (e) {
-    var t = e.target.closest(".btn-pill, .qa-toggle, .qa-item, .rail-item .rail-icon, .rail-item");
+    var t = e.target.closest(".btn-pill, .qa-toggle, .qa-item, .rail-item");
     if (!t) return;
     squash(t.classList.contains("rail-item") ? t.querySelector(".rail-icon") : t);
   });
@@ -149,6 +149,22 @@
       toggleFlip(card);
       var face = card.querySelector(card.classList.contains("is-flipped") ? ".flip-back" : ".flip-front");
       if (face) ripple(face, e);
+      return;
+    }
+    // Single-choice chip groups that feed Shiny inputs.
+    var pick = e.target.closest(".group-pick, .type-pick");
+    if (pick) {
+      var isGroup = pick.classList.contains("group-pick");
+      var siblings = pick.parentElement.querySelectorAll(isGroup ? ".group-pick" : ".type-pick");
+      Array.prototype.forEach.call(siblings, function (b) {
+        var on = b === pick;
+        b.classList.toggle("is-on", on);
+        b.setAttribute("aria-checked", on ? "true" : "false");
+      });
+      squash(pick);
+      ripple(pick, e);
+      if (window.Shiny) Shiny.setInputValue(isGroup ? "live_group" : "bt_pick",
+        pick.getAttribute(isGroup ? "data-group" : "data-type"), { priority: "event" });
       return;
     }
     var toggle = e.target.closest(".qa-toggle");

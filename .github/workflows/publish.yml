@@ -1,0 +1,77 @@
+name: Refresh data and publish dashboard
+
+# Runs every day after data.gov.my updates the CSV (around 21:00 UTC),
+# on every push to main, and on demand. The site is served by GitHub Pages
+# and runs the Shiny app in the visitor's browser with Shinylive (webR).
+on:
+  schedule:
+    - cron: "17 22 * * *"      # 06:17 Malaysia time
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.5'
+          use-public-rspm: true
+
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          packages: |
+            any::shiny
+            any::bslib
+            any::DT
+            any::ggplot2
+            any::dplyr
+            any::tidyr
+            any::readr
+            any::lubridate
+            any::janitor
+            any::testthat
+            any::shinylive
+
+      - name: Run tests (frozen snapshot reproduces the FIT5145 report)
+        run: Rscript -e 'testthat::test_dir("tests/testthat", reporter = "summary", stop_on_failure = TRUE)'
+
+      - name: Download the latest official data and rebuild results
+        run: Rscript scripts/build_data.R
+
+      - name: Package the app for the browser
+        run: |
+          mkdir -p _app
+          cp app.R _app/
+          cp -r R www app_data _app/
+          Rscript -e 'shinylive::export("_app", "_site")'
+          touch _site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
