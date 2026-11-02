@@ -45,7 +45,7 @@ A left rail (a bottom tab bar on phones) switches between sections:
 
 | Section | Contents |
 |---|---|
-| Overview | Latest day and headline errors as flip cards, a four-chapter story index, pooled MAE by period and findings generated from the results |
+| Overview | The latest day as an oversized anchor number with four compact flip cards, the error of each method by test period, a five-part story index, and a "Today's story" panel on the right with the findings (generated from the results) and the next seven days |
 | Live tracker | Latest day, last 7 days and year to date against a year earlier; the last 60 days and a 7-day forecast |
 | Compare methods | MAE/RMSE by period and blood group; actual vs predicted daily counts |
 | Low-collection days | Errors on days at or below each group's lower quartile from earlier years |
@@ -79,6 +79,10 @@ switches and toggle chips. The navigation rail expands on hover and marks the op
 section in dark wine; on phones it becomes a bottom tab bar. The headline cards flip to
 show a breakdown. Motion is switched off for anyone who has "reduce motion" set on
 their device.
+
+Light and dark themes share the same layout; only colours change, charts included. The
+site follows the device setting at first, and a switch at the bottom of the navigation rail
+remembers the visitor's choice in their browser.
 
 The visual design combines two style references, Apple (one accent colour, pill
 controls, restrained shadows) and Oura (serif display type, warm canvas, soft cards,

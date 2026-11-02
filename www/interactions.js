@@ -309,6 +309,8 @@
     }
     compactForPhone(gd);
     wireTips(gd);
+    gd.__origColours = null;       // a new render brings fresh colours
+    if (isDark()) themeChart(gd);
     if (!chartObserver) { animateChart(gd); return; }
     pendingCharts.add(gd);
     chartObserver.unobserve(gd);
@@ -502,6 +504,73 @@
     if (termOpen) hideTerm();
   });
   window.addEventListener("scroll", hideTerm, { passive: true });
+
+
+  // ---------- Light and dark themes ----------
+  // Only colours change; layout and content stay the same. Charts are recoloured
+  // in place so nothing redraws or moves.
+  var CHART_DARK = {
+    "#4A1426": "#F7ECEE", "#8A6470": "#B89AA2", "#F3E1E5": "rgba(255,255,255,0.07)",
+    "#F2C2CC": "#6B3A48", "#E3909F": "#9C4A60", "#C45A72": "#CE5F7B", "#7D2440": "#F48AA2",
+    "#F2B3C0": "#7A3F50", "#E07D93": "#A84F66", "#B8445F": "#D06580", "#6E1D37": "#F4A3B6"
+  };
+  function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  function mapColour(c, dark) {
+    if (typeof c !== "string") return c;
+    if (!dark) return c;
+    return CHART_DARK[c.toUpperCase()] || CHART_DARK[c] || c;
+  }
+  function themeChart(gd) {
+    if (!window.Plotly || !gd.data || !gd.layout) return;
+    var dark = isDark();
+    if (!gd.__origColours) {
+      gd.__origColours = gd.data.map(function (t) {
+        return { m: t.marker && t.marker.color, ml: t.marker && t.marker.line && t.marker.line.color,
+                 l: t.line && t.line.color, f: t.fillcolor };
+      });
+      gd.__origLayout = {
+        font: gd.layout.font && gd.layout.font.color,
+        ann: (gd.layout.annotations || []).map(function (a) { return a.font && a.font.color; })
+      };
+    }
+    var lay = { "font.color": mapColour("#4A1426", dark), "legend.font.color": mapColour("#4A1426", dark) };
+    Object.keys(gd.layout).forEach(function (k) {
+      if (/^[xy]axis\d*$/.test(k)) {
+        lay[k + ".tickfont.color"] = mapColour("#8A6470", dark);
+        lay[k + ".title.font.color"] = mapColour("#8A6470", dark);
+        lay[k + ".gridcolor"] = mapColour("#F3E1E5", dark);
+      }
+    });
+    (gd.__origLayout.ann || []).forEach(function (c, i) { lay["annotations[" + i + "].font.color"] = mapColour(c || "#4A1426", dark); });
+    try {
+      gd.__origColours.forEach(function (o, i) {
+        var u = {};
+        if (o.m !== undefined) u["marker.color"] = [mapColour(o.m, dark)];
+        if (o.ml !== undefined) u["marker.line.color"] = [mapColour(o.ml, dark)];
+        if (o.l !== undefined) u["line.color"] = [mapColour(o.l, dark)];
+        if (o.f !== undefined) u.fillcolor = [mapColour(o.f, dark)];
+        if (Object.keys(u).length) window.Plotly.restyle(gd, u, [i]);
+      });
+      window.Plotly.relayout(gd, lay);
+    } catch (e) { /* chart not ready */ }
+  }
+  function themeAllCharts() { $all(".js-plotly-plot").forEach(function (gd) { if (gd.__origColours || isDark()) themeChart(gd); }); }
+  function setTheme(t) {
+    var root = document.documentElement;
+    root.classList.add("theme-switching");
+    root.setAttribute("data-theme", t);
+    try { localStorage.setItem("kvbd-theme", t); } catch (e) { /* private mode */ }
+    $all(".theme-toggle").forEach(function (b) { b.setAttribute("aria-pressed", t === "dark" ? "true" : "false"); });
+    themeAllCharts();
+    setTimeout(function () { root.classList.remove("theme-switching"); }, 520);
+  }
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".theme-toggle")) return;
+    setTheme(isDark() ? "light" : "dark");
+  });
+  document.addEventListener("DOMContentLoaded", function () {
+    $all(".theme-toggle").forEach(function (b) { b.setAttribute("aria-pressed", isDark() ? "true" : "false"); });
+  });
 
   // ---------- Count-up numbers ----------
   function countTo(el, to, ms, decimals, from) {

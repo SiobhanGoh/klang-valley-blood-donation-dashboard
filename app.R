@@ -98,6 +98,8 @@ low_all <- dash$low_errors[dash$low_errors$evaluation_year == LATEST &
                              dash$low_errors$day_category == "Low collection", ] |>
   group_by(method) |>
   summarise(over = sum(days * overprediction_percent) / sum(days), .groups = "drop")
+LOW_OVER_BARS <- setNames(low_all$over, c("Seven-day baseline" = "7-day", "Weekday average" = "Wkday",
+                                           "Linear regression" = "Regr.", "Recent weekday average" = "Recent")[low_all$method])
 LOW_HEADLINE <- if (all(low_all$over == 100)) {
   "On the quietest days, every forecast aims too high."
 } else if (all(low_all$over > 50)) {
@@ -124,6 +126,18 @@ LIMITS_MAP <- list(
   list(title = "No outside factors", sub = "No weather, holidays, campaigns, blood stock or hospital demand, and no ranges of uncertainty"),
   list(title = "Zero days kept", sub = "Days with no donations may be closures or reporting gaps"),
   list(title = "Data can change", sub = "Official figures can be revised between daily refreshes"))
+
+wk_line <- function(now, before, what) {
+  ch <- pct_change(now, before)
+  if (is.na(ch)) return(what)
+  sprintf("%s%s%% on %s", if (ch >= 0) "+" else "\u2212", fmt(abs(ch), 1), what)
+}
+WEEK_LINE <- wk_line(dash$latest$last7, dash$latest$last7_prev_year, "last year")
+YTD_LINE <- wk_line(dash$latest$ytd, dash$latest$ytd_prev_year, "last year")
+last7 <- utils::tail(dash$latest$daily[order(dash$latest$daily$date), ], 7)
+LAST7_BARS <- setNames(last7$total, format(last7$date, "%a"))
+NEXT_TOTALS <- dash$next_days[dash$next_days$method == "Recent weekday average", ] |>
+  group_by(date) |> summarise(total = sum(prediction), .groups = "drop") |> arrange(date)
 
 method_phrase <- function(m) c("Seven-day baseline" = "seven-day lag",
                                "Weekday average" = "full-history weekday mean",
@@ -380,7 +394,12 @@ rail <- tags$nav(
           `aria-current` = if (i == 1) "page" else NULL,
           span(class = "rail-icon", icon(sct$icon)),
           span(class = "rail-label", sct$label))
-      }))
+      })),
+  tags$button(class = "rail-item theme-toggle", type = "button", `aria-label` = "Switch light or dark theme",
+              title = "Light or dark", `aria-pressed` = "false",
+              span(class = "rail-icon", span(class = "ti-sun", icon("sun")), span(class = "ti-moon", icon("moon"))),
+              span(class = "rail-label", span(class = "ti-text-light", "Dark theme"),
+                   span(class = "ti-text-dark", "Light theme")))
 )
 
 quick_actions <- div(
@@ -565,6 +584,11 @@ ui <- page(
       "Daily blood donation collections in the Klang Valley, Malaysia: live data,",
       "four forecasting methods compared, and general blood donation information.")),
     tags$link(rel = "icon", type = "image/svg+xml", href = "favicon.svg"),
+    # Apply the saved or system theme before the first paint, so nothing flashes.
+    tags$script(HTML(paste0(
+      "(function(){var t=null;try{t=localStorage.getItem('kvbd-theme')}catch(e){}",
+      "if(t!=='light'&&t!=='dark'){t=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}",
+      "document.documentElement.setAttribute('data-theme',t)})();"))),
     tags$link(rel = "preconnect", href = "https://fonts.googleapis.com"),
     tags$link(rel = "preconnect", href = "https://fonts.gstatic.com", crossorigin = NA),
     tags$link(rel = "stylesheet", href = paste0(
@@ -586,92 +610,99 @@ ui <- page(
         nav_panel_hidden(
           "overview",
           div(
-            class = "hero-grid",
-            div(class = "intro stage-1",
-                div(class = "intro-copy",
-                    div(class = "intro-top",
+            class = "ov-layout",
+            div(
+              class = "ov-main",
+              div(
+                class = "ov-top",
+                div(class = "ov-hero stage-1",
+                    div(class = "ov-hero-top",
                         div(class = "chapter-eyebrow",
                             span(class = "chapter-badge", icon("droplet")),
                             span(class = "chapter-name", "Overview")),
                         status_pill),
-                    h1("How well can past collections predict tomorrow's donations?"),
-                    p(class = "intro-lead",
-                      "Four forecasting methods, tested every day on recorded blood donations ",
-                      "in Selangor and W.P. Kuala Lumpur."),
-                    p(class = "intro-scope", icon("circle-info"),
-                      "Forecasts of donations collected, not of blood demand, stock or shortage."),
-                    div(class = "intro-actions",
-                        tags$button(class = "btn-pill btn-primary-solid", type = "button",
-                                    `data-target` = "live", "See the latest data",
-                                    icon("arrow-right")),
-                        tags$button(class = "btn-pill btn-quiet", type = "button",
-                                    `data-target` = "blood101", "Can I donate?"))),
-                ascii_drop(),
-                tags$svg(class = "ecg", viewBox = "0 0 600 60", preserveAspectRatio = "none",
-                         `aria-hidden` = "true",
-                         tags$path(d = paste("M0 34 H210 l12 0 l10 -22 l12 44 l10 -30 l8 8",
-                                             "H330 l8 -6 l8 6 H600")))),
-            div(class = "stat-grid stage-2",
-                flip_card(
-                  paste0("Latest day, ", format(DATA_END, "%e %b") |> trimws()),
-                  count_span(dash$latest$latest_total), "donations recorded",
-                  "By blood group",
-                  tagList(p(class = "flip-back-text",
-                            paste0("Selangor and W.P. Kuala Lumpur combined, on ", fmt_date(DATA_END), ".")),
-                          mini_bars(latest_groups, highlight = names(which.max(latest_groups)))),
-                  "tone-hero"),
-                flip_card(
-                  "Recent weekday mean", count_span(latest_mae("Recent weekday average"), 2),
-                  paste("average error,", LATEST_SHORT), "Recent weekday mean",
-                  method_back("Recent weekday average",
-                              "Each day predicted from the same weekday over the last three complete years."),
-                  "tone-best", badge = rank_badge("Recent weekday average")),
-                flip_card(
-                  "Linear regression", count_span(latest_mae("Linear regression"), 2),
-                  paste("average error,", LATEST_SHORT), "Linear regression",
-                  method_back("Linear regression", "Weekday plus a straight-line trend, per blood group."),
-                  badge = rank_badge("Linear regression")),
-                flip_card(
-                  "Seven-day lag", count_span(latest_mae("Seven-day baseline"), 2),
-                  paste("average error,", LATEST_SHORT), "Seven-day lag",
-                  method_back("Seven-day baseline", "The count from one week earlier."),
-                  badge = rank_badge("Seven-day baseline")))
-          ),
-          narrate("The story in five parts. Start anywhere, or read them in order."),
-          div(
-            class = "story-strip stage-3", role = "list",
-            story_card("live", "This week", WEEK_CHANGE,
-                       "donations in the past seven days, against the same week last year"),
-            story_card("compare", "The winner", paste0("\u2212", pct_text(BEST_GAIN)),
-                       sprintf("error with the %s, against repeating last week's count",
-                               method_phrase(BEST_METHOD))),
-            story_card("low", "The blind spot", pct_text(LOW_OVER_PCT),
-                       sprintf("of %d low-collection days forecast too high by the best method",
-                               LOW_DAYS)),
-            story_card("patterns", "The rhythm", BUSIEST_DAY,
-                       sprintf("is the busiest day, with %s times a %s's donations",
-                               fmt(BUSY_RATIO, 1), QUIETEST_DAY)),
-            story_card("blood101", "Your part", "3 months",
-                       "the minimum gap between donations. Donors can be aged 17 to 70")),
-          narrate("First, the scoreboard: how far off each method has been, period by period."),
-          div(
-            class = "overview-grid",
-            panel("How far off each method was, year by year",
-                  sub = tagList("The ", term("average error", "error"), " of each method in each ",
-                                term("test period", "test_period"), ", with all four blood groups together."),
-                  read = paste("Each bar is how many donations a method's forecast missed by, on an average",
-                               "day for one blood group. Shorter is better. Hover a bar for the exact numbers."),
-                  class = "stage-3 chart-panel",
-                  plotlyOutput("overview_plot", height = "400px"),
-                  footer = paste("Each period's averages and regression are fitted only on earlier",
-                                 "years. Training windows overlap, so the periods are not independent tests.")),
-            div(class = "findings-panel stage-3",
-                h3(class = "panel-title", "What the data shows"),
-                tags$ul(class = "findings",
-                        lapply(seq_along(dash$findings), function(i)
-                          tags$li(style = sprintf("--i:%d", i - 1), emphasise(dash$findings[[i]])))),
-                wave("wave-findings"))),
-          chapter_nav("overview")
+                    div(class = "ov-kicker", "Latest day"),
+                    div(class = "ov-big", count_span(dash$latest$latest_total)),
+                    p(class = "ov-unit", "donations recorded on ",
+                      strong(format(DATA_END, "%a %e %b") |> gsub(pattern = "  ", replacement = " "),
+                             .noWS = "outside"),
+                      ", Selangor and W.P. Kuala Lumpur combined.")),
+                div(class = "stat-grid ov-mini stage-2",
+                    flip_card("Past 7 days", count_span(dash$latest$last7), WEEK_LINE,
+                              "Each of the last seven days", mini_bars(LAST7_BARS)),
+                    flip_card(paste(END_YEAR, "so far"), count_span(dash$latest$ytd), YTD_LINE,
+                              "Latest day by blood group",
+                              mini_bars(latest_groups, highlight = names(which.max(latest_groups)))),
+                    flip_card("Best method's error", count_span(BEST_MAE, 1),
+                              method_phrase(BEST_METHOD), method_phrase(BEST_METHOD),
+                              method_back(BEST_METHOD, ""), "tone-hero"),
+                    flip_card("Low days forecast too high", span(pct_text(LOW_OVER_PCT)),
+                              sprintf("%d of %d low days", round(LOW_OVER_PCT * LOW_DAYS / 100), LOW_DAYS),
+                              "Share of low days forecast too high",
+                              mini_bars(LOW_OVER_BARS, digits = 0)))),
+              panel("How far off each method was, year by year",
+                    sub = tagList("The ", term("average error", "error"), " of each method in each ",
+                                  term("test period", "test_period"), ", with all four blood groups together."),
+                    read = paste("Each bar is how many donations a method's forecast missed by, on an average",
+                                 "day for one blood group. Shorter is better. Hover a bar for the exact numbers."),
+                    class = "stage-3 chart-panel ov-chart",
+                    plotlyOutput("overview_plot", height = "360px"),
+                    footer = paste("Each period's averages and regression are fitted only on earlier",
+                                   "years. Training windows overlap, so the periods are not independent tests.")),
+              narrate("The story in five parts. Start anywhere, or read them in order."),
+              div(
+                class = "story-strip stage-3", role = "list",
+                story_card("live", "This week", WEEK_CHANGE,
+                           "donations in the past seven days, against the same week last year"),
+                story_card("compare", "The winner", paste0("\u2212", pct_text(BEST_GAIN)),
+                           sprintf("error with the %s, against repeating last week's count",
+                                   method_phrase(BEST_METHOD))),
+                story_card("low", "The blind spot", pct_text(LOW_OVER_PCT),
+                           sprintf("of %d low-collection days forecast too high by the best method",
+                                   LOW_DAYS)),
+                story_card("patterns", "The rhythm", BUSIEST_DAY,
+                           sprintf("is the busiest day, with %s times a %s's donations",
+                                   fmt(BUSY_RATIO, 1), QUIETEST_DAY)),
+                story_card("blood101", "Your part", "3 months",
+                           "the minimum gap between donations. Donors can be aged 17 to 70")),
+              div(class = "intro ov-intro stage-3",
+                  div(class = "intro-copy",
+                      div(class = "ov-kicker", "About this dashboard"),
+                      h2("How well can past collections predict tomorrow's donations?"),
+                      p(class = "intro-lead",
+                        "Four forecasting methods, tested every day on recorded blood donations ",
+                        "in Selangor and W.P. Kuala Lumpur."),
+                      p(class = "intro-scope", icon("circle-info"),
+                        "Forecasts of donations collected, not of blood demand, stock or shortage.")),
+                  ascii_drop(),
+                  tags$svg(class = "ecg", viewBox = "0 0 600 60", preserveAspectRatio = "none",
+                           `aria-hidden` = "true",
+                           tags$path(d = paste("M0 34 H210 l12 0 l10 -22 l12 44 l10 -30 l8 8",
+                                               "H330 l8 -6 l8 6 H600")))),
+              chapter_nav("overview")),
+            tags$aside(
+              class = "ov-side stage-2", `aria-label` = "Today's story",
+              div(class = "ov-kicker", "Today's story"),
+              h2(class = "ov-side-title",
+                 sprintf("The %s wins, by %s.", method_phrase(BEST_METHOD), pct_text(BEST_GAIN))),
+              h4(class = "ov-side-h", "What stands out"),
+              tags$ul(class = "ov-story",
+                      lapply(dash$findings, function(f) tags$li(span(class = "ov-dot"), span(emphasise(f))))),
+              h4(class = "ov-side-h", "Next seven days"),
+              p(class = "ov-side-note", "Expected donations, all groups, from the recent weekday mean."),
+              div(class = "ov-next",
+                  lapply(seq_len(nrow(NEXT_TOTALS)), function(i)
+                    div(class = "ov-next-row", style = sprintf("--i:%d", i - 1),
+                        span(format(NEXT_TOTALS$date[i], "%a %e %b") |> gsub(pattern = "  ", replacement = " ")),
+                        span(class = "ov-next-track",
+                             span(class = "ov-next-fill",
+                                  style = sprintf("--w:%.1f%%", 100 * NEXT_TOTALS$total[i] / max(NEXT_TOTALS$total)))),
+                        strong(fmt_int(NEXT_TOTALS$total[i]))))),
+              div(class = "ov-side-actions",
+                  tags$button(class = "btn-pill btn-primary-solid", type = "button",
+                              `data-target` = "live", "See the latest data", icon("arrow-right")),
+                  tags$button(class = "btn-pill btn-quiet", type = "button",
+                              `data-target` = "blood101", "Can I donate?"))))
         ),
 
         # Live tracker -------------------------------------------------------------
