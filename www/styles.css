@@ -355,7 +355,9 @@ a:focus-visible, button:focus-visible, .nav-link:focus-visible,
 @media (max-width: 640px) {
   .bento { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .span-2, .span-3, .span-4 { grid-column: span 1; }
-  .navbar { margin: 8px; border-radius: 22px; }
+  .navbar { margin: 8px; border-radius: 22px; padding: 6px 12px; }
+  .navbar-brand { white-space: normal; font-size: 1rem; line-height: 1.2; max-width: 75%; }
+  .snapshot-label { display: block; padding: 4px 0; }
   .intro { padding: 20px; }
 }
 
@@ -372,3 +374,4 @@ a:focus-visible, button:focus-visible, .nav-link:focus-visible,
 }
 
 .input-daterange input { font-size: 0.9rem; padding-left: 8px; padding-right: 8px; }
+html, body { overflow-x: hidden; }

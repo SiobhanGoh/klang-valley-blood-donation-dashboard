@@ -351,6 +351,17 @@ ui <- page_navbar(
 
 server <- function(input, output, session) {
 
+  # Charts adapt to their rendered width: on narrow screens the method legend
+  # wraps to two rows and crowded value labels are hidden.
+  narrow <- function(id) {
+    w <- session$clientData[[paste0("output_", id, "_width")]]
+    !is.null(w) && w < 640
+  }
+  method_legend <- function(id) {
+    guides(fill = guide_legend(nrow = if (narrow(id)) 2 else 1),
+           colour = guide_legend(nrow = if (narrow(id)) 2 else 1))
+  }
+
   headline <- function(m) {
     s <- dash$scores_overall
     fmt(s$MAE[s$evaluation_year == 2025L & s$method == m])
@@ -364,8 +375,10 @@ server <- function(input, output, session) {
            aes(factor(evaluation_year), MAE,
                fill = factor(method, levels = METHODS))) +
       geom_col(position = position_dodge(width = 0.8), width = 0.75) +
-      geom_text(aes(label = fmt(MAE)), position = position_dodge(width = 0.8),
-                vjust = -0.4, size = 3.4) +
+      { if (!narrow("overview_plot"))
+          geom_text(aes(label = fmt(MAE)), position = position_dodge(width = 0.8),
+                    vjust = -0.4, size = 3.4) } +
+      method_legend("overview_plot") +
       scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
       scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
       labs(x = "Evaluation year", y = "MAE (donations per group-day)") +
@@ -456,6 +469,7 @@ server <- function(input, output, session) {
       geom_col(width = 0.7) +
       geom_text(aes(label = fmt(MAE, 1)), vjust = -0.4, size = 3.4) +
       facet_wrap(~ blood_type, ncol = 4, scales = "free_y") +
+      method_legend("cmp_group_plot") +
       scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
       scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
       labs(x = NULL, y = "MAE (donations per day)",
@@ -493,6 +507,7 @@ server <- function(input, output, session) {
                 colour = INK, linewidth = 0.9) +
       geom_point(data = actual, aes(date, donations), inherit.aes = FALSE,
                  colour = INK, size = 1.2) +
+      method_legend("cmp_daily_plot") +
       scale_colour_manual(values = PASTEL_METHOD, name = NULL) +
       labs(x = NULL, y = "Donations per day",
            subtitle = paste("Blood group", input$cmp_group)) + base_theme
@@ -518,6 +533,7 @@ server <- function(input, output, session) {
                  alpha = day_category)) +
       geom_col(position = position_dodge(width = 0.8), width = 0.75) +
       facet_wrap(~ blood_type, ncol = 4, scales = "free_y") +
+      method_legend("low_plot") +
       scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
       scale_alpha_manual(values = c("Low collection" = 1, "Other days" = 0.35),
                          name = NULL) +
@@ -575,6 +591,7 @@ server <- function(input, output, session) {
       mutate(month = as.Date(paste0(month, "-01"))) |>
       ggplot(aes(month, MAE, colour = factor(method, levels = METHODS))) +
       geom_line() + geom_point() +
+      method_legend("monthly_plot") +
       scale_colour_manual(values = PASTEL_METHOD, name = NULL) +
       scale_x_date(date_labels = "%b", date_breaks = "1 month") +
       labs(x = NULL, y = "Pooled MAE (donations per group-day)",
