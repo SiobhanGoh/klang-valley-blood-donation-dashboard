@@ -124,3 +124,27 @@ compatibility_for <- function(type) {
     receives_from = BLOOD_TYPES[vapply(BLOOD_TYPES, function(d) can_give_red_cells(d, type), logical(1))]
   )
 }
+
+# --- Plain-language glossary ---------------------------------------------------
+# Shown when a reader hovers or taps a dotted term, and listed in the
+# Sources & notes drawer.
+GLOSSARY <- list(
+  forecast = c("Forecast", "A method's estimate, made in advance, of how many donations will be recorded on a day."),
+  error = c("Average error (MAE)", "How far off a forecast was, on average: the gap between the forecast and the real count, in donations per blood group per day. Smaller is better."),
+  rmse = c("Big-miss error (RMSE)", "Like the average error, but large misses count extra. If it is much bigger than the average error, a method sometimes misses badly."),
+  bias = c("Average bias", "The real count minus the forecast, averaged. Positive means forecasts were too low on average; negative means too high. Near zero can still hide big misses that cancel out."),
+  test_period = c("Test period", "The year a method is tested on. It is predicted using only earlier years, so the test is fair. The current year counts once it has four weeks of data."),
+  pooled = c("All groups together", "Errors from the four blood groups A, AB, B and O combined into one score."),
+  lag = c("Seven-day lag", "The simplest forecast: tomorrow will be like the same day last week. It is the yardstick the other methods have to beat."),
+  weekday_mean = c("Weekday mean", "The average number of donations on that weekday (Mondays, Tuesdays...) in past years."),
+  regression = c("Linear regression", "A model that learns the usual weekday pattern plus a steady long-term trend from past years."),
+  low_day = c("Low-collection day", "A day at or below the lower quartile from earlier years: one of the quietest quarter of days for that blood group. It is not a clinical shortage level."),
+  quartile = c("Lower quartile", "The value with a quarter of past days below it. A quarter of days are this quiet or quieter."),
+  overpredict = c("Forecast too high", "When the forecast was more than the real count. On quiet days the methods tend to expect more donations than arrive."),
+  coefficient = c("Coefficient", "A number the regression learned, such as how many more donations a Sunday brings than a Monday."),
+  r2 = c("Fit (R²)", "How much of the day-to-day ups and downs the regression explains, from 0 (none) to 1 (all)."),
+  retrospective = c("Tested on the past", "The methods are scored on days that have already happened, not on live forecasts acted on in real time."),
+  abo = c("ABO group", "The letter part of a blood type: A, B, AB or O. The donation data records only this."),
+  rhd = c("RhD", "The plus or minus part of a blood type. RhD-negative people need RhD-negative red cells."),
+  red_cells = c("Red cells", "The part of blood that carries oxygen; the compatibility rules here are for red-cell transfusions.")
+)

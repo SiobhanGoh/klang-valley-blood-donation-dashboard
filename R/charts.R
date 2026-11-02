@@ -65,7 +65,7 @@ chart_pooled_mae <- function(scores_overall, period_labels) {
     mutate(period = factor(period_labels[as.character(evaluation_year)],
                            levels = unique(period_labels)),
            method = factor(method, levels = METHODS),
-           tip = sprintf("<b>%s</b><br>%s<br>MAE <b>%s</b> donations<br>RMSE %s",
+           tip = sprintf("<b>%s</b><br>%s<br>Average error <b>%s</b> donations a day<br>Big-miss error (RMSE) %s",
                          method, period, fmt2(MAE), fmt2(RMSE)))
   p <- plot_ly()
   for (m in METHODS) {
@@ -74,7 +74,7 @@ chart_pooled_mae <- function(scores_overall, period_labels) {
                        marker = list(color = METHOD_COL[[m]]),
                        hovertext = ~tip, hoverinfo = "text")
   }
-  glass_layout(p, ytitle = "MAE, donations per group-day", barmode = "group",
+  glass_layout(p, ytitle = "Average error (donations a day)", barmode = "group",
                yaxis = list(rangemode = "tozero"), margin = list(t = 28))
 }
 
@@ -116,12 +116,12 @@ chart_group_mae <- function(scores_by_group, methods) {
       p <- p |> add_bars(data = s, x = SHORT_METHOD[[m]], y = ~MAE, name = m,
                          legendgroup = m, showlegend = show_legend,
                          marker = list(color = METHOD_COL[[m]]),
-                         hovertext = sprintf("<b>%s</b><br>Group %s<br>MAE <b>%s</b><br>RMSE %s<br>%s days",
+                         hovertext = sprintf("<b>%s</b><br>Group %s<br>Average error <b>%s</b> a day<br>Big-miss error (RMSE) %s<br>%s days scored",
                                              m, g, fmt2(s$MAE), fmt2(s$RMSE), s$observations),
                          hoverinfo = "text")
     }
     p
-  }, ytitle = "MAE")
+  }, ytitle = "Average error")
 }
 
 chart_low_days <- function(low_errors) {
@@ -134,16 +134,16 @@ chart_low_days <- function(low_errors) {
       add_bars(data = lo, x = SHORT_METHOD[as.character(lo$method)], y = ~MAE,
                name = "Low-collection days", legendgroup = "low", showlegend = show_legend,
                marker = list(color = "#7D2440"),
-               hovertext = sprintf("<b>%s</b><br>Group %s, low-collection days (%s)<br>MAE <b>%s</b><br>Overpredicted %s%% of days",
+               hovertext = sprintf("<b>%s</b><br>Group %s, %s low-collection days<br>Average error <b>%s</b> a day<br>Forecast too high on %s%% of them",
                                    lo$method, g, lo$days, fmt2(lo$MAE), round(lo$overprediction_percent)),
                hoverinfo = "text") |>
       add_bars(data = ot, x = SHORT_METHOD[as.character(ot$method)], y = ~MAE,
                name = "Other days", legendgroup = "other", showlegend = show_legend,
                marker = list(color = "#F2C2CC"),
-               hovertext = sprintf("<b>%s</b><br>Group %s, other days (%s)<br>MAE <b>%s</b>",
+               hovertext = sprintf("<b>%s</b><br>Group %s, %s other days<br>Average error <b>%s</b> a day",
                                    ot$method, g, ot$days, fmt2(ot$MAE)),
                hoverinfo = "text")
-  }, ytitle = "MAE")
+  }, ytitle = "Average error")
 }
 
 # Daily lines: recorded donations (dark) and each method's forecast.

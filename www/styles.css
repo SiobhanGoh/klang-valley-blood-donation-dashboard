@@ -1892,3 +1892,21 @@ html.drawer-open { overflow: hidden; }
 .date-pick-row { grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr) minmax(0, 1fr); }
 .date-pick-row .shiny-input-container { width: auto !important; min-width: 0; }
 .date-pick .shiny-html-output:empty, .panel-sub .shiny-html-output:empty { min-height: 0; animation: none; background: none; }
+
+/* Plain-language terms */
+.term { border-bottom: 1.5px dotted var(--rose); cursor: help; color: inherit; outline: none; transition: color var(--t-fast), border-color var(--t-fast); }
+.term:hover, .term:focus-visible { color: var(--wine); border-bottom-color: var(--wine); }
+.findings-panel .term, .chapter-stat .term { border-bottom-color: rgba(255,255,255,.6); }
+.glass-tip.is-term { max-width: 320px; }
+.gt-def { color: rgba(255,255,255,.9); line-height: 1.5; }
+
+/* "How to read this" line on charts */
+.how-read { display: flex; gap: 10px; align-items: baseline; margin-top: 16px; padding: 10px 14px; border-radius: var(--r-md);
+  background: var(--blush-2); color: var(--ink-soft); font-size: .86rem; line-height: 1.5; max-width: 820px; }
+.how-read-tag { flex: 0 0 auto; font-size: .66rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--wine); }
+@media (max-width: 760px) { .how-read { flex-direction: column; gap: 4px; } }
+
+/* Glossary in the drawer */
+.glossary { display: grid; gap: 4px 0; margin: 0; }
+.glossary dt { margin-top: 10px; font-weight: 600; color: var(--ink); }
+.glossary dd { margin: 2px 0 0; }

@@ -96,7 +96,7 @@ report_summary <- function(year) {
     h2(class = "rp-h2", "The blind spot"),
     p(class = "rp-p", sprintf(paste("Low-collection days are those at or below each group's lower",
                                     "quartile from earlier years. On the %d such days in %s, the %s",
-                                    "overpredicted %s of them. No method here gives an early warning",
+                                    "forecast too high on %s of them. No method here gives an early warning",
                                     "of a low day."),
                               sum(low$days), lab, method_phrase(best), pct_text(over))),
     div(class = "rp-callout",
@@ -158,7 +158,7 @@ report_data <- function(group, from, to, forecasts, max_rows = 62L) {
       tags$tr(tags$th("Rows"), tags$td(sprintf("%s in this extract%s", fmt_int(nrow(df)),
                                                 if (nrow(df) > max_rows) sprintf("; the first %d are shown, the CSV has all", max_rows) else ""))),
       if (isTRUE(forecasts))
-        tags$tr(tags$th("Forecasts"), tags$td("Shown for evaluation periods only; blank before them."))),
+        tags$tr(tags$th("Forecasts"), tags$td("Shown for test periods only; blank before them."))),
     tags$table(class = "rp-table",
       tags$thead(tags$tr(lapply(names(shown), function(n) tags$th(names_shown[[n]] %||% n)))),
       tags$tbody(lapply(seq_len(nrow(shown)), function(i)

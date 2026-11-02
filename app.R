@@ -118,11 +118,11 @@ wk <- pct_change(dash$latest$last7, dash$latest$last7_prev_year)
 WEEK_CHANGE <- if (is.na(wk)) "n/a" else paste0(if (wk >= 0) "+" else "\u2212", fmt(abs(wk), 1), "%")
 
 LIMITS_MAP <- list(
-  list(title = "Retrospective", sub = "Methods were developed on 2006–2025 data, so there is no untouched holdout"),
-  list(title = "Shared training data", sub = "Periods overlap and are not independent; no significance tests"),
-  list(title = "Window not tuned", sub = "The three-year window was not tuned or independently validated"),
-  list(title = "No outside factors", sub = "No intervals, weather, holidays, campaigns, stock or demand"),
-  list(title = "Zero days kept", sub = "Zero counts may be closures or reporting gaps"),
+  list(title = "Tested on the past", sub = "Scored on days that already happened; the methods were chosen using 2006–2025, so older years aren't a fresh test"),
+  list(title = "Overlapping tests", sub = "Test years share their past data, so they aren't fully separate checks"),
+  list(title = "3-year window untested", sub = "Three years for the recent mean was not compared with other window lengths"),
+  list(title = "No outside factors", sub = "No weather, holidays, campaigns, blood stock or hospital demand, and no ranges of uncertainty"),
+  list(title = "Zero days kept", sub = "Days with no donations may be closures or reporting gaps"),
   list(title = "Data can change", sub = "Official figures can be revised between daily refreshes"))
 
 method_phrase <- function(m) c("Seven-day baseline" = "seven-day lag",
@@ -145,7 +145,7 @@ count_span <- function(x, digits = 0) {
 
 # Highlight the terms a reader should remember: method names and key phrases.
 KEY_TERMS <- c(METHODS, "recent weekday average", "linear regression", "seven-day lag",
-               "full-history weekday mean", "low-collection days", "overpredicts every one")
+               "full-history weekday mean", "low-collection days", "too high on every one", "most accurate method")
 emphasise <- function(text) {
   pattern <- paste0("(", paste(unique(KEY_TERMS), collapse = "|"), ")")
   parts <- regmatches(text, gregexpr(pattern, text, ignore.case = TRUE), invert = NA)[[1]]
@@ -216,7 +216,7 @@ method_back <- function(m, text) {
     p(class = "flip-back-text",
       paste0(sprintf("Ranked %s of 4 for %s. ", c("1st", "2nd", "3rd", "4th")[method_rank(m)],
                      LATEST_LABEL), text)),
-    div(class = "flip-back-sub", "MAE by blood group"),
+    div(class = "flip-back-sub", "Average error by blood group"),
     mini_bars(group_mae(m), digits = 1))
 }
 latest_groups <- setNames(dash$latest$latest_by_group$donations,
@@ -277,6 +277,13 @@ story_card <- function(target, title, value, text) {
 big_stat <- function(value, label) {
   tagList(div(class = "big-stat-value", value), div(class = "big-stat-label", label))
 }
+# A word with a dotted underline that explains itself on hover, focus or tap.
+term <- function(text, key) {
+  g <- GLOSSARY[[key]]
+  span(class = "term", tabindex = "0", role = "button", `data-term` = g[1], `data-def` = g[2], text,
+       .noWS = "outside")
+}
+
 # A line of narration that carries the reader from one panel to the next.
 narrate <- function(...) p(class = "narration stage-3", ...)
 
@@ -305,13 +312,14 @@ chapter_nav <- function(id) {
 }
 
 # A panel: white card with a proper title row and optional controls.
-panel <- function(title, ..., sub = NULL, controls = NULL, class = "", footer = NULL) {
+panel <- function(title, ..., sub = NULL, controls = NULL, class = "", footer = NULL, read = NULL) {
   div(class = paste("panel", class),
       div(class = "panel-head",
           div(class = "panel-titles",
               h3(class = "panel-title", title),
               if (!is.null(sub)) p(class = "panel-sub", sub)),
           if (!is.null(controls)) div(class = "panel-controls", controls)),
+      if (!is.null(read)) div(class = "how-read", span(class = "how-read-tag", "How to read this"), span(read)),
       div(class = "panel-body", ...),
       if (!is.null(footer)) div(class = "panel-foot", footer))
 }
@@ -504,6 +512,9 @@ sources_drawer <- div(
           tags$button(class = "drawer-close", type = "button", `data-close` = "sources",
                       `aria-label` = "Close", icon("xmark"))),
       div(class = "drawer-body",
+          h3("What the words mean"),
+          tags$dl(class = "glossary",
+            lapply(GLOSSARY, function(g) tagList(tags$dt(g[1]), tags$dd(g[2])))),
           h3("The data"),
           p(HTML(paste0(
             "Government of Malaysia. <em>Daily Blood Donations by Blood Group &amp; State</em>. ",
@@ -611,18 +622,18 @@ ui <- page(
                   "tone-hero"),
                 flip_card(
                   "Recent weekday mean", count_span(latest_mae("Recent weekday average"), 2),
-                  paste("MAE,", LATEST_SHORT), "Recent weekday mean",
+                  paste("average error,", LATEST_SHORT), "Recent weekday mean",
                   method_back("Recent weekday average",
                               "Each day predicted from the same weekday over the last three complete years."),
                   "tone-best", badge = rank_badge("Recent weekday average")),
                 flip_card(
                   "Linear regression", count_span(latest_mae("Linear regression"), 2),
-                  paste("MAE,", LATEST_SHORT), "Linear regression",
+                  paste("average error,", LATEST_SHORT), "Linear regression",
                   method_back("Linear regression", "Weekday plus a straight-line trend, per blood group."),
                   badge = rank_badge("Linear regression")),
                 flip_card(
                   "Seven-day lag", count_span(latest_mae("Seven-day baseline"), 2),
-                  paste("MAE,", LATEST_SHORT), "Seven-day lag",
+                  paste("average error,", LATEST_SHORT), "Seven-day lag",
                   method_back("Seven-day baseline", "The count from one week earlier."),
                   badge = rank_badge("Seven-day baseline")))
           ),
@@ -635,7 +646,7 @@ ui <- page(
                        sprintf("error with the %s, against repeating last week's count",
                                method_phrase(BEST_METHOD))),
             story_card("low", "The blind spot", pct_text(LOW_OVER_PCT),
-                       sprintf("of %d low-collection days overpredicted by the best method",
+                       sprintf("of %d low-collection days forecast too high by the best method",
                                LOW_DAYS)),
             story_card("patterns", "The rhythm", BUSIEST_DAY,
                        sprintf("is the busiest day, with %s times a %s's donations",
@@ -645,8 +656,11 @@ ui <- page(
           narrate("First, the scoreboard: how far off each method has been, period by period."),
           div(
             class = "overview-grid",
-            panel("Pooled error by evaluation period",
-                  sub = "Mean absolute error in donations per blood group per day. Lower is better; hover a bar for exact values.",
+            panel("How far off each method was, year by year",
+                  sub = tagList("The ", term("average error", "error"), " of each method in each ",
+                                term("test period", "test_period"), ", with all four blood groups together."),
+                  read = paste("Each bar is how many donations a method's forecast missed by, on an average",
+                               "day for one blood group. Shorter is better. Hover a bar for the exact numbers."),
                   class = "stage-3 chart-panel",
                   plotlyOutput("overview_plot", height = "400px"),
                   footer = paste("Each period's averages and regression are fitted only on earlier",
@@ -677,7 +691,11 @@ ui <- page(
               kpi(paste0(END_YEAR, " so far"), count_span(dash$latest$ytd),
                   uiOutput("live_change_ytd", inline = TRUE))),
           panel("The last 60 days and the next seven",
-                sub = "Hover the chart to read every method's forecast for a day.",
+                sub = tagList("The dark line is what was really recorded; the paler lines are each method's ",
+                              term("forecast", "forecast"), "."),
+                read = paste("Where a pale line sits close to the dark line, that method got the day right.",
+                             "The shaded strip on the right is the next seven days, still to come. Hover any day",
+                             "to see every number."),
                 controls = seg("live_group", "Blood group", ABO_GROUPS, "O"),
                 class = "stage-3 chart-panel",
                 plotlyOutput("live_plot", height = "440px"),
@@ -702,14 +720,23 @@ ui <- page(
                                LATEST_LABEL, fmt(BEST_MAE), fmt(LAG_MAE)),
                        stat = big_stat(fmt(BEST_MAE, 1), "average daily error, best method")),
           div(class = "control-bar stage-2",
-              seg("cmp_year", "Evaluation period", PERIOD_CHOICES, as.character(LATEST)),
+              seg("cmp_year", "Test period", PERIOD_CHOICES, as.character(LATEST)),
               chips("cmp_methods", "Methods", METHODS, METHODS)),
-          panel("Error by blood group", sub = tagList("Hover a bar for MAE, RMSE and the number of days.", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
+          panel("Error by blood group",
+                read = paste("One small chart per blood group. Each bar is a method's average error for that",
+                             "group: shorter is better. Hover a bar for the big-miss error and the number of days."),
+                sub = tagList("The same ", term("average error", "error"), ", split by ",
+                              term("ABO group", "abo"), ".", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
                 class = "stage-3 chart-panel", plotlyOutput("cmp_group_plot", height = "620px")),
-          panel("Scores", class = "stage-3", DTOutput("cmp_table")),
+          panel("Scores", class = "stage-3",
+                sub = tagList("Every number behind the charts. ", term("Big-miss error", "rmse"), " and ",
+                              term("average bias", "bias"), " are explained when you hover them."),
+                DTOutput("cmp_table")),
           narrate("Averages hide the day-to-day story. Here is how each forecast tracked the ",
                   "real count, one day at a time."),
           panel("Recorded and forecast, day by day",
+                read = paste("The dark line with dots is the real count for each day; the paler lines are the",
+                             "forecasts. The closer a line hugs the dark one, the better that method did."),
                 controls = tagList(
                   seg("cmp_group", "Blood group", ABO_GROUPS, "O"),
                   div(class = "control",
@@ -731,27 +758,36 @@ ui <- page(
           "low",
           chapter_head("low",
                        LOW_HEADLINE,
-                       sprintf(paste("Low-collection days are at or below each group's lower quartile",
-                                     "from earlier years. On them, the %s was off by %s, against %s on",
-                                     "other days. This is an after-the-fact audit, not an early warning."),
-                               method_phrase(BEST_METHOD), fmt(LOW_MAE, 1), fmt(OTHER_MAE, 1)),
+                       tagList(term("Low-collection days", "low_day"),
+                               " are the quietest quarter of days for each blood group. ",
+                               sprintf(paste("On them, the %s was off by %s donations a day, against %s on",
+                                             "other days. This looks back at what happened; it is not an",
+                                             "early warning."),
+                                       method_phrase(BEST_METHOD), fmt(LOW_MAE, 1), fmt(OTHER_MAE, 1))),
                        stat = big_stat(pct_text(LOW_OVER_PCT),
-                                       sprintf("of %d low days overpredicted, %s", LOW_DAYS, LATEST_SHORT))),
+                                       sprintf("of %d low days forecast too high, %s", LOW_DAYS, LATEST_SHORT))),
           div(class = "control-bar stage-2",
-              seg("low_year", "Evaluation period", PERIOD_CHOICES, as.character(LATEST))),
+              seg("low_year", "Test period", PERIOD_CHOICES, as.character(LATEST))),
           panel("Error on low-collection days and other days",
-                sub = tagList("Dark bars: low-collection days. Light bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
+                read = paste("For each method, the dark bar is its average error on the quietest days and the",
+                             "light bar is its error on all other days. A dark bar much taller than its light",
+                             "bar means the method struggles when donations drop."),
+                sub = tagList("Dark bars: ", term("low-collection days", "low_day"), ". Light bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
                 class = "stage-3 chart-panel", plotlyOutput("low_plot", height = "620px")),
           narrate(LOW_WHY),
           div(class = "two-up stage-3",
-              panel("Thresholds", tableOutput("cutoff_table"),
+              panel("Low-day lines", tableOutput("cutoff_table"),
+                    sub = tagList("For each blood group, a day counts as low at or below this count: the ",
+                                  term("lower quartile", "quartile"), " of earlier years."),
                     footer = "A lower-quartile count is not a clinical shortage threshold."),
-              panel("Why overprediction is unavoidable", DTOutput("min_pred_table"),
-                    footer = paste("When a method's smallest prediction for a group is above that",
-                                   "group's threshold, it must overpredict every low day."))),
+              panel("Why the forecasts aim too high", DTOutput("min_pred_table"),
+                    sub = tagList("If a method's lowest ", term("forecast", "forecast"),
+                                  " of the whole period is still above the low-day line, it can never predict a day that quiet."))),
           panel("Low-day errors", class = "stage-3", DTOutput("low_table"),
-                footer = paste("'Mean excess forecast' averages only the amount by which the forecast",
-                               "exceeded the actual count, counting zero when it did not.")),
+                sub = tagList("How often each method's forecast was ", term("too high", "overpredict"),
+                              " on low days, and by how much."),
+                footer = paste("'Average overshoot' is how far above the real count the forecast was,",
+                               "counting zero on days it was not too high.")),
           chapter_nav("low")
         ),
 
@@ -771,15 +807,20 @@ ui <- page(
                   sliderInput("pattern_years", NULL, min = 2006, max = END_YEAR,
                               value = c(2006, END_YEAR), sep = "", step = 1, ticks = FALSE))),
           panel("Recorded donations, month by month", sub = "Stacked by blood group. Hover a month for exact counts.",
+                read = paste("The height of the whole shape is all donations that month; each colour band is",
+                             "one blood group. Bumps show busy and quiet months."),
                 class = "stage-3 chart-panel", plotlyOutput("weekly_plot", height = "400px")),
           narrate("Zoom in on a single week and the rhythm is clear."),
           div(class = "two-up stage-3",
               panel("Mean donations by weekday", class = "chart-panel",
+                    read = "Taller bars are busier weekdays. Each colour is one blood group.",
                     plotlyOutput("weekday_plot", height = "360px")),
               panel("Mean donations a day, by year", class = "chart-panel",
+                    read = "Each line is one blood group; rising lines mean more donations a day than before.",
                     plotlyOutput("annual_plot", height = "360px"))),
           narrate(MIX_LINE),
           panel("Blood-type mix of donations",
+                read = "Each column is one year and adds up to 100%. The bands show each group's share.",
                 sub = paste("Share of recorded Klang Valley donations by ABO group each year. This",
                             "describes who donated, not how common each type is in the population."),
                 class = "stage-3 chart-panel", plotlyOutput("mix_plot", height = "380px")),
@@ -841,7 +882,9 @@ ui <- page(
           narrate("And once it is given, whose blood can help whom?"),
           section(
             "Blood type compatibility explorer",
-            sub = "Pick a blood type to see whose red cells it can receive and whom it can give red cells to.",
+            sub = tagList("A blood type is the ", term("ABO group", "abo"), " plus ", term("RhD", "rhd"),
+                          " (+ or −). Pick one to see whose ", term("red cells", "red_cells"),
+                          " it can receive and whom it can give red cells to."),
             div(class = "type-grid", role = "radiogroup", `aria-label` = "Blood type",
                 lapply(BLOOD_TYPES, function(t)
                   tags$button(class = paste("type-pick", if (t == "O+") "is-on"),
@@ -877,9 +920,14 @@ ui <- page(
           narrate(sprintf("What did the regression learn from 2006 to %d? Associations, not causes.",
                           LATEST - 1L)),
           div(class = "two-up stage-3",
-              panel("Coefficients", tableOutput("coef_table"),
+              panel("What the regression learned", tableOutput("coef_table"),
+                    sub = tagList("Each ", term("coefficient", "coefficient"), " in plain words: how much donations",
+                                  " grow each year, and how much busier a Sunday is than a Monday. ",
+                                  term("Fit (R²)", "r2"), " shows how much of the pattern it captures."),
                     footer = "The Sunday contrast holds the time index fixed."),
-              panel("Signed error (actual minus predicted)", DTOutput("bias_table"),
+              panel("Too high or too low on average?", DTOutput("bias_table"),
+                    sub = tagList(term("Average bias", "bias"), ": the real count minus the forecast. ",
+                                  "Positive means the forecasts ran low; negative means they ran high."),
                     footer = paste("Near-zero averages mean positive and negative errors cancel;",
                                    "they do not mean the daily forecasts are accurate."))),
           panel("How the error moves through the year",
@@ -887,7 +935,7 @@ ui <- page(
                             "donations per blood group per day the forecast was off by. Higher means",
                             "a harder month to predict. Hover a month to compare methods."),
                 controls = tagList(
-                  seg("month_year", "Period", PERIOD_CHOICES, as.character(LATEST)),
+                  seg("month_year", "Test period", PERIOD_CHOICES, as.character(LATEST)),
                   chips("month_methods", "Methods", METHODS,
                         c("Seven-day baseline", "Linear regression", "Recent weekday average"))),
                 class = "stage-3 chart-panel",
@@ -895,8 +943,10 @@ ui <- page(
                 footer = "Describes when errors occurred; it cannot explain why."),
           narrate("Before trusting any of it, check the data itself."),
           div(class = "two-up stage-3",
-              panel("Raw data checks", tableOutput("audit_table")),
-              panel("Analysis panel", tableOutput("panel_table"),
+              panel("Raw data checks", tableOutput("audit_table"),
+                    sub = "Basic checks on the official file before anything is calculated: size, dates, gaps and duplicates."),
+              panel("What goes into the forecasts", tableOutput("panel_table"),
+                    sub = "The daily counts used: one row per blood group per day, for the Klang Valley.",
                     footer = "The ALL category is excluded from modelling to avoid double counting.")),
           narrate("And be clear about what this cannot show."),
           section(
@@ -938,7 +988,7 @@ ui <- page(
                       p(class = "panel-sub", uiOutput("report_blurb", inline = TRUE)))),
                   div(class = "panel-body",
                       conditionalPanel("input.report_type == 'summary'",
-                        seg("rep_period", "Evaluation period", PERIOD_CHOICES, as.character(LATEST))),
+                        seg("rep_period", "Test period", PERIOD_CHOICES, as.character(LATEST))),
                       conditionalPanel("input.report_type == 'data'",
                         seg("rep_group", "Blood group", c("All" = "all", setNames(ABO_GROUPS, ABO_GROUPS)), "all"),
                         div(class = "control",
@@ -1105,12 +1155,13 @@ server <- function(input, output, session) {
     y <- cmp_year(); m <- cmp_methods()
     pooled <- dash$scores_overall |>
       filter(evaluation_year == y, method %in% m) |>
-      mutate(blood_type = "All (pooled)")
+      mutate(blood_type = "All groups")
     bind_rows(pooled, filter(dash$scores_by_group, evaluation_year == y, method %in% m)) |>
-      arrange(blood_type != "All (pooled)", blood_type, factor(method, levels = METHODS)) |>
-      transmute(`Blood group` = blood_type, Method = method, Days = observations, MAE, RMSE,
-                `Mean signed error` = mean_signed_error) |>
-      dt_table(c("MAE", "RMSE", "Mean signed error"), page_length = 8)
+      arrange(blood_type != "All groups", blood_type, factor(method, levels = METHODS)) |>
+      transmute(`Blood group` = blood_type, Method = method, `Days scored` = observations,
+                `Average error (MAE)` = MAE, `Big-miss error (RMSE)` = RMSE,
+                `Average bias` = mean_signed_error) |>
+      dt_table(c("Average error (MAE)", "Big-miss error (RMSE)", "Average bias"), page_length = 8)
   })
 
   output$cmp_daily_plot <- renderPlotly({
@@ -1135,19 +1186,20 @@ server <- function(input, output, session) {
       filter(evaluation_year == y) |>
       left_join(low_days, by = "blood_type") |>
       transmute(`Blood group` = blood_type,
-                `Threshold (≤)` = fmt(low_cutoff),
+                `Low-day line (≤)` = fmt(low_cutoff),
                 `Low days` = ifelse(is.na(days), 0L, days),
-                `Mean on low days` = ifelse(is.na(mean_actual), "–", fmt(mean_actual)))
+                `Average on low days` = ifelse(is.na(mean_actual), "–", fmt(mean_actual)))
   }, width = "100%")
 
   output$low_table <- renderDT({
     dash$low_errors |>
       filter(evaluation_year == low_y(), day_category == "Low collection") |>
       arrange(blood_type, factor(method, levels = METHODS)) |>
-      transmute(`Blood group` = blood_type, Method = method, `Low days` = days, MAE,
-                `Overpredicted (%)` = overprediction_percent,
-                `Mean excess forecast` = mean_excess) |>
-      dt_table(c("MAE", "Overpredicted (%)", "Mean excess forecast"), page_length = 8)
+      transmute(`Blood group` = blood_type, Method = method, `Low days` = days,
+                `Average error` = MAE,
+                `Days forecast too high (%)` = overprediction_percent,
+                `Average overshoot` = mean_excess) |>
+      dt_table(c("Average error", "Days forecast too high (%)", "Average overshoot"), page_length = 8)
   })
 
   output$min_pred_table <- renderDT({
@@ -1155,10 +1207,10 @@ server <- function(input, output, session) {
       filter(evaluation_year == low_y()) |>
       arrange(blood_type, factor(method, levels = METHODS)) |>
       transmute(`Group` = blood_type, Method = method,
-                `Smallest prediction` = minimum_prediction,
-                `Threshold` = low_cutoff,
-                `Always above?` = ifelse(all_predictions_above_cutoff, "Yes", "No")) |>
-      dt_table(c("Smallest prediction", "Threshold"), page_length = 8)
+                `Lowest forecast` = minimum_prediction,
+                `Low-day line` = low_cutoff,
+                `Can never reach it?` = ifelse(all_predictions_above_cutoff, "Yes", "No")) |>
+      dt_table(c("Lowest forecast", "Low-day line"), page_length = 8)
   })
 
   # Patterns ---------------------------------------------------------------------------------
@@ -1213,9 +1265,9 @@ server <- function(input, output, session) {
   output$coef_table <- renderTable({
     dash$coefficients |>
       transmute(`Blood group` = blood_type,
-                `Trend per 365 days` = fmt(change_per_365_days),
-                `Sunday − Monday` = fmt(sunday_minus_monday),
-                `R²` = fmt(r_squared, 3))
+                `Change per year` = fmt(change_per_365_days),
+                `Sunday vs Monday` = ifelse(sunday_minus_monday >= 0, paste0("+", fmt(sunday_minus_monday)), fmt(sunday_minus_monday)),
+                `Fit (R²)` = fmt(r_squared, 3))
   }, width = "100%")
 
   output$bias_table <- renderDT({
@@ -1223,8 +1275,8 @@ server <- function(input, output, session) {
       filter(evaluation_year == LATEST) |>
       arrange(blood_type, factor(method, levels = METHODS)) |>
       transmute(`Group` = blood_type, Method = method,
-                `Mean signed error` = mean_signed_error, MAE) |>
-      dt_table(c("Mean signed error", "MAE"), page_length = 8)
+                `Average bias` = mean_signed_error, `Average error` = MAE) |>
+      dt_table(c("Average bias", "Average error"), page_length = 8)
   })
 
   output$monthly_plot <- renderPlotly({

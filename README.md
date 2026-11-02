@@ -67,7 +67,10 @@ compatibility explorer carry the story: who can donate, the donation journey, af
 how the four methods turn past data into a forecast, and what the evaluation cannot show.
 The donation journey lights up one step at a time, and each aftercare tip has its own
 small animated icon. On phones these switch back to plain lists so the text stays
-readable. All sources, licences and footnotes live together in one "Sources & notes"
+readable. The dashboard is written for readers with no statistics background. Charts use plain
+labels ("average error" rather than MAE), each chart has a one-line "How to read this",
+and technical words have a dotted underline that explains them on hover or tap; all of
+them are also in a glossary. All sources, licences and footnotes live together in one "Sources & notes"
 drawer, opened from the foot of every page or the quick actions.
 
 Every chart is interactive: hover for exact values in a frosted-glass tooltip, and click a legend entry to hide

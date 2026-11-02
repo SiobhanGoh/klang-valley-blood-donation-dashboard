@@ -56,10 +56,10 @@ test_that("latest summary and blood-type mix are consistent with the panel", {
 
 test_that("findings are generated from the results", {
   f <- report$findings
-  expect_match(f[1], "recent weekday average has the lowest pooled MAE and RMSE in every evaluation period, 2023 to 2025")
-  expect_true(any(grepl("Linear regression beats the seven-day lag", f)))
+  expect_match(f[1], "recent weekday average is the most accurate method in every test period, 2023 to 2025")
+  expect_true(any(grepl("Linear regression is more accurate than the seven-day lag", f)))
   expect_true(any(grepl("AB is the exception", f)))
-  expect_true(any(grepl("smallest errors for A, B and O", f)))
+  expect_true(any(grepl("most accurate for A, B and O", f)))
   expect_true(length(live$findings) >= 2)
 })
 

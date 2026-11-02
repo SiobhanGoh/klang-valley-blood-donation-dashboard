@@ -427,10 +427,11 @@ summarise_findings <- function(scores_overall, scores_by_group, low_errors, peri
   if (length(winners) == 1L && all(best$rmse == winners)) {
     span <- paste0(min(periods$evaluation_year), " to ", max(periods$evaluation_year),
                    if (any(periods$partial)) " so far" else "")
-    out <- c(out, sprintf("The %s has the lowest pooled MAE and RMSE in every evaluation period, %s.",
+    out <- c(out, sprintf(paste("The %s is the most accurate method in every test period, %s:",
+                                "the smallest average error, and the smallest big misses."),
                           tolower(winners), span))
   } else {
-    out <- c(out, paste0("Lowest pooled MAE by period: ",
+    out <- c(out, paste0("Most accurate method by test period: ",
                          paste(sprintf("%s, %s", label[as.character(best$evaluation_year)],
                                        tolower(best$mae)), collapse = "; "), "."))
   }
@@ -440,12 +441,13 @@ summarise_findings <- function(scores_overall, scores_by_group, low_errors, peri
   non_ab <- filter(g, blood_type != "AB")
   lr_wd <- all(non_ab$`Linear regression` < non_ab$`Weekday average`)
   if (lr_lag) {
-    out <- c(out, paste0("Linear regression beats the seven-day lag for every blood group in every period",
-                         if (lr_wd) ", and the full-history weekday mean for A, B and O." else "."))
+    out <- c(out, paste0("Linear regression is more accurate than the seven-day lag for every blood group ",
+                         "in every period",
+                         if (lr_wd) ", and more accurate than the full-history weekday mean for A, B and O." else "."))
   }
   ab <- filter(g, blood_type == "AB")
   if (nrow(ab) && all(ab$`Weekday average` < ab$`Linear regression`)) {
-    out <- c(out, "AB is the exception: there the full-history weekday mean is slightly better than regression in every period.")
+    out <- c(out, "AB is the exception: there the full-history weekday mean is slightly more accurate than regression in every period.")
   }
   low <- low_errors |> filter(day_category == "Low collection")
   if (nrow(low)) {
@@ -453,13 +455,13 @@ summarise_findings <- function(scores_overall, scores_by_group, low_errors, peri
     wd_groups <- best_low$blood_type[best_low$best == "Weekday average"]
     over_all <- all(low$overprediction_percent[low$method == "Weekday average"] == 100)
     if (length(wd_groups)) {
-      out <- c(out, sprintf(paste0("On low-collection days in %s, the full-history weekday mean has the ",
-                                   "smallest errors for %s%s."),
+      out <- c(out, sprintf(paste0("On low-collection days in %s, the full-history weekday mean is the ",
+                                   "most accurate for %s%s."),
                             label[as.character(max(low$evaluation_year))],
                             if (length(wd_groups) > 1)
                               paste(paste(head(wd_groups, -1), collapse = ", "), "and", tail(wd_groups, 1))
                             else wd_groups,
-                            if (over_all) ", but it still overpredicts every one of those days" else ""))
+                            if (over_all) ", but it still forecasts too high on every one of those days" else ""))
     }
   }
   out
