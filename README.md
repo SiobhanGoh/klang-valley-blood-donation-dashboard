@@ -34,7 +34,10 @@ previous site stays up.
 The published site uses [Shinylive](https://posit-dev.github.io/r-shinylive/), which
 runs the R app in the visitor's browser. Hosting is therefore free, has no usage-hour
 limits and needs no server. The first visit downloads the R runtime, so it takes a
-little longer to open.
+little longer to open; a loading screen shows while it starts. To keep that download
+small, the published site ships only the code needed to display the precomputed
+results (`R/common.R`, `R/charts.R`, `R/content.R`), not the data pipeline in
+`R/analysis.R`.
 
 ## What the dashboard shows
 
@@ -150,10 +153,12 @@ The tests also check:
 
 ```
 app.R                    Shiny UI and server
+R/common.R               Shared constants and the light helpers the app needs
 R/analysis.R             Data loading (live or snapshot), forecasting and scoring (ported from the Rmd)
 R/charts.R               Interactive charts (plotly) in one shared style
 R/content.R              Blood 101 facts (with sources) and the compatibility rule
 scripts/build_data.R     Downloads the latest CSV and precomputes results for the site
+scripts/add_splash.R     Adds the loading screen (site/splash.html) to the published site
 .github/workflows/       Tests on every push; daily data refresh and Pages deployment
 www/                     Styles and interaction scripts
 data/                    Frozen public data snapshot (gzip-compressed, MD5-checked)

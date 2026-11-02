@@ -1,0 +1,93 @@
+<!-- Loading screen shown while R starts in the browser (added by scripts/add_splash.R). -->
+<style>
+  #kvbd-splash {
+    position: fixed; inset: 0; z-index: 2147483000;
+    display: grid; place-items: center; padding: 24px;
+    background:
+      radial-gradient(48% 38% at 92% -4%, rgba(224,125,147,.18), transparent 70%),
+      radial-gradient(40% 34% at 6% 104%, rgba(163,33,63,.09), transparent 70%),
+      #FBF5F3;
+    color: #2A1219;
+    font-family: -apple-system, "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif;
+    transition: opacity .6s cubic-bezier(.22,1,.36,1), visibility .6s;
+  }
+  #kvbd-splash.is-done { opacity: 0; visibility: hidden; }
+  .ks-card { width: min(560px, 100%); text-align: center; }
+  .ks-drop { width: 92px; height: 112px; margin: 0 auto 28px; display: block;
+             filter: drop-shadow(0 16px 28px rgba(94,20,40,.28)); }
+  .ks-fill { animation: ks-rise 3.2s cubic-bezier(.45,0,.2,1) infinite; }
+  .ks-wave { animation: ks-drift 1.8s ease-in-out infinite alternate; }
+  @keyframes ks-rise { 0% { transform: translateY(64px); } 70%, 100% { transform: translateY(0); } }
+  @keyframes ks-drift { from { transform: translateX(-10px); } to { transform: translateX(10px); } }
+  .ks-eyebrow { display: inline-flex; gap: 10px; align-items: center; margin-bottom: 18px;
+                font-size: .76rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: #A3213F; }
+  .ks-dot { width: 8px; height: 8px; border-radius: 50%; background: #A3213F; position: relative; }
+  .ks-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid #A3213F;
+                   opacity: 0; animation: ks-pulse 2.2s cubic-bezier(.22,1,.36,1) infinite; }
+  @keyframes ks-pulse { 0% { transform: scale(.5); opacity: .7; } 100% { transform: scale(1.6); opacity: 0; } }
+  .ks-title { margin: 0; font-family: "Fraunces", "Iowan Old Style", Georgia, serif; font-weight: 500;
+              font-size: clamp(1.7rem, 5vw, 2.4rem); line-height: 1.08; letter-spacing: -.03em; }
+  .ks-sub { margin: 16px auto 0; max-width: 42ch; color: #5F454C; font-size: 1rem; line-height: 1.55; }
+  .ks-bar { position: relative; height: 4px; margin: 30px auto 0; width: min(280px, 80%);
+            border-radius: 999px; background: #F1E1DF; overflow: hidden; }
+  .ks-bar::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: inherit;
+                   background: linear-gradient(90deg, #E07D93, #A3213F);
+                   animation: ks-slide 1.6s cubic-bezier(.45,0,.2,1) infinite; }
+  @keyframes ks-slide { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
+  .ks-note { margin-top: 14px; font-size: .84rem; color: #8A6F75; font-variant-numeric: tabular-nums; }
+  .ks-note a { color: #A3213F; text-underline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) {
+    .ks-fill, .ks-wave, .ks-dot::after, .ks-bar::after { animation: none; }
+    .ks-bar::after { width: 100%; opacity: .5; }
+  }
+</style>
+<div id="kvbd-splash" role="status" aria-live="polite">
+  <div class="ks-card">
+    <svg class="ks-drop" viewBox="0 0 44 54" aria-hidden="true">
+      <defs>
+        <clipPath id="ks-clip"><path d="M22 2 C22 2 4 22 4 34 a18 18 0 0 0 36 0 C40 22 22 2 22 2 Z"/></clipPath>
+        <linearGradient id="ks-red" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#C2344F"/><stop offset="1" stop-color="#4A1426"/>
+        </linearGradient>
+      </defs>
+      <path d="M22 2 C22 2 4 22 4 34 a18 18 0 0 0 36 0 C40 22 22 2 22 2 Z" fill="#F6DCE1"/>
+      <g clip-path="url(#ks-clip)">
+        <g class="ks-fill">
+          <path class="ks-wave" d="M-20 14 Q-10 10 0 14 T20 14 T40 14 T60 14 T80 14 V60 H-20 Z" fill="url(#ks-red)"/>
+        </g>
+      </g>
+    </svg>
+    <div class="ks-eyebrow"><span class="ks-dot"></span>Klang Valley · Live data</div>
+    <h1 class="ks-title">How well can past collections predict tomorrow's donations?</h1>
+    <p class="ks-sub">Starting R in your browser and loading today's official data. The first visit
+      can take a minute or more; later visits are quicker.</p>
+    <div class="ks-bar" aria-hidden="true"></div>
+    <p class="ks-note"><span id="ks-time">0:00</span> &middot;
+      <a href="https://github.com/SiobhanGoh/klang-valley-blood-donation-dashboard#readme" target="_blank" rel="noopener">Preview on GitHub</a></p>
+  </div>
+</div>
+<script>
+(function () {
+  var splash = document.getElementById("kvbd-splash");
+  var clock = document.getElementById("ks-time");
+  var start = Date.now();
+  function ready() {
+    var frame = document.querySelector("#root iframe, iframe");
+    try {
+      var doc = frame && frame.contentDocument;
+      return !!(doc && doc.querySelector(".app-shell .chapter-num, .app-shell .intro"));
+    } catch (e) { return false; }
+  }
+  var timer = setInterval(function () {
+    var s = Math.floor((Date.now() - start) / 1000);
+    clock.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    if (ready()) {
+      clearInterval(timer);
+      setTimeout(function () {
+        splash.classList.add("is-done");
+        setTimeout(function () { splash.remove(); }, 700);
+      }, 400);   // let the first page paint before revealing it
+    }
+  }, 250);
+})();
+</script>

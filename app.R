@@ -19,15 +19,19 @@ suppressPackageStartupMessages({
   library(bslib)
   library(DT)
 })
-source("R/analysis.R")
+source("R/common.R")
+# The full pipeline (download, cleaning, forecasting) is only needed when no
+# precomputed results exist. The published site ships without it, so the
+# browser never downloads readr, janitor or tidyr.
+if (file.exists("R/analysis.R")) source("R/analysis.R")
 source("R/content.R")
 source("R/charts.R")
 
 load_dashboard <- function(source = Sys.getenv("KVBD_SOURCE", "auto")) {
-  if (identical(source, "report")) return(build_report_data())
   if (identical(source, "auto") && file.exists("app_data/dashboard.rds")) {
     return(readRDS("app_data/dashboard.rds"))
   }
+  if (identical(source, "report")) return(build_report_data())
   build_live_data()
 }
 
@@ -807,14 +811,13 @@ server <- function(input, output, session) {
   })
 
   output$next_table <- renderTable({
-    dash$next_days |>
-      filter(method == "Recent weekday average") |>
-      select(date, blood_type, prediction) |>
-      tidyr::pivot_wider(names_from = blood_type, values_from = prediction) |>
-      mutate(Total = A + AB + B + O) |>
-      transmute(Day = format(date, "%a %e %b"),
-                A = fmt_int(A), AB = fmt_int(AB), B = fmt_int(B), O = fmt_int(O),
-                Total = fmt_int(Total))
+    d <- dash$next_days[dash$next_days$method == "Recent weekday average", ]
+    days <- sort(unique(d$date))
+    val <- function(g) vapply(days, function(x) d$prediction[d$date == x & d$blood_type == g], 0)
+    v <- lapply(setNames(ABO_GROUPS, ABO_GROUPS), val)
+    data.frame(Day = format(days, "%a %e %b"),
+               A = fmt_int(v$A), AB = fmt_int(v$AB), B = fmt_int(v$B), O = fmt_int(v$O),
+               Total = fmt_int(v$A + v$AB + v$B + v$O), check.names = FALSE)
   }, align = "lrrrrr", striped = FALSE, width = "100%")
 
   # Compatibility explorer -------------------------------------------------------------

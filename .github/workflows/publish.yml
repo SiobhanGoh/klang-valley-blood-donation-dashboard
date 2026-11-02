@@ -56,10 +56,14 @@ jobs:
 
       - name: Package the app for the browser
         run: |
-          mkdir -p _app
+          # Only what the app needs to show precomputed results: leaving out
+          # R/analysis.R keeps readr, janitor and tidyr out of the browser download.
+          mkdir -p _app/R
           cp app.R _app/
-          cp -r R www app_data _app/
+          cp R/common.R R/charts.R R/content.R _app/R/
+          cp -r www app_data _app/
           Rscript -e 'shinylive::export("_app", "_site")'
+          Rscript scripts/add_splash.R _site
           touch _site/.nojekyll
 
       - uses: actions/upload-pages-artifact@v3
