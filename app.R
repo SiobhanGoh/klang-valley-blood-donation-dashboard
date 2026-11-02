@@ -20,10 +20,33 @@ dash <- build_dashboard_data()
 fmt <- function(x, digits = 2) formatC(x, format = "f", digits = digits, big.mark = ",")
 fmt_int <- function(x) formatC(x, format = "d", big.mark = ",")
 
-base_theme <- theme_minimal(base_size = 13) +
+# Pastel palette for the dashboard (the original Rmd colours live in R/analysis.R).
+INK <- "#3B2F45"
+PASTEL_METHOD <- c("Seven-day baseline" = "#E8A0AE",
+                   "Weekday average" = "#B8B3C9",
+                   "Linear regression" = "#86C5B0",
+                   "Recent weekday average" = "#B79BE0")
+PASTEL_GROUP <- c("A" = "#EE9AB4", "AB" = "#B9A2E3", "B" = "#8CC6DA", "O" = "#93CDA2")
+
+base_theme <- theme_minimal(base_size = 13, base_family = "sans") +
   theme(panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(colour = "#E4DAEC", linewidth = 0.4),
+        plot.background = element_rect(fill = "transparent", colour = NA),
+        panel.background = element_rect(fill = "transparent", colour = NA),
+        legend.background = element_rect(fill = "transparent", colour = NA),
+        strip.text = element_text(colour = INK, face = "bold", size = 12),
+        axis.text = element_text(colour = "#6C5F78"),
+        axis.title = element_text(colour = INK),
+        plot.subtitle = element_text(colour = "#6C5F78"),
+        text = element_text(colour = INK),
         plot.title.position = "plot",
         legend.position = "bottom")
+
+# All plots render on a transparent background so the glass cards show through.
+glass_plot <- function(expr) {
+  renderPlot(substitute(expr), env = parent.frame(), quoted = TRUE,
+             bg = "transparent", res = 110)
+}
 
 dt_table <- function(df, digits_cols = NULL, digits = 2, page_length = 10) {
   out <- datatable(df, rownames = FALSE,
@@ -34,68 +57,124 @@ dt_table <- function(df, digits_cols = NULL, digits = 2, page_length = 10) {
 }
 
 scope_note <- div(
-  class = "alert alert-warning", role = "note",
+  class = "scope-note", role = "note",
   strong("Scope: "),
   "these forecasts estimate recorded donation collections. They are not ",
   "predictions of blood demand, hospital inventory, shortage risk or ",
   "clinical need, and the evaluation is retrospective."
 )
 
+# A headline card that tilts under the pointer and flips (click, Enter or
+# Space) to explain what its number means.
+flip_card <- function(label, value, unit, back_title, back_text, tone) {
+  div(
+    class = paste("flip-card", tone), tabindex = "0", role = "button",
+    `aria-pressed` = "false",
+    `aria-label` = paste(label, "- press to see what this number means"),
+    div(class = "flip-tilt",
+        div(class = "flip-inner",
+            div(class = "flip-face flip-front",
+                div(class = "flip-glare"),
+                div(class = "flip-label", label),
+                div(class = "flip-value", value),
+                div(class = "flip-unit", unit),
+                div(class = "flip-hint", "Flip for details")),
+            div(class = "flip-face flip-back", `aria-hidden` = "true",
+                h3(back_title),
+                p(back_text))))
+  )
+}
+
+finding <- function(colour, ...) tags$li(style = paste0("--dot:", colour), ...)
+
 # --- UI -----------------------------------------------------------------------
 
 ui <- page_navbar(
   title = "Klang Valley Blood Donation Forecasts",
-  theme = bs_theme(version = 5, bootswatch = "flatly",
-                   primary = "#4D7966") |>
-    bs_add_rules(paste(
-      ".navbar .nav-link.active { color: #fff !important; font-weight: 600;",
-      "  text-decoration: underline; text-underline-offset: 6px; }",
-      ".navbar .nav-link { color: rgba(255,255,255,0.85) !important; }")),
+  theme = bs_theme(version = 5, bg = "#F6F1F8", fg = INK, primary = "#9C7BB8",
+                   secondary = "#B8B3C9", base_font = font_collection(
+                     "DM Sans", "Segoe UI", "system-ui", "sans-serif"),
+                   heading_font = font_collection(
+                     "Bricolage Grotesque", "Segoe UI", "system-ui", "sans-serif")),
   fillable = FALSE,
-  header = tags$head(tags$link(rel = "icon", href = "data:,")),
+  header = tags$head(
+    tags$link(rel = "icon", href = "data:,"),
+    tags$link(rel = "preconnect", href = "https://fonts.googleapis.com"),
+    tags$link(rel = "preconnect", href = "https://fonts.gstatic.com",
+              crossorigin = NA),
+    tags$link(rel = "stylesheet", href = paste0(
+      "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:",
+      "opsz,wght@12..96,500;12..96,700&family=DM+Sans:wght@400;500;600&display=swap")),
+    tags$link(rel = "stylesheet", href = "styles.css"),
+    tags$script(src = "interactions.js", defer = NA)
+  ),
 
   nav_panel(
     "Overview",
-    scope_note,
-    layout_columns(
-      col_widths = c(3, 3, 3, 3),
-      value_box("Study panel", fmt_int(dash$panel_summary$rows),
-                p("group-days, 2006–2025"), theme = "primary"),
-      value_box("Recent weekday mean, 2025 MAE",
+    div(
+      class = "bento",
+      card(class = "intro span-2 row-2",
+           h1("How well can past collections predict tomorrow's donations?"),
+           p("Four simple forecasting methods compared on daily recorded ",
+             "donations in Selangor and W.P. Kuala Lumpur, by ABO blood group, ",
+             "for 2023, 2024 and 2025."),
+           scope_note),
+      flip_card("Recent weekday mean, 2025 MAE",
                 textOutput("headline_recent", inline = TRUE),
-                p("donations per group-day"), theme = "secondary"),
-      value_box("Linear regression, 2025 MAE",
+                "donations per group-day",
+                "Recent weekday mean",
+                paste("Predicts each day as the average for that blood group and",
+                      "weekday over 2022–2024. Lowest pooled error in all three",
+                      "evaluation years."),
+                "tone-lilac"),
+      flip_card("Linear regression, 2025 MAE",
                 textOutput("headline_lm", inline = TRUE),
-                p("donations per group-day")),
-      value_box("Seven-day lag, 2025 MAE",
+                "donations per group-day",
+                "Linear regression",
+                paste("One model per blood group using weekday and a straight-line",
+                      "time trend, fitted on 2006–2024."),
+                "tone-mint"),
+      flip_card("Seven-day lag, 2025 MAE",
                 textOutput("headline_lag", inline = TRUE),
-                p("donations per group-day"))
-    ),
-    card(
-      card_header("Pooled error by evaluation year (lower is better)"),
-      plotOutput("overview_plot", height = 360),
-      card_footer(
-        "Each year's averages and regression are fitted only on earlier years. ",
-        "The recent weekday mean uses the preceding three complete years. ",
-        "Training windows overlap, so the three years are not independent tests."
-      )
-    ),
-    card(
-      card_header("What the analysis shows"),
-      tags$ul(
-        tags$li("The recent three-year weekday mean has the lowest pooled MAE ",
-                "and RMSE in each of 2023, 2024 and 2025."),
-        tags$li("Linear regression (weekday + time trend) beats the seven-day ",
-                "lag for every blood group in all three years, and the ",
-                "full-history weekday mean for A, B and O."),
-        tags$li("AB is the exception: there the full-history weekday mean is ",
-                "slightly better than regression in every year, and in 2025 ",
-                "marginally better than the recent mean too."),
-        tags$li("On 2025 low-collection days, regression and the recent mean ",
-                "make much larger errors than on other days. The full-history ",
-                "mean has the smallest low-day errors for A, B and O, but it ",
-                "still overpredicts every one of those days.")
-      )
+                "donations per group-day",
+                "Seven-day lag",
+                paste("Uses the count recorded one week earlier. The simplest",
+                      "benchmark: every other method has lower pooled error in every year."),
+                "tone-rose"),
+      flip_card("Study panel",
+                fmt_int(dash$panel_summary$rows),
+                "group-days, 2006–2025",
+                "What a group-day is",
+                paste("One blood group on one date: 7,305 dates × 4 groups,",
+                      "summed over the two regions. The ALL category is excluded."),
+                "tone-peach"),
+      card(class = "span-3 row-2",
+           card_header("Pooled error by evaluation year (lower is better)"),
+           plotOutput("overview_plot", height = 380),
+           card_footer(
+             "Each year's averages and regression are fitted only on earlier years. ",
+             "Training windows overlap, so the three years are not independent tests.")),
+      card(class = "row-2",
+           card_header("What the analysis shows"),
+           tags$ul(
+             class = "findings",
+             finding(PASTEL_METHOD[["Recent weekday average"]],
+                     "The recent weekday mean has the lowest pooled MAE and RMSE ",
+                     "in each of 2023, 2024 and 2025."),
+             finding(PASTEL_METHOD[["Linear regression"]],
+                     "Linear regression beats the seven-day lag for every blood ",
+                     "group in all three years, and the full-history weekday mean ",
+                     "for A, B and O."),
+             finding(PASTEL_GROUP[["AB"]],
+                     "AB is the exception: the full-history weekday mean is ",
+                     "slightly better than regression in every year, and in 2025 ",
+                     "marginally better than the recent mean too."),
+             finding(PASTEL_METHOD[["Seven-day baseline"]],
+                     "On 2025 low-collection days, regression and the recent mean ",
+                     "make much larger errors than on other days. The full-history ",
+                     "mean has the smallest low-day errors for A, B and O, but it ",
+                     "still overpredicts every one of those days.")
+           ))
     )
   ),
 
@@ -132,7 +211,7 @@ ui <- page_navbar(
   nav_panel(
     "Patterns",
     layout_sidebar(
-      sidebar = sidebar(
+      sidebar = sidebar(width = 300,
         checkboxGroupInput("pattern_groups", "Blood groups", ABO_GROUPS,
                            selected = ABO_GROUPS),
         sliderInput("pattern_years", "Years", min = 2006, max = 2025,
@@ -155,7 +234,7 @@ ui <- page_navbar(
   nav_panel(
     "Forecast comparison",
     layout_sidebar(
-      sidebar = sidebar(
+      sidebar = sidebar(width = 300,
         selectInput("cmp_year", "Evaluation year", EVALUATION_YEARS,
                     selected = 2025),
         checkboxGroupInput("cmp_methods", "Methods", METHODS, selected = METHODS),
@@ -171,7 +250,7 @@ ui <- page_navbar(
       card(card_header("Scores"), DTOutput("cmp_table")),
       card(card_header("Actual versus predicted daily donations"),
            plotOutput("cmp_daily_plot", height = 380),
-           card_footer("Black line: recorded donations. The seven-day baseline ",
+           card_footer("Dark line: recorded donations. The seven-day baseline ",
                        "uses the count observed a week earlier, so it is a ",
                        "rolling benchmark rather than a fixed forecast issued ",
                        "at the start of the year."))
@@ -225,7 +304,7 @@ ui <- page_navbar(
     "Methods & limits",
     card(
       card_header("Forecasting methods"),
-      tags$dl(
+      tags$dl(class = "methods",
         tags$dt("Seven-day baseline"),
         tags$dd("The count recorded for the same blood group seven calendar days earlier."),
         tags$dt("Weekday average (full history)"),
@@ -263,9 +342,9 @@ ui <- page_navbar(
     )
   ),
   nav_spacer(),
-  nav_item(tags$small(style = "color: rgba(255,255,255,0.8);",
-                      paste("Data snapshot to", format(dash$audit$last_date, "%d %b %Y"),
-                            "· analysis 2006–2025")))
+  nav_item(tags$small(class = "snapshot-label",
+                      paste0("Analysis 2006–2025, data to ",
+                             format(dash$audit$last_date, "%d %b %Y"))))
 )
 
 # --- Server -------------------------------------------------------------------
@@ -280,14 +359,14 @@ server <- function(input, output, session) {
   output$headline_lm <- renderText(headline("Linear regression"))
   output$headline_lag <- renderText(headline("Seven-day baseline"))
 
-  output$overview_plot <- renderPlot({
+  output$overview_plot <- glass_plot({
     ggplot(dash$scores_overall,
            aes(factor(evaluation_year), MAE,
                fill = factor(method, levels = METHODS))) +
       geom_col(position = position_dodge(width = 0.8), width = 0.75) +
       geom_text(aes(label = fmt(MAE)), position = position_dodge(width = 0.8),
                 vjust = -0.4, size = 3.4) +
-      scale_fill_manual(values = METHOD_COLOURS, name = NULL) +
+      scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
       scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
       labs(x = "Evaluation year", y = "MAE (donations per group-day)") +
       base_theme
@@ -334,15 +413,15 @@ server <- function(input, output, session) {
              year(date) >= yrs[1], year(date) <= yrs[2])
   })
 
-  output$weekly_plot <- renderPlot({
+  output$weekly_plot <- glass_plot({
     weekly_totals(pattern_panel()) |>
       ggplot(aes(week_start, donations, colour = blood_type)) +
       geom_line(linewidth = 0.4) +
-      scale_colour_manual(values = GROUP_COLOURS, name = "Blood group") +
+      scale_colour_manual(values = PASTEL_GROUP, name = "Blood group") +
       labs(x = NULL, y = "Donations per week") + base_theme
   })
 
-  output$weekday_plot <- renderPlot({
+  output$weekday_plot <- glass_plot({
     pattern_panel() |>
       mutate(weekday = factor(WEEKDAYS[wday(date, week_start = 1)],
                               levels = WEEKDAYS)) |>
@@ -350,16 +429,16 @@ server <- function(input, output, session) {
       summarise(mean_donations = mean(donations), .groups = "drop") |>
       ggplot(aes(weekday, mean_donations, fill = blood_type)) +
       geom_col(position = "dodge") +
-      scale_fill_manual(values = GROUP_COLOURS, name = "Blood group") +
+      scale_fill_manual(values = PASTEL_GROUP, name = "Blood group") +
       scale_x_discrete(labels = substr(WEEKDAYS, 1, 3)) +
       labs(x = NULL, y = "Mean daily donations") + base_theme
   })
 
-  output$annual_plot <- renderPlot({
+  output$annual_plot <- glass_plot({
     annual_summary(pattern_panel()) |>
       ggplot(aes(year, mean_daily, colour = blood_type)) +
       geom_line() + geom_point(size = 1.5) +
-      scale_colour_manual(values = GROUP_COLOURS, name = "Blood group") +
+      scale_colour_manual(values = PASTEL_GROUP, name = "Blood group") +
       labs(x = NULL, y = "Mean daily donations") + base_theme
   })
 
@@ -371,17 +450,17 @@ server <- function(input, output, session) {
              method %in% input$cmp_methods)
   })
 
-  output$cmp_group_plot <- renderPlot({
+  output$cmp_group_plot <- glass_plot({
     ggplot(cmp_scores(), aes(factor(method, levels = METHODS), MAE,
                              fill = factor(method, levels = METHODS))) +
       geom_col(width = 0.7) +
       geom_text(aes(label = fmt(MAE, 1)), vjust = -0.4, size = 3.4) +
       facet_wrap(~ blood_type, ncol = 4, scales = "free_y") +
-      scale_fill_manual(values = METHOD_COLOURS, name = NULL) +
+      scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
       scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
       labs(x = NULL, y = "MAE (donations per day)",
-           subtitle = paste("Evaluation year", input$cmp_year,
-                            "· y-axes differ by group")) +
+           subtitle = paste0("Evaluation year ", input$cmp_year,
+                             "; y-axes differ by group")) +
       base_theme + theme(axis.text.x = element_blank())
   })
 
@@ -400,7 +479,7 @@ server <- function(input, output, session) {
       dt_table(c("MAE", "RMSE", "Mean signed error"), page_length = 20)
   })
 
-  output$cmp_daily_plot <- renderPlot({
+  output$cmp_daily_plot <- glass_plot({
     req(input$cmp_methods, input$cmp_dates)
     rng <- input$cmp_dates
     shown <- dash$predictions |>
@@ -411,10 +490,10 @@ server <- function(input, output, session) {
     ggplot(shown, aes(date, prediction, colour = factor(method, levels = METHODS))) +
       geom_line(linewidth = 0.7) +
       geom_line(data = actual, aes(date, donations), inherit.aes = FALSE,
-                colour = "black", linewidth = 0.9) +
+                colour = INK, linewidth = 0.9) +
       geom_point(data = actual, aes(date, donations), inherit.aes = FALSE,
-                 colour = "black", size = 1.2) +
-      scale_colour_manual(values = METHOD_COLOURS, name = NULL) +
+                 colour = INK, size = 1.2) +
+      scale_colour_manual(values = PASTEL_METHOD, name = NULL) +
       labs(x = NULL, y = "Donations per day",
            subtitle = paste("Blood group", input$cmp_group)) + base_theme
   })
@@ -432,18 +511,19 @@ server <- function(input, output, session) {
                 `Mean actual on low days` = fmt(mean_actual))
   })
 
-  output$low_plot <- renderPlot({
+  output$low_plot <- glass_plot({
     dash$low_errors_2025 |>
       ggplot(aes(factor(method, levels = METHODS), MAE,
                  fill = factor(method, levels = METHODS),
                  alpha = day_category)) +
       geom_col(position = position_dodge(width = 0.8), width = 0.75) +
       facet_wrap(~ blood_type, ncol = 4, scales = "free_y") +
-      scale_fill_manual(values = METHOD_COLOURS, name = NULL) +
+      scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
       scale_alpha_manual(values = c("Low collection" = 1, "Other days" = 0.35),
                          name = NULL) +
+      guides(alpha = "none") +
       labs(x = NULL, y = "MAE (donations per day)",
-           subtitle = "Solid: low-collection days · Faded: other days") +
+           subtitle = "Solid bars: low-collection days. Faded bars: other days.") +
       base_theme + theme(axis.text.x = element_blank())
   })
 
@@ -488,14 +568,14 @@ server <- function(input, output, session) {
       dt_table(c("Mean signed error", "MAE"), page_length = 16)
   })
 
-  output$monthly_plot <- renderPlot({
+  output$monthly_plot <- glass_plot({
     req(input$month_methods)
     dash$monthly_2025 |>
       filter(method %in% input$month_methods) |>
       mutate(month = as.Date(paste0(month, "-01"))) |>
       ggplot(aes(month, MAE, colour = factor(method, levels = METHODS))) +
       geom_line() + geom_point() +
-      scale_colour_manual(values = METHOD_COLOURS, name = NULL) +
+      scale_colour_manual(values = PASTEL_METHOD, name = NULL) +
       scale_x_date(date_labels = "%b", date_breaks = "1 month") +
       labs(x = NULL, y = "Pooled MAE (donations per group-day)",
            subtitle = "Describes when errors occurred; it cannot explain why") +

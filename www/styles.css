@@ -1,0 +1,374 @@
+/* Klang Valley Blood Donation Forecasts — pastel glass theme */
+
+:root {
+  --ink: #3b2f45;
+  --ink-soft: #6c5f78;
+  --blush: #f7c5d3;
+  --peach: #fbd9c4;
+  --mint: #cdebdd;
+  --periwinkle: #cfd8f6;
+  --lilac: #e4d7f5;
+  --surface: #f1ebf6;            /* neumorphic surface */
+  --glass: rgba(255, 255, 255, 0.52);
+  --glass-strong: rgba(255, 255, 255, 0.72);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --shadow-tint: rgba(120, 90, 150, 0.16);
+  --neu-light: rgba(255, 255, 255, 0.9);
+  --neu-dark: rgba(150, 125, 175, 0.32);
+  --focus: #8b5fbf;
+  --radius-lg: 26px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "DM Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+html, body {
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(38rem 30rem at 8% 6%, var(--blush) 0%, transparent 62%),
+    radial-gradient(34rem 28rem at 92% 12%, var(--periwinkle) 0%, transparent 60%),
+    radial-gradient(40rem 32rem at 78% 88%, var(--mint) 0%, transparent 62%),
+    radial-gradient(30rem 26rem at 14% 92%, var(--peach) 0%, transparent 60%),
+    linear-gradient(160deg, #f8f1f8 0%, #eef1fb 55%, #f2f7f4 100%);
+  background-attachment: fixed;
+}
+
+h1, h2, h3, h4, h5, h6, .card-header, .navbar-brand {
+  font-family: var(--display);
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+
+a { color: #7a4fae; }
+a:hover { color: #5d3790; }
+
+/* ---------- Navigation: glass pill bar ---------- */
+.navbar {
+  margin: 14px 16px 0;
+  border-radius: 999px;
+  background: var(--glass-strong) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 10px 30px var(--shadow-tint);
+  padding: 6px 18px;
+}
+.navbar-brand { font-weight: 700; font-size: 1.15rem; color: var(--ink) !important; }
+.navbar .nav-link {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 0.45rem 0.95rem !important;
+  color: var(--ink-soft) !important;
+  font-weight: 500;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+.navbar .nav-link:hover { background: rgba(255, 255, 255, 0.6); color: var(--ink) !important; }
+.navbar .nav-link.active {
+  color: var(--ink) !important;
+  font-weight: 600;
+  background: var(--surface);
+  box-shadow: inset 3px 3px 7px var(--neu-dark), inset -3px -3px 7px var(--neu-light);
+}
+.navbar-toggler { border: none; }
+.snapshot-label { color: var(--ink-soft); font-size: 0.85rem; }
+
+/* ---------- Page body ---------- */
+.navbar + .container-fluid, main, .tab-content { padding-top: 6px; }
+.tab-content > .tab-pane { padding: 14px 4px 32px; }
+
+/* ---------- Glass cards (all bslib cards) ---------- */
+.card, .bslib-card {
+  background: var(--glass) !important;
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  border: 1px solid var(--glass-edge) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 12px 34px var(--shadow-tint);
+  overflow: hidden;
+}
+.card-header {
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.7) !important;
+  font-weight: 600;
+  font-size: 1.02rem;
+  padding: 14px 20px 10px;
+}
+.card-footer {
+  background: rgba(255, 255, 255, 0.35) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.7) !important;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  padding: 10px 20px;
+}
+.card-body { padding: 14px 20px; }
+
+/* Sidebar inside a card: neumorphic panel */
+.bslib-sidebar-layout > .sidebar {
+  background: var(--surface) !important;
+  border-right: none !important;
+  box-shadow: inset -6px 0 14px -10px var(--neu-dark);
+}
+.bslib-sidebar-layout { border-radius: var(--radius-lg) !important; }
+
+/* ---------- Bento grid (Overview) ---------- */
+.bento {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: minmax(190px, auto);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.bento > * { margin: 0 !important; min-width: 0; }
+.span-2 { grid-column: span 2; }
+.span-3 { grid-column: span 3; }
+.span-4 { grid-column: span 4; }
+.row-2 { grid-row: span 2; }
+
+.intro {
+  padding: 26px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+.intro h1 {
+  font-size: clamp(1.7rem, 2.6vw, 2.5rem);
+  font-weight: 700;
+  line-height: 1.1;
+  margin: 0;
+  max-width: 22ch;
+}
+.intro p { margin: 0; color: var(--ink-soft); max-width: 62ch; }
+
+/* Scope note: soft peach pill instead of a loud alert */
+.scope-note {
+  background: rgba(251, 217, 196, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  margin: 0 0 16px;
+}
+.intro .scope-note { margin: 6px 0 0; }
+
+/* ---------- Flip + tilt cards ---------- */
+.flip-card {
+  position: relative;
+  perspective: 1100px;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  outline: none;
+  min-height: 190px;
+  -webkit-tap-highlight-color: transparent;
+}
+.flip-tilt {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease-out;
+  border-radius: inherit;
+}
+.flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  transform-style: preserve-3d;
+  transition: transform 0.65s cubic-bezier(0.2, 0.75, 0.25, 1);
+  border-radius: inherit;
+}
+.flip-card.is-flipped .flip-inner { transform: rotateY(180deg); }
+.flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: inherit;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 12px 34px var(--shadow-tint);
+  overflow: hidden;
+}
+.flip-back {
+  transform: rotateY(180deg);
+  justify-content: flex-start;
+  gap: 8px;
+  background: var(--glass-strong);
+}
+.flip-label { font-weight: 600; font-size: 0.98rem; }
+.flip-value {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2.3rem, 3.4vw, 3.1rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.flip-unit { color: var(--ink-soft); font-size: 0.88rem; }
+.flip-hint { color: var(--ink-soft); font-size: 0.78rem; opacity: 0.85; }
+.flip-back h3 { font-size: 1rem; font-weight: 700; margin: 0; }
+.flip-back p { font-size: 0.9rem; margin: 0; color: var(--ink); }
+.flip-card:focus-visible .flip-face {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+/* Pastel tone washes for the four headline cards */
+.tone-rose  .flip-front { background: linear-gradient(145deg, rgba(247,197,211,0.75), rgba(255,255,255,0.45)); }
+.tone-lilac .flip-front { background: linear-gradient(145deg, rgba(204,184,236,0.75), rgba(255,255,255,0.45)); }
+.tone-mint  .flip-front { background: linear-gradient(145deg, rgba(178,224,203,0.75), rgba(255,255,255,0.45)); }
+.tone-peach .flip-front { background: linear-gradient(145deg, rgba(251,210,186,0.75), rgba(255,255,255,0.45)); }
+
+/* Glare that follows the pointer during tilt */
+.flip-glare {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--gx, 50%) var(--gy, 0%),
+              rgba(255, 255, 255, 0.55), transparent 55%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.flip-card:hover .flip-glare { opacity: 1; }
+
+/* ---------- Findings list ---------- */
+.findings { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.findings li {
+  padding: 12px 14px 12px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: 5px 5px 12px var(--neu-dark), -5px -5px 12px var(--neu-light);
+  border-left: 5px solid var(--dot, #c7b6e2);
+  font-size: 0.95rem;
+}
+
+/* ---------- Neumorphic controls ---------- */
+.form-control, .form-select, .selectize-input, .irs--shiny .irs-line,
+.input-daterange input {
+  background: var(--surface) !important;
+  border: none !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: inset 3px 3px 7px var(--neu-dark), inset -3px -3px 7px var(--neu-light) !important;
+  color: var(--ink) !important;
+}
+.selectize-dropdown {
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-edge);
+  box-shadow: 0 12px 28px var(--shadow-tint);
+}
+.selectize-input .item {
+  background: #fff !important;
+  border-radius: 999px !important;
+  border: none !important;
+  box-shadow: 2px 2px 5px var(--neu-dark), -2px -2px 5px var(--neu-light);
+  padding: 1px 10px !important;
+}
+.form-check-input {
+  width: 1.15em; height: 1.15em;
+  background-color: var(--surface);
+  border: none;
+  box-shadow: inset 2px 2px 4px var(--neu-dark), inset -2px -2px 4px var(--neu-light);
+}
+.form-check-input:checked {
+  background-color: #b79be0;
+  box-shadow: 2px 2px 5px var(--neu-dark), -2px -2px 5px var(--neu-light);
+}
+.irs--shiny .irs-bar { background: linear-gradient(90deg, #f3a6bd, #b79be0); border: none; }
+.irs--shiny .irs-handle {
+  background: var(--surface); border: none;
+  box-shadow: 3px 3px 7px var(--neu-dark), -3px -3px 7px var(--neu-light);
+}
+.irs--shiny .irs-from, .irs--shiny .irs-to, .irs--shiny .irs-single { background: #9c7bb8; }
+.control-label, .form-label { font-weight: 600; color: var(--ink); }
+.input-group-addon, .input-daterange .input-group-text {
+  background: transparent; border: none; color: var(--ink-soft);
+}
+
+/* ---------- Tables ---------- */
+table.table, table.dataTable { color: var(--ink); --bs-table-bg: transparent; }
+table.dataTable thead th, .table thead th {
+  font-family: var(--display);
+  font-weight: 600;
+  border-bottom: 1px solid rgba(155, 125, 185, 0.35) !important;
+}
+table.dataTable tbody tr { background: transparent !important; }
+table.dataTable.stripe tbody tr.odd, table.dataTable tbody tr:nth-child(odd) {
+  background: rgba(255, 255, 255, 0.4) !important;
+}
+table.dataTable tbody tr:hover { background: rgba(228, 215, 245, 0.6) !important; }
+.table > :not(caption) > * > * { background: transparent; border-color: rgba(155, 125, 185, 0.2); }
+.dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background: var(--surface) !important;
+  border: none !important;
+  border-radius: 999px;
+  box-shadow: inset 2px 2px 5px var(--neu-dark), inset -2px -2px 5px var(--neu-light);
+}
+.dataTables_wrapper .dataTables_info { color: var(--ink-soft) !important; }
+
+/* Definition list on the Methods tab */
+dl.methods dt { font-family: var(--display); font-weight: 600; margin-top: 10px; }
+dl.methods dd { margin: 2px 0 0; color: var(--ink-soft); }
+
+/* ---------- Ripple ---------- */
+.ripple-host { position: relative; overflow: hidden; }
+.ripple {
+  position: absolute;
+  border-radius: 50%;
+  transform: scale(0);
+  background: rgba(183, 155, 224, 0.45);
+  animation: ripple 0.6s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
+
+/* ---------- Focus ---------- */
+a:focus-visible, button:focus-visible, .nav-link:focus-visible,
+.form-control:focus-visible, .form-check-input:focus-visible {
+  outline: 3px solid var(--focus) !important;
+  outline-offset: 2px;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .span-3, .span-4 { grid-column: span 2; }
+  .row-2 { grid-row: auto; }
+}
+@media (max-width: 640px) {
+  .bento { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+  .span-2, .span-3, .span-4 { grid-column: span 1; }
+  .navbar { margin: 8px; border-radius: 22px; }
+  .intro { padding: 20px; }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .flip-inner, .flip-tilt, .nav-link { transition: none !important; }
+  .ripple { display: none; }
+  .flip-glare { display: none; }
+}
+
+/* Browsers without backdrop-filter: keep the cards readable */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .card, .bslib-card, .flip-face, .navbar { background: rgba(255, 255, 255, 0.9) !important; }
+}
+
+.input-daterange input { font-size: 0.9rem; padding-left: 8px; padding-right: 8px; }
