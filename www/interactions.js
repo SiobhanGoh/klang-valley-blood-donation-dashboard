@@ -376,6 +376,37 @@
     }, { passive: true });
   }
 
+
+  // ---------- Reports: save as PDF and download CSV ----------
+  // The preview is copied into a print-only root, so the PDF holds just the report.
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".js-print")) return;
+    var paper = document.querySelector("#report_preview .paper");
+    if (!paper) return;
+    var root = document.getElementById("print-root");
+    if (!root) { root = document.createElement("div"); root.id = "print-root"; document.body.appendChild(root); }
+    root.innerHTML = "";
+    root.appendChild(paper.cloneNode(true));
+    document.documentElement.classList.add("is-printing");
+    var done = function () {
+      document.documentElement.classList.remove("is-printing");
+      root.innerHTML = "";
+      window.removeEventListener("afterprint", done);
+    };
+    window.addEventListener("afterprint", done);
+    setTimeout(function () { window.print(); }, 60);
+  });
+  if (window.Shiny) {
+    Shiny.addCustomMessageHandler("download_csv", function (m) {
+      var blob = new Blob(["﻿" + m.text], { type: "text/csv;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = m.name; a.rel = "noopener";
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
+    });
+  }
+
   // ---------- Count-up numbers ----------
   function countTo(el, to, ms, decimals, from) {
     if (!el) return;

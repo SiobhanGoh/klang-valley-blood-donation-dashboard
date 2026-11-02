@@ -36,7 +36,7 @@ runs the R app in the visitor's browser. Hosting is therefore free, has no usage
 limits and needs no server. The first visit downloads the R runtime, so it takes a
 little longer to open; a loading screen shows while it starts. To keep that download
 small, the published site ships only the code needed to display the precomputed
-results (`R/common.R`, `R/charts.R`, `R/content.R`), not the data pipeline in
+results (`R/common.R`, `R/charts.R`, `R/content.R`, `R/reports.R`), not the data pipeline in
 `R/analysis.R`.
 
 ## What the dashboard shows
@@ -52,6 +52,7 @@ A left rail (a bottom tab bar on phones) switches between sections:
 | Patterns | Weekly, weekday and annual patterns, and the blood-type mix of donations by year |
 | Blood 101: Malaysia | Who can donate, the donation steps and aftercare; recorded donations by state for each region of Malaysia, with PDN's fixed Klang Valley centres; and an animated red-cell compatibility explorer. Sourced from Pusat Darah Negara and two national blood services |
 | About the data | Methods, what the regression learned, data audit, limits, source and licence |
+| Export reports | Three printable reports, each with its own voice: an editorial **summary report** for any evaluation period; a technical **data appendix** of the daily records for a chosen group and date range (also as CSV, with the CC BY 4.0 credit); and a personal **donor card** for a chosen blood type and region, with an optional earliest-next-donation date. Saved as PDF from the browser; nothing entered is sent or stored |
 
 ### Interface
 
@@ -156,6 +157,7 @@ app.R                    Shiny UI and server
 R/common.R               Shared constants and the light helpers the app needs
 R/analysis.R             Data loading (live or snapshot), forecasting and scoring (ported from the Rmd)
 R/charts.R               Interactive charts (plotly) in one shared style
+R/reports.R              The three printable reports and the CSV extract
 R/content.R              Blood 101 facts (with sources) and the compatibility rule
 scripts/build_data.R     Downloads the latest CSV and precomputes results for the site
 scripts/add_splash.R     Adds the loading screen (site/splash.html) to the published site

@@ -343,7 +343,8 @@ SECTIONS <- list(
   list(id = "low", label = "Low-collection days", icon = "arrow-trend-down"),
   list(id = "patterns", label = "Patterns", icon = "chart-line"),
   list(id = "blood101", label = "Blood 101: Malaysia", icon = "hand-holding-medical"),
-  list(id = "about", label = "About the data", icon = "circle-info")
+  list(id = "about", label = "About the data", icon = "circle-info"),
+  list(id = "export", label = "Export reports", icon = "file-export")
 )
 
 rail <- tags$nav(
@@ -474,6 +475,8 @@ region_view <- function(r) {
                  "and mobile campaigns; check PDN or the nearest state hospital for times and",
                  "locations.")))
 }
+
+source("R/reports.R", local = TRUE)
 
 # --- UI -------------------------------------------------------------------------------
 
@@ -860,6 +863,52 @@ ui <- page(
                   "Foundations of Data Science (Monash University, 2026). The repository's tests ",
                   "check that the methods reproduce that report's results on its frozen snapshot."))),
           chapter_nav("about")
+        ),
+
+        # Export ------------------------------------------------------------------------
+        nav_panel_hidden(
+          "export",
+          chapter_head("export",
+                       "Take the story with you.",
+                       paste("Three reports, each told its own way. Pick one, set it up, check the",
+                             "preview, then save it as a PDF. Everything is made in your browser;",
+                             "nothing you enter is sent or stored.")),
+          div(class = "control-bar stage-2",
+              seg("report_type", "Report",
+                  c("Summary report" = "summary", "Data appendix" = "data", "My donor card" = "card"),
+                  "summary")),
+          div(class = "report-studio stage-3",
+              div(class = "panel report-setup",
+                  div(class = "panel-head", div(class = "panel-titles",
+                      h3(class = "panel-title", "Set up"),
+                      p(class = "panel-sub", uiOutput("report_blurb", inline = TRUE)))),
+                  div(class = "panel-body",
+                      conditionalPanel("input.report_type == 'summary'",
+                        seg("rep_period", "Evaluation period", PERIOD_CHOICES, as.character(LATEST))),
+                      conditionalPanel("input.report_type == 'data'",
+                        seg("rep_group", "Blood group", c("All" = "all", setNames(ABO_GROUPS, ABO_GROUPS)), "all"),
+                        div(class = "control",
+                            span(class = "control-label", "Dates"),
+                            dateRangeInput("rep_dates", NULL, start = DATA_END - 30, end = DATA_END,
+                                           min = min(dash$panel$date), max = DATA_END)),
+                        chips("rep_extra", "Include", c("Forecasts from each method" = "forecasts"),
+                              "forecasts")),
+                      conditionalPanel("input.report_type == 'card'",
+                        seg("card_type", "My blood type", BLOOD_TYPES, "O+"),
+                        seg("card_region", "My region", names(MALAYSIA_REGIONS), "Central"),
+                        div(class = "control",
+                            span(class = "control-label", "Last donation (optional)"),
+                            dateInput("card_last", NULL, value = NA, max = Sys.Date()))),
+                      div(class = "report-actions",
+                          tags$button(class = "btn-pill btn-primary-solid js-print", type = "button",
+                                      icon("file-pdf"), "Save as PDF"),
+                          conditionalPanel("input.report_type == 'data'",
+                            actionButton("csv_go", tagList(icon("table"), "Download CSV"),
+                                         class = "btn-pill btn-quiet"))))),
+              div(class = "paper-stage",
+                  div(class = "paper-label", "Preview"),
+                  uiOutput("report_preview"))),
+          chapter_nav("export")
         )
       )
     ),
@@ -919,6 +968,38 @@ server <- function(input, output, session) {
     r <- if (is.null(input$region_pick) || !input$region_pick %in% names(MALAYSIA_REGIONS)) "Central"
          else input$region_pick
     region_view(r)
+  })
+
+  # Reports ------------------------------------------------------------------------------------
+  report_kind <- reactive(if (is.null(input$report_type)) "summary" else input$report_type)
+  output$report_blurb <- renderUI(switch(report_kind(),
+    summary = "An editorial summary: the winner, the scoreboard, the findings and the blind spot.",
+    data = "A technical appendix: the exact daily records, their source and definitions. Also as CSV.",
+    card = "A personal one-page card: who you can give to and receive from, and where to donate."))
+  rep_dates <- reactive({
+    d <- input$rep_dates
+    if (is.null(d) || any(is.na(d))) c(DATA_END - 30, DATA_END) else sort(as.Date(d))
+  })
+  output$report_preview <- renderUI({
+    switch(report_kind(),
+      summary = report_summary(if (is.null(input$rep_period)) LATEST else input$rep_period),
+      data = report_data(if (is.null(input$rep_group)) "all" else input$rep_group,
+                         rep_dates()[1], rep_dates()[2], "forecasts" %in% input$rep_extra),
+      card = {
+        t <- if (is.null(input$card_type) || !input$card_type %in% BLOOD_TYPES) "O+" else input$card_type
+        r <- if (is.null(input$card_region) || !input$card_region %in% names(MALAYSIA_REGIONS)) "Central"
+             else input$card_region
+        last <- input$card_last
+        report_card(t, r, if (length(last) && !is.na(last)) last else NULL)
+      })
+  })
+  observeEvent(input$csv_go, {
+    d <- rep_dates()
+    df <- data_extract(if (is.null(input$rep_group)) "all" else input$rep_group, d[1], d[2],
+                       "forecasts" %in% input$rep_extra)
+    session$sendCustomMessage("download_csv", list(
+      name = sprintf("klang-valley-donations_%s_%s.csv", format(d[1]), format(d[2])),
+      text = csv_text(df)))
   })
 
   # Compare ----------------------------------------------------------------------------------

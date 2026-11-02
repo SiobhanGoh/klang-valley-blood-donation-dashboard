@@ -44,6 +44,18 @@ test_that("all app outputs render and headline values match the report", {
       expect_match(as.character(output$compat_result$html), "A+ receives red cells from O-, O+, A-, A+", fixed = TRUE)
       expect_match(as.character(output$region_result$html), "W.P. Kuala Lumpur", fixed = TRUE)
 
+      # Each report renders in its own voice.
+      session$setInputs(report_type = "summary", rep_period = "2025")
+      expect_match(as.character(output$report_preview$html), "is the one to beat", fixed = TRUE)
+      session$setInputs(report_type = "data", rep_group = "O",
+                        rep_dates = as.Date(c("2025-01-01", "2025-01-31")), rep_extra = "forecasts")
+      expect_match(as.character(output$report_preview$html), "31 in this extract", fixed = TRUE)
+      session$setInputs(report_type = "card", card_type = "O-", card_region = "Northern",
+                        card_last = as.Date("2025-10-01"))
+      card <- as.character(output$report_preview$html)
+      expect_match(card, "universal red-cell donor", fixed = TRUE)
+      expect_match(card, "1 January 2026", fixed = TRUE)
+
       # Earlier periods switch cleanly.
       session$setInputs(cmp_year = "2023", low_year = "2023")
       expect_no_error(output$cmp_table)
@@ -60,10 +72,22 @@ test_that("the rendered page shows the report's headline numbers", {
     sys.source(file.path(root, "app.R"), envir = env)
     expect_equal(env$LATEST, 2025L)
     expect_equal(vapply(env$SECTIONS, `[[`, "", "id"),
-                 c("overview", "live", "compare", "low", "patterns", "blood101", "about"))
+                 c("overview", "live", "compare", "low", "patterns", "blood101", "about", "export"))
     html <- as.character(htmltools::renderTags(env$ui)$html)
     for (n in c("36.28", "38.82", "48.74")) expect_match(html, n, fixed = TRUE)
     expect_match(html, "Blood 101: Malaysia", fixed = TRUE)
     expect_match(html, "pdn.gov.my", fixed = TRUE)
+  })
+})
+
+test_that("the CSV extract carries the credit and every requested row", {
+  with_report_app({
+    env <- new.env()
+    sys.source(file.path(root, "app.R"), envir = env)
+    df <- env$data_extract("all", as.Date("2025-01-01"), as.Date("2025-01-07"), TRUE)
+    expect_equal(nrow(df), 28)
+    expect_true(all(c("recorded", "recent_weekday_average") %in% names(df)))
+    txt <- env$csv_text(df)
+    expect_match(txt, "CC BY 4.0", fixed = TRUE)
   })
 })
