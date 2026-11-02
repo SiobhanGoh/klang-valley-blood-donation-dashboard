@@ -238,7 +238,8 @@ chapter_head <- function(id, headline, subtitle = NULL, stat = NULL) {
           if (!is.null(subtitle)) p(class = "chapter-sub", subtitle)),
       if (!is.null(stat)) div(class = "chapter-stat", stat))
 }
-story_card <- function(target, num, title, value, text) {
+story_card <- function(target, title, value, text) {
+  num <- chapter_no(target)
   tags$button(class = "story-card", type = "button", role = "listitem", `data-target` = target,
               span(class = "story-num", num),
               span(class = "story-title", title),
@@ -252,14 +253,35 @@ big_stat <- function(value, label) {
 # A line of narration that carries the reader from one panel to the next.
 narrate <- function(...) p(class = "narration stage-3", ...)
 
-# A titled block of content with consistent vertical rhythm.
-section <- function(title, ..., sub = NULL, class = "stage-2") {
-  tags$section(class = paste("block", class),
-               div(class = "block-head",
-                   h3(class = "block-title", title),
-                   if (!is.null(sub)) p(class = "block-sub", sub)),
-               ...)
+# A scene that holds several tiles: the same white panel as every other scene,
+# so each page reads as one storyboard of numbered scenes.
+section <- function(title, ..., sub = NULL, class = "stage-3") {
+  tags$section(class = paste("panel block", class),
+               div(class = "panel-head",
+                   div(class = "panel-titles",
+                       h3(class = "panel-title", title),
+                       if (!is.null(sub)) p(class = "panel-sub", sub))),
+               div(class = "panel-body", ...))
 }
+
+# The end of each chapter points to the next one, so the pages read in order.
+chapter_nav <- function(id) {
+  ids <- vapply(SECTIONS, `[[`, "", "id")
+  i <- which(ids == id)
+  nxt <- if (i < length(SECTIONS)) SECTIONS[[i + 1]] else SECTIONS[[1]]
+  prv <- if (i > 1) SECTIONS[[i - 1]] else NULL
+  div(class = "chapter-nav",
+      if (!is.null(prv))
+        tags$button(class = "chapter-link is-prev", type = "button", `data-target` = prv$id,
+                    span(class = "cl-dir", icon("arrow-left"), "Previous"),
+                    span(class = "cl-name", sprintf("%02d  %s", i - 2L, prv$label)))
+      else span(),
+      tags$button(class = "chapter-link is-next", type = "button", `data-target` = nxt$id,
+                  span(class = "cl-dir", if (i < length(SECTIONS)) "Next chapter" else "Back to the start",
+                       icon("arrow-right")),
+                  span(class = "cl-name", sprintf("%02d  %s", match(nxt$id, ids) - 1L, nxt$label))))
+}
+chapter_no <- function(id) sprintf("%02d", match(id, vapply(SECTIONS, `[[`, "", "id")) - 1L)
 
 # A panel: white card with a proper title row and optional controls.
 panel <- function(title, ..., sub = NULL, controls = NULL, class = "", footer = NULL) {
@@ -327,7 +349,7 @@ rail <- tags$nav(
           `data-target` = sct$id, `aria-label` = sct$label, title = sct$label,
           `aria-current` = if (i == 1) "page" else NULL,
           span(class = "rail-icon", icon(sct$icon)),
-          span(class = "rail-label", sct$label))
+          span(class = "rail-label", span(class = "rail-num", sprintf("%02d", i - 1L)), sct$label))
       }))
 )
 
@@ -394,7 +416,11 @@ ui <- page(
             class = "hero-grid",
             div(class = "intro stage-1",
                 div(class = "intro-copy",
-                    status_pill,
+                    div(class = "intro-top",
+                        div(class = "chapter-eyebrow",
+                            span(class = "chapter-num", "00"),
+                            span(class = "chapter-name", "Overview")),
+                        status_pill),
                     h1("How well can past collections predict tomorrow's donations?"),
                     p(class = "intro-lead",
                       "Four forecasting methods, tested every day on recorded blood donations ",
@@ -438,19 +464,23 @@ ui <- page(
                   method_back("Seven-day baseline", "The count from one week earlier."),
                   badge = rank_badge("Seven-day baseline")))
           ),
+          narrate("The story in five chapters. Start anywhere, or read them in order."),
           div(
             class = "story-strip stage-3", role = "list",
-            story_card("live", "01", "This week", WEEK_CHANGE,
-                       paste("donations in the past seven days, against the same week",
-                             "last year")),
-            story_card("compare", "02", "The winner", paste0("\u2212", pct_text(BEST_GAIN)),
+            story_card("live", "This week", WEEK_CHANGE,
+                       "donations in the past seven days, against the same week last year"),
+            story_card("compare", "The winner", paste0("\u2212", pct_text(BEST_GAIN)),
                        sprintf("error with the %s, against repeating last week's count",
                                method_phrase(BEST_METHOD))),
-            story_card("low", "03", "The blind spot", pct_text(LOW_OVER_PCT),
+            story_card("low", "The blind spot", pct_text(LOW_OVER_PCT),
                        sprintf("of %d low-collection days overpredicted by the best method",
                                LOW_DAYS)),
-            story_card("blood101", "04", "Your part", "3 months",
+            story_card("patterns", "The rhythm", BUSIEST_DAY,
+                       sprintf("is the busiest day, with %s times a %s's donations",
+                               fmt(BUSY_RATIO, 1), QUIETEST_DAY)),
+            story_card("blood101", "Your part", "3 months",
                        "the minimum gap between donations. Donors can be aged 17 to 70")),
+          narrate("First, the scoreboard: how far off each method has been, period by period."),
           div(
             class = "overview-grid",
             panel("Pooled error by evaluation period",
@@ -464,7 +494,8 @@ ui <- page(
                 tags$ul(class = "findings",
                         lapply(seq_along(dash$findings), function(i)
                           tags$li(style = sprintf("--i:%d", i - 1), emphasise(dash$findings[[i]])))),
-                wave("wave-findings")))
+                wave("wave-findings"))),
+          chapter_nav("overview")
         ),
 
         # Live tracker -------------------------------------------------------------
@@ -495,7 +526,8 @@ ui <- page(
                 sub = paste("Expected donations from the recent weekday mean, the method with the",
                             "lowest error so far. Like every method, it overestimates unusually low days."),
                 class = "stage-3 next-panel",
-                tableOutput("next_table"))
+                tableOutput("next_table")),
+          chapter_nav("live")
         ),
 
         # Compare ------------------------------------------------------------------
@@ -510,7 +542,7 @@ ui <- page(
           div(class = "control-bar stage-2",
               seg("cmp_year", "Evaluation period", PERIOD_CHOICES, as.character(LATEST)),
               chips("cmp_methods", "Methods", METHODS, METHODS)),
-          panel("Error by blood group", sub = "Hover a bar for MAE, RMSE and the number of days.",
+          panel("Error by blood group", sub = tagList("Hover a bar for MAE, RMSE and the number of days.", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
                 class = "stage-3 chart-panel", plotlyOutput("cmp_group_plot", height = "620px")),
           panel("Scores", class = "stage-3", DTOutput("cmp_table")),
           narrate("Averages hide the day-to-day story. Here is how each forecast tracked the ",
@@ -528,7 +560,8 @@ ui <- page(
                 plotlyOutput("cmp_daily_plot", height = "420px"),
                 footer = paste("The seven-day baseline uses the count observed a week earlier, so",
                                "it is a rolling benchmark rather than a forecast issued at the start",
-                               "of the period."))
+                               "of the period.")),
+          chapter_nav("compare")
         ),
 
         # Low-collection days ------------------------------------------------------
@@ -545,7 +578,7 @@ ui <- page(
           div(class = "control-bar stage-2",
               seg("low_year", "Evaluation period", PERIOD_CHOICES, as.character(LATEST))),
           panel("Error on low-collection days and other days",
-                sub = "Dark bars: low-collection days. Light bars: all other days.",
+                sub = tagList("Dark bars: low-collection days. Light bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
                 class = "stage-3 chart-panel", plotlyOutput("low_plot", height = "620px")),
           narrate(LOW_WHY),
           div(class = "two-up stage-3",
@@ -556,7 +589,8 @@ ui <- page(
                                    "group's threshold, it must overpredict every low day."))),
           panel("Low-day errors", class = "stage-3", DTOutput("low_table"),
                 footer = paste("'Mean excess forecast' averages only the amount by which the forecast",
-                               "exceeded the actual count, counting zero when it did not."))
+                               "exceeded the actual count, counting zero when it did not.")),
+          chapter_nav("low")
         ),
 
         # Patterns -------------------------------------------------------------------
@@ -586,7 +620,8 @@ ui <- page(
           panel("Blood-type mix of donations",
                 sub = paste("Share of recorded Klang Valley donations by ABO group each year. This",
                             "describes who donated, not how common each type is in the population."),
-                class = "stage-3 chart-panel", plotlyOutput("mix_plot", height = "380px"))
+                class = "stage-3 chart-panel", plotlyOutput("mix_plot", height = "380px")),
+          chapter_nav("patterns")
         ),
 
         # Blood 101 -----------------------------------------------------------------
@@ -599,7 +634,8 @@ ui <- page(
                              "check PDN for the latest requirements.")),
           section(
             "Can I donate?",
-            div(class = "fact-grid masonry",
+            sub = "The basics PDN checks before every donation.",
+            div(class = "fact-grid",
                 lapply(ELIGIBILITY, function(e)
                   div(class = "fact",
                       span(class = "fact-icon", icon(e$icon)),
@@ -612,47 +648,48 @@ ui <- page(
                   tags$li(strong(d$what), span(d$wait)))),
                 p(class = "fine-print",
                   "Examples only. PDN's A–Z list covers many more conditions and medicines."))),
+          narrate("On the day, a donation follows the same six steps."),
           div(class = "two-up stage-3",
               section("How a donation works", class = "",
                       tags$ol(class = "steps", lapply(DONATION_STEPS, tags$li))),
               section("After donating", class = "",
                       tags$ul(class = "aftercare", lapply(AFTERCARE, tags$li)))),
+          narrate("Where to go in the Klang Valley."),
           section(
-            "Where to donate in the Klang Valley",
+            "Fixed donation centres",
             sub = paste("PDN's fixed donation centres. Mobile blood drives run across the region;",
                         "PDN publishes their locations."),
-            class = "stage-3",
-            div(class = "centre-grid masonry",
+            div(class = "centre-grid",
                 lapply(DONATION_CENTRES, function(ct)
                   div(class = "centre",
                       span(class = "centre-icon", icon("location-dot")),
                       div(class = "centre-name", ct$name),
                       div(class = "centre-area", ct$area),
                       div(class = "centre-hours", ct$hours))))),
+          narrate("And once it is given, whose blood can help whom?"),
           section(
             "Blood type compatibility explorer",
             sub = "Pick a blood type to see whose red cells it can receive and whom it can give red cells to.",
-            class = "stage-3",
-            div(class = "compat",
-                div(class = "type-grid", role = "radiogroup", `aria-label` = "Blood type",
-                    lapply(BLOOD_TYPES, function(t)
-                      tags$button(class = paste("type-pick", if (t == "O+") "is-on"),
-                                  type = "button", `data-type` = t, role = "radio",
-                                  `aria-checked` = if (t == "O+") "true" else "false", t))),
-                uiOutput("compat_result"),
-                p(class = "fine-print",
-                  "A simplified educational guide to red-cell ABO and RhD compatibility. Real ",
-                  "transfusions are matched in a laboratory and decided by clinicians. The donation ",
-                  "data records ABO groups only, not RhD."))),
-          div(class = "sources stage-3",
-              h4("Sources"),
-              tags$ul(
-                tags$li(source_link(PDN_SOURCES$booklet)),
-                tags$li(source_link(PDN_SOURCES$az)),
-                tags$li(source_link(PDN_SOURCES$centres)),
-                tags$li(source_link(COMPAT_SOURCES$nhsbt)),
-                tags$li(source_link(COMPAT_SOURCES$hemaq))),
-              p(class = "fine-print", "Summarised in our own words; accessed 2 November 2026."))
+            div(class = "type-grid", role = "radiogroup", `aria-label` = "Blood type",
+                lapply(BLOOD_TYPES, function(t)
+                  tags$button(class = paste("type-pick", if (t == "O+") "is-on"),
+                              type = "button", `data-type` = t, role = "radio",
+                              `aria-checked` = if (t == "O+") "true" else "false", t))),
+            uiOutput("compat_result"),
+            p(class = "fine-print",
+              "A simplified educational guide to red-cell ABO and RhD compatibility. Real ",
+              "transfusions are matched in a laboratory and decided by clinicians. The donation ",
+              "data records ABO groups only, not RhD.")),
+          section(
+            "Sources",
+            sub = "Summarised in our own words; accessed 2 November 2026.",
+            tags$ul(class = "source-list",
+              tags$li(source_link(PDN_SOURCES$booklet)),
+              tags$li(source_link(PDN_SOURCES$az)),
+              tags$li(source_link(PDN_SOURCES$centres)),
+              tags$li(source_link(COMPAT_SOURCES$nhsbt)),
+              tags$li(source_link(COMPAT_SOURCES$hemaq)))),
+          chapter_nav("blood101")
         ),
 
         # About ------------------------------------------------------------------------
@@ -663,78 +700,73 @@ ui <- page(
                        paste("The methods, what the regression learned, a full audit of the raw data",
                              "and the limits of a retrospective evaluation.")),
           section(
-            "Forecasting methods",
+            "Four forecasting methods",
+            sub = "Each one uses only data recorded before the day it predicts.",
             div(class = "method-grid",
-                div(class = "method", h4("Seven-day baseline"),
+                div(class = "method", span(class = "method-tag", "Benchmark"), h4("Seven-day baseline"),
                     p("The count recorded for the same blood group seven calendar days earlier.")),
-                div(class = "method", h4("Weekday average"),
+                div(class = "method", span(class = "method-tag", "All history"), h4("Weekday average"),
                     p("Mean for the blood group and weekday over all years before the evaluation year.")),
-                div(class = "method", h4("Linear regression"),
+                div(class = "method", span(class = "method-tag", "Trend"), h4("Linear regression"),
                     p("A separate lm(donations ~ weekday + time_index) per blood group, fitted on all earlier years.")),
-                div(class = "method", h4("Recent weekday average"),
+                div(class = "method", span(class = "method-tag", "Last 3 years"), h4("Recent weekday average"),
                     p("Mean for the blood group and weekday over the three complete years before the evaluation year.")))),
-          section(
-            "What the regression learned",
-            sub = paste0("Fitted on 2006 to ", LATEST - 1L,
-                         ". Associations in historical data, not causal effects."),
-            div(class = "two-up",
-                panel("Coefficients", tableOutput("coef_table"),
-                      footer = "The Sunday contrast holds the time index fixed."),
-                panel("Signed error (actual minus predicted)", DTOutput("bias_table"),
-                      footer = paste("Near-zero averages mean positive and negative errors cancel;",
-                                     "they do not mean the daily forecasts are accurate."))),
-            panel("How the error moves through the year",
-                  sub = paste("Each point is a method's average forecast error for one month: how many",
-                              "donations per blood group per day the forecast was off by. Higher means",
-                              "a harder month to predict. Hover a month to compare methods."),
-                  controls = tagList(
-                    seg("month_year", "Period", PERIOD_CHOICES, as.character(LATEST)),
-                    chips("month_methods", "Methods", METHODS,
-                          c("Seven-day baseline", "Linear regression", "Recent weekday average"))),
-                  class = "chart-panel",
-                  plotlyOutput("monthly_plot", height = "380px"),
-                  footer = "Describes when errors occurred; it cannot explain why.")),
-          section(
-            "Data audit",
-            div(class = "two-up",
-                panel("Raw data checks", tableOutput("audit_table")),
-                panel("Analysis panel", tableOutput("panel_table"),
-                      footer = "The ALL category is excluded from modelling to avoid double counting."))),
+          narrate(sprintf("What did the regression learn from 2006 to %d? Associations, not causes.",
+                          LATEST - 1L)),
+          div(class = "two-up stage-3",
+              panel("Coefficients", tableOutput("coef_table"),
+                    footer = "The Sunday contrast holds the time index fixed."),
+              panel("Signed error (actual minus predicted)", DTOutput("bias_table"),
+                    footer = paste("Near-zero averages mean positive and negative errors cancel;",
+                                   "they do not mean the daily forecasts are accurate."))),
+          panel("How the error moves through the year",
+                sub = paste("Each point is a method's average forecast error for one month: how many",
+                            "donations per blood group per day the forecast was off by. Higher means",
+                            "a harder month to predict. Hover a month to compare methods."),
+                controls = tagList(
+                  seg("month_year", "Period", PERIOD_CHOICES, as.character(LATEST)),
+                  chips("month_methods", "Methods", METHODS,
+                        c("Seven-day baseline", "Linear regression", "Recent weekday average"))),
+                class = "stage-3 chart-panel",
+                plotlyOutput("monthly_plot", height = "380px"),
+                footer = "Describes when errors occurred; it cannot explain why."),
+          narrate("Before trusting any of it, check the data itself."),
+          div(class = "two-up stage-3",
+              panel("Raw data checks", tableOutput("audit_table")),
+              panel("Analysis panel", tableOutput("panel_table"),
+                    footer = "The ALL category is excluded from modelling to avoid double counting.")),
+          narrate("And be clear about what this cannot show."),
           section(
             "Validation limits",
-            div(class = "panel",
-                div(class = "panel-body",
-                    tags$ul(class = "limits",
-                      tags$li("Results are retrospective. The method choices were developed on the ",
-                              "2006–2025 data, so earlier evaluation years are not untouched holdouts."),
-                      tags$li("Evaluation periods share overlapping training data and are not ",
-                              "independent experiments. No significance testing is done."),
-                      tags$li("The three-year window for the recent weekday mean was not tuned or ",
-                              "independently validated."),
-                      tags$li("No forecast intervals, weather, holiday, campaign, inventory or ",
-                              "hospital-demand data are used."),
-                      tags$li("Zero counts are kept; they may be closures or reporting gaps."),
-                      tags$li("The official data can be revised, so past numbers may change slightly ",
-                              "between daily refreshes."))))),
+            tags$ul(class = "limits",
+              tags$li("Results are retrospective. The method choices were developed on the ",
+                      "2006–2025 data, so earlier evaluation years are not untouched holdouts."),
+              tags$li("Evaluation periods share overlapping training data and are not ",
+                      "independent experiments. No significance testing is done."),
+              tags$li("The three-year window for the recent weekday mean was not tuned or ",
+                      "independently validated."),
+              tags$li("No forecast intervals, weather, holiday, campaign, inventory or ",
+                      "hospital-demand data are used."),
+              tags$li("Zero counts are kept; they may be closures or reporting gaps."),
+              tags$li("The official data can be revised, so past numbers may change slightly ",
+                      "between daily refreshes."))),
           section(
             "Source, licence and origin",
-            div(class = "panel",
-                div(class = "panel-body",
-                    p("Government of Malaysia. ", em("Daily Blood Donations by Blood Group & State"),
-                      ". data.gov.my. ",
-                      a("Catalogue page", href = "https://data.gov.my/data-catalogue/blood_donations_state",
-                        target = "_blank", rel = "noopener"),
-                      ". Open data under the ",
-                      a("Creative Commons Attribution 4.0 licence",
-                        href = "https://creativecommons.org/licenses/by/4.0/",
-                        target = "_blank", rel = "noopener"), "."),
-                    p("Records come from the Blood Bank Information System of 22 main Ministry of ",
-                      "Health collection sites, which cover most but not all national donations. ",
-                      "W.P. Kuala Lumpur includes Putrajaya and mobile campaigns around Selangor, ",
-                      "so the two regions are combined."),
-                    p("This dashboard extends the BloodReady AI analysis submitted for FIT5145 ",
-                      "Foundations of Data Science (Monash University, 2026). The repository's tests ",
-                      "check that the methods reproduce that report's results on its frozen snapshot."))))
+            div(class = "prose",
+                p(HTML(paste0(
+                  "Government of Malaysia. <em>Daily Blood Donations by Blood Group &amp; State</em>. ",
+                  "data.gov.my. <a href=\"https://data.gov.my/data-catalogue/blood_donations_state\" ",
+                  "target=\"_blank\" rel=\"noopener\">Catalogue page</a>. Open data under the ",
+                  "<a href=\"https://creativecommons.org/licenses/by/4.0/\" target=\"_blank\" ",
+                  "rel=\"noopener\">Creative Commons Attribution 4.0 licence</a>."))),
+                p("Records come from the Blood Bank Information System of 22 main Ministry of ",
+                  "Health collection sites, which cover most but not all national donations. ",
+                  "W.P. Kuala Lumpur includes Putrajaya and mobile campaigns around Selangor, ",
+                  "so the two regions are combined."),
+                p("This dashboard extends the BloodReady AI analysis submitted for FIT5145 ",
+                  "Foundations of Data Science (Monash University, 2026). The repository's tests ",
+                  "check that the methods reproduce that report's results on its frozen snapshot."))),
+          chapter_nav("about")
         )
       )
     ),

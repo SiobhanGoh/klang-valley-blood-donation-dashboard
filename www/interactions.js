@@ -181,6 +181,28 @@
   });
 
 
+
+  // ---------- Storyboard numbering ----------
+  // Every scene title gets "chapter.scene", so all pages share one sequence.
+  function numberScenes() {
+    $all(".tab-pane").forEach(function (pane) {
+      var num = $(".chapter-num", pane);
+      if (!num) return;
+      var ch = num.textContent.trim(), k = 0;
+      $all(".panel-title", pane).forEach(function (t) {
+        var host = t.closest(".panel, .findings-panel");
+        if (host && host.parentElement.closest(".panel")) return;   // nested tile
+        if (t.querySelector(".scene-num")) return;
+        k += 1;
+        var tag = document.createElement("span");
+        tag.className = "scene-num";
+        tag.textContent = ch + "." + k;
+        t.insertBefore(tag, t.firstChild);
+      });
+    });
+  }
+  document.addEventListener("DOMContentLoaded", numberScenes);
+
   // ---------- Chart entrances ----------
   // Bars rise from the baseline; lines draw from left to right. Each chart
   // animates when new data arrives and it is on screen, never on hover.
@@ -200,6 +222,14 @@
                     { duration: 1300, easing: "cubic-bezier(0.45, 0, 0.2, 1)" });
     });
   }
+  // On phones the 2 x 2 group grids have no room for method names under the
+  // bars; the legend and the hover labels name them instead.
+  function compactForPhone(gd) {
+    if (window.innerWidth > 600 || !window.Plotly || !gd.layout || !gd.layout.xaxis4) return;
+    var upd = { "legend.y": -0.08 };
+    ["xaxis", "xaxis2", "xaxis3", "xaxis4"].forEach(function (a) { upd[a + ".showticklabels"] = false; });
+    window.Plotly.relayout(gd, upd);
+  }
   var pendingCharts = new Set();
   var chartObserver = "IntersectionObserver" in window ? new IntersectionObserver(function (entries) {
     entries.forEach(function (en) {
@@ -215,6 +245,7 @@
       if ((tries || 0) < 60) setTimeout(function () { queueChart(gd, (tries || 0) + 1); }, 40);
       return;
     }
+    compactForPhone(gd);
     if (!chartObserver) { animateChart(gd); return; }
     pendingCharts.add(gd);
     chartObserver.unobserve(gd);
@@ -239,12 +270,12 @@
       });
     }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
     var REVEAL = ".tab-pane .panel, .tab-pane .narration, .tab-pane .block, .tab-pane .kpi-row, " +
-                 ".tab-pane .story-strip, .tab-pane .findings-panel, .tab-pane .sources";
+                 ".tab-pane .story-strip, .tab-pane .findings-panel, .tab-pane .two-up, .tab-pane .chapter-nav";
     var armReveal = function (root) {
       if (!root) return;
       $all(REVEAL, root).forEach(function (el) {
         if (el.classList.contains("reveal")) return;
-        if (el.parentElement.closest(".two-up, .block")) return;
+        if (el.parentElement.closest(".two-up, .panel, .overview-grid")) return;
         el.classList.add("reveal");
         // Anything already on screen shows at once.
         if (el.getBoundingClientRect().top < window.innerHeight * 0.92) el.classList.add("is-in");

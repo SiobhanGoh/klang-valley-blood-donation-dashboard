@@ -1289,3 +1289,117 @@ html.reveal-ready .reveal.is-in {
   .stat-grid { grid-auto-rows: 136px; }
   .intro-actions .btn-pill { flex: 1 1 auto; justify-content: center; }
 }
+
+/* ======================================================================
+   Storyboard: one system for every page
+   Every page = a chapter (number, finding, explanation).
+   Every unit = a numbered scene in the same white panel.
+   Tiles inside a scene are flat and tinted, never cards on cards.
+   Narration lines connect scenes; each chapter ends by pointing to the next.
+   ====================================================================== */
+.block { margin-top: var(--space-5); }
+.narration + .panel, .narration + .two-up, .narration + .story-strip, .narration + .overview-grid { margin-top: 20px; }
+.two-up > .panel { margin-top: 0; }
+
+.scene-num {
+  display: block;
+  width: max-content;
+  margin-bottom: 8px;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--blush-2);
+  color: var(--wine);
+  font: 600 0.7rem/1.3 var(--font-text);
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+.findings-panel .scene-num { background: rgba(255, 255, 255, 0.14); color: #fff; }
+
+/* Tiles inside scenes */
+.panel .fact, .panel .centre, .panel .method, .panel .deferral, .panel .compat-col,
+.panel .steps, .panel .aftercare {
+  background: var(--surface-2);
+  border: 0;
+  box-shadow: none;
+  border-radius: var(--r-lg);
+}
+.panel .fact:hover, .panel .centre:hover, .panel .method:hover { transform: translateY(-2px); box-shadow: none; background: var(--blush-2); }
+.panel .centre, .panel .method { transition: transform var(--t-med) var(--ease-out), background var(--t-med); }
+.panel .fact-icon { background: var(--surface); }
+.panel .method:last-child { background: linear-gradient(160deg, var(--blush-2), var(--blush)); }
+.panel .steps, .panel .aftercare { padding: 22px 24px; }
+.fact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--space-4); }
+.centre-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--space-4); }
+.panel .deferral { margin-top: var(--space-4); }
+.panel .type-grid + .compat-result { margin-top: var(--space-5); }
+.method-tag {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.panel .method:last-child .method-tag { background: var(--wine); color: #fff; }
+.source-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; font-size: 0.94rem; }
+.prose { max-width: 70ch; color: var(--ink-soft); }
+.prose p + p { margin-top: 12px; }
+.limits { max-width: 72ch; }
+
+/* Overview opens like every other chapter */
+.intro-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; width: 100%; }
+.intro-top .chapter-eyebrow { margin-bottom: 0; }
+.intro h1 { font-variation-settings: "SOFT" 50, "opsz" 144; letter-spacing: -0.03em; }
+.story-strip { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+/* Rail labels carry the chapter number */
+.rail-num {
+  display: inline-block;
+  min-width: 22px;
+  margin-right: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* End of chapter: previous and next */
+.chapter-nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-7);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--hairline);
+}
+.chapter-link {
+  display: grid;
+  gap: 6px;
+  padding: 20px 24px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform var(--t-med) var(--ease-out), background var(--t-fast), color var(--t-fast), box-shadow var(--t-med);
+}
+.chapter-link.is-next { grid-column: 2; text-align: right; justify-items: end; }
+.cl-dir { display: inline-flex; gap: 8px; align-items: center; font-size: 0.74rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.cl-name { font-family: var(--font-display); font-size: 1.45rem; font-weight: 500; letter-spacing: -0.02em; white-space: pre; }
+.chapter-link:hover { transform: translateY(-3px); box-shadow: var(--shadow-2); }
+.chapter-link.is-next:hover { background: var(--wine-deep); color: #fff; }
+.chapter-link.is-next:hover .cl-dir { color: var(--on-dark-soft); }
+.chapter-link:active { transform: scale(0.98); }
+@media (max-width: 760px) {
+  .chapter-nav { grid-template-columns: minmax(0, 1fr); }
+  .chapter-link.is-next { grid-column: 1; }
+  .cl-name { font-size: 1.2rem; }
+}
+.panel .fact { align-content: start; }
+.phone-only { display: none; }
+@media (max-width: 600px) { .phone-only { display: inline; } }

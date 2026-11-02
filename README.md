@@ -52,9 +52,12 @@ A left rail (a bottom tab bar on phones) switches between sections:
 
 ### Interface
 
-Each section opens like a chapter of a story: its headline states the main finding,
-written from the current results so it stays true as the data changes. Short lines of
-narration lead from one chart to the next.
+The dashboard reads as one storyboard. Each section is a numbered chapter (00 to 06)
+whose headline states the main finding, written from the current results so it stays
+true as the data changes. Every chart or table inside a chapter is a numbered scene
+(for example 02.3), short lines of narration lead from one scene to the next, and each
+chapter ends with links to the previous and next chapters. The Overview opens with an
+index of the five chapters.
 
 Every chart is interactive: hover for exact values, and click a legend entry to hide
 a series. Bars rise and lines draw in as each chart appears. Filters are segmented
