@@ -399,6 +399,23 @@ latest_summary <- function(panel) {
   )
 }
 
+# Recorded donations by state (all of Malaysia), for the "where to donate"
+# region filter. Uses the ALL rows, which are each state's total.
+state_summary <- function(clean, end_date) {
+  totals <- clean |>
+    filter(blood_type == "ALL", state != "Malaysia", date <= end_date)
+  ytd_start <- as.Date(paste0(year(end_date), "-01-01"))
+  totals |>
+    group_by(state) |>
+    summarise(last30 = sum(donations[date > end_date - 30]),
+              ytd = sum(donations[date >= ytd_start]),
+              .groups = "drop") |>
+    mutate(region = vapply(state, function(s) {
+      hit <- names(MALAYSIA_REGIONS)[vapply(MALAYSIA_REGIONS, function(r) s %in% r, TRUE)]
+      if (length(hit)) hit[1] else NA_character_
+    }, ""))
+}
+
 # Plain-language findings, computed from the results rather than written by
 # hand, so they stay true as the data changes.
 summarise_findings <- function(scores_overall, scores_by_group, low_errors, periods) {
@@ -506,6 +523,7 @@ build_dashboard_data <- function(raw, end_date = NULL, evaluation_years = NULL) 
     annual = annual_summary(panel),
     blood_mix = blood_type_mix(panel),
     latest = latest_summary(panel),
+    states = state_summary(clean, end_date),
     next_days = next_days_forecast(model_data, 7L),
     findings = summarise_findings(scores_overall, scores_by_group,
                                   filter(low_errors, evaluation_year == latest_year), periods)

@@ -26,7 +26,8 @@ SHORT_METHOD <- c("Seven-day baseline" = "7-day lag",
 
 axis_style <- function(title = NULL, grid = TRUE, ...) {
   utils::modifyList(list(
-    title = list(text = title, standoff = 14, font = list(size = 12.5, color = MUTED)),
+    title = if (is.null(title)) list(text = "") else
+      list(text = title, standoff = 14, font = list(size = 12.5, color = MUTED)),
     showgrid = grid, gridcolor = GRID, zeroline = FALSE, showline = FALSE,
     tickfont = list(size = 12, color = MUTED), automargin = TRUE,
     fixedrange = TRUE

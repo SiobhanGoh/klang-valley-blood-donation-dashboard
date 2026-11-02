@@ -31,6 +31,15 @@ METHOD_COLOURS <- c("Seven-day baseline" = "#48000C",
 GROUP_COLOURS <- c("A" = "#BF5B79", "AB" = "#8B6CAB",
                    "B" = "#398C99", "O" = "#416A51")
 
+# Regions of Malaysia, for the "where blood is collected" filter.
+MALAYSIA_REGIONS <- list(
+  "Central" = c("W.P. Kuala Lumpur", "Selangor"),
+  "Northern" = c("Perlis", "Kedah", "Pulau Pinang", "Perak"),
+  "Southern" = c("Negeri Sembilan", "Melaka", "Johor"),
+  "East Coast" = c("Pahang", "Terengganu", "Kelantan"),
+  "Sabah & Sarawak" = c("Sabah", "Sarawak", "W.P. Labuan")
+)
+
 # --- Descriptive summaries used by the app ------------------------------------
 
 weekly_totals <- function(panel) {

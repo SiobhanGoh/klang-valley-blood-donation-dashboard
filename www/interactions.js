@@ -182,26 +182,86 @@
 
 
 
-  // ---------- Storyboard numbering ----------
-  // Every scene title gets "chapter.scene", so all pages share one sequence.
-  function numberScenes() {
-    $all(".tab-pane").forEach(function (pane) {
-      var num = $(".chapter-num", pane);
-      if (!num) return;
-      var ch = num.textContent.trim(), k = 0;
-      $all(".panel-title", pane).forEach(function (t) {
-        var host = t.closest(".panel, .findings-panel");
-        if (host && host.parentElement.closest(".panel")) return;   // nested tile
-        if (t.querySelector(".scene-num")) return;
-        k += 1;
-        var tag = document.createElement("span");
-        tag.className = "scene-num";
-        tag.textContent = ch + "." + k;
-        t.insertBefore(tag, t.firstChild);
-      });
-    });
+  // ---------- Glass tooltips for every chart ----------
+  // Plotly still tracks the hover; its own label is hidden (styles.css) and a
+  // frosted tooltip with roomy spacing shows the same values instead.
+  var MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August",
+                     "September", "October", "November", "December"];
+  var DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function fmtDate(v, fmt) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
+    if (!m) return String(v);
+    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    fmt = fmt || "%a %d %b %Y";
+    return fmt.replace("%a", DAYS[d.getUTCDay()]).replace("%d", String(d.getUTCDate()))
+              .replace("%B", MONTHS_LONG[d.getUTCMonth()]).replace("%b", MONTHS[d.getUTCMonth()])
+              .replace("%Y", m[1]);
   }
-  document.addEventListener("DOMContentLoaded", numberScenes);
+  function fmtNum(y) {
+    if (typeof y !== "number") return String(y);
+    var dp = Math.abs(y) >= 100 ? 0 : 1;
+    return y.toLocaleString("en-GB", { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  }
+  function traceColour(t) {
+    return (t.marker && typeof t.marker.color === "string" && t.mode !== "lines+markers" ? t.marker.color : null) ||
+           (t.line && t.line.color) || (t.marker && t.marker.color) || "#A3213F";
+  }
+  var tipEl = null;
+  function ensureTip() {
+    if (tipEl) return tipEl;
+    tipEl = document.createElement("div");
+    tipEl.className = "glass-tip";
+    tipEl.setAttribute("role", "tooltip");
+    document.body.appendChild(tipEl);
+    return tipEl;
+  }
+  function showTip(gd, ev) {
+    var pts = (ev.points || []).filter(function (p) { return p.data && p.data.visible !== "legendonly"; });
+    if (!pts.length) return;
+    var unified = gd.layout && /unified/.test(gd.layout.hovermode || "");
+    var xfmt = gd.layout && gd.layout.xaxis && gd.layout.xaxis.hoverformat;
+    var html = "";
+    if (unified) {
+      var x = pts[0].x;
+      html += '<div class="gt-head">' + (/^\d{4}-\d{2}-\d{2}/.test(String(x)) ? fmtDate(x, xfmt) : x) + "</div>";
+      pts.slice().sort(function (a, b) { return (b.y || 0) - (a.y || 0); }).forEach(function (p) {
+        html += '<div class="gt-row"><span class="gt-sw" style="background:' + traceColour(p.fullData || p.data) + '"></span>' +
+                '<span class="gt-name">' + p.data.name + '</span><span class="gt-val">' + fmtNum(p.y) + "</span></div>";
+      });
+    } else {
+      pts.forEach(function (p) {
+        var body = p.hovertext || p.text;
+        if (Array.isArray(body)) body = body[p.pointNumber];
+        html += '<div class="gt-block"><span class="gt-sw" style="background:' + traceColour(p.fullData || p.data) + '"></span>' +
+                "<div>" + (body || (p.data.name + "<br>" + fmtNum(p.y))) + "</div></div>";
+      });
+    }
+    var tip = ensureTip();
+    tip.innerHTML = html;
+    var e = ev.event || {};
+    var x0 = e.clientX || 0, y0 = e.clientY || 0;
+    tip.classList.add("is-on");
+    var w = tip.offsetWidth, h = tip.offsetHeight;
+    var left = x0 + 18, top = y0 - h / 2;
+    if (left + w > window.innerWidth - 12) left = x0 - w - 18;
+    top = Math.max(12, Math.min(window.innerHeight - h - 12, top));
+    tip.style.transform = "translate(" + Math.round(left) + "px," + Math.round(top) + "px)";
+  }
+  function hideTip() { if (tipEl) tipEl.classList.remove("is-on"); }
+  // A redraw can drop Plotly's listeners, so re-attach on every new render.
+  function wireTips(gd) {
+    if (!gd.on) return;
+    if (gd.__tipHover) {
+      gd.removeListener("plotly_hover", gd.__tipHover);
+      gd.removeListener("plotly_unhover", hideTip);
+    }
+    gd.__tipHover = function (ev) { showTip(gd, ev); };
+    gd.on("plotly_hover", gd.__tipHover);
+    gd.on("plotly_unhover", hideTip);
+    if (!gd.__tipLeave) { gd.__tipLeave = true; gd.addEventListener("mouseleave", hideTip); }
+  }
+  window.addEventListener("scroll", hideTip, { passive: true });
 
   // ---------- Chart entrances ----------
   // Bars rise from the baseline; lines draw from left to right. Each chart
@@ -246,6 +306,7 @@
       return;
     }
     compactForPhone(gd);
+    wireTips(gd);
     if (!chartObserver) { animateChart(gd); return; }
     pendingCharts.add(gd);
     chartObserver.unobserve(gd);

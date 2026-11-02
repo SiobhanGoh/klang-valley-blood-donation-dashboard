@@ -231,21 +231,56 @@ chips <- function(id, label, choices, selected) {
 # Each page opens like a chapter: its number and name, then the finding as
 # the headline (computed from the data), then what it means.
 chapter_head <- function(id, headline, subtitle = NULL, stat = NULL) {
-  i <- which(vapply(SECTIONS, `[[`, "", "id") == id)
-  sct <- SECTIONS[[i]]
+  sct <- SECTIONS[[match(id, vapply(SECTIONS, `[[`, "", "id"))]]
   div(class = "chapter-head stage-1",
       div(class = "chapter-copy",
           div(class = "chapter-eyebrow",
-              span(class = "chapter-num", sprintf("%02d", i - 1L)),
+              span(class = "chapter-badge", icon(sct$icon)),
               span(class = "chapter-name", sct$label)),
           h2(class = "chapter-title", headline),
           if (!is.null(subtitle)) p(class = "chapter-sub", subtitle)),
-      if (!is.null(stat)) div(class = "chapter-stat", stat))
+      div(class = paste("chapter-art", paste0("art-", id), if (!is.null(stat)) "has-stat"),
+          chapter_art(id),
+          if (!is.null(stat)) div(class = "chapter-stat", stat)))
+}
+
+# A small looping illustration for each chapter (decorative).
+chapter_art <- function(id) {
+  svg <- function(...) tags$svg(class = "art-svg", viewBox = "0 0 240 160", `aria-hidden` = "true", ...)
+  drop <- "M0 -26 C0 -26 -18 -4 -18 8 a18 18 0 0 0 36 0 C18 -4 0 -26 0 -26 Z"
+  switch(id,
+    live = svg(
+      tags$path(class = "art-grid", d = "M0 120 H240 M0 80 H240 M0 40 H240"),
+      tags$path(class = "art-ecg", d = "M0 92 H70 l10 0 l8 -40 l12 70 l10 -52 l8 22 H150 l8 -10 l8 10 H240"),
+      tags$circle(class = "art-ping", cx = "200", cy = "92", r = "6")),
+    compare = svg(lapply(seq_len(4), function(i)
+      tags$rect(class = paste0("art-bar b", i), x = 28 + (i - 1) * 50, y = 30, width = 32,
+                height = 110, rx = 8))),
+    low = svg(
+      tags$path(class = "art-grid", d = "M0 130 H240"),
+      lapply(seq_len(3), function(i)
+        tags$g(transform = sprintf("translate(%d 24)", 60 + (i - 1) * 60),
+               tags$g(class = paste0("art-fall f", i), tags$path(d = drop))))),
+    patterns = svg(
+      tags$path(class = "art-wave w1", d = "M-40 90 C0 50 40 50 80 90 S160 130 200 90 S280 50 320 90"),
+      tags$path(class = "art-wave w2", d = "M-40 105 C0 75 40 75 80 105 S160 135 200 105 S280 75 320 105")),
+    blood101 = svg(
+      tags$defs(tags$clipPath(id = "art-drop-clip",
+                              tags$path(transform = "translate(120 92) scale(2.4)", d = drop))),
+      tags$path(class = "art-drop-shell", transform = "translate(120 92) scale(2.4)", d = drop),
+      tags$g(`clip-path` = "url(#art-drop-clip)",
+             tags$path(class = "art-drop-fill",
+                       d = "M40 100 Q70 90 100 100 T160 100 T220 100 V170 H40 Z"))),
+    about = svg(
+      tags$circle(class = "art-ring r1", cx = "120", cy = "80", r = "58"),
+      tags$circle(class = "art-ring r2", cx = "120", cy = "80", r = "38"),
+      tags$circle(class = "art-core", cx = "120", cy = "80", r = "10")),
+    NULL)
 }
 story_card <- function(target, title, value, text) {
-  num <- chapter_no(target)
+  sct <- SECTIONS[[match(target, vapply(SECTIONS, `[[`, "", "id"))]]
   tags$button(class = "story-card", type = "button", role = "listitem", `data-target` = target,
-              span(class = "story-num", num),
+              span(class = "story-icon", icon(sct$icon)),
               span(class = "story-title", title),
               span(class = "story-value", value),
               span(class = "story-text", text),
@@ -271,21 +306,13 @@ section <- function(title, ..., sub = NULL, class = "stage-3") {
 # The end of each chapter points to the next one, so the pages read in order.
 chapter_nav <- function(id) {
   ids <- vapply(SECTIONS, `[[`, "", "id")
-  i <- which(ids == id)
+  i <- match(id, ids)
   nxt <- if (i < length(SECTIONS)) SECTIONS[[i + 1]] else SECTIONS[[1]]
-  prv <- if (i > 1) SECTIONS[[i - 1]] else NULL
   div(class = "chapter-nav",
-      if (!is.null(prv))
-        tags$button(class = "chapter-link is-prev", type = "button", `data-target` = prv$id,
-                    span(class = "cl-dir", icon("arrow-left"), "Previous"),
-                    span(class = "cl-name", sprintf("%02d  %s", i - 2L, prv$label)))
-      else span(),
-      tags$button(class = "chapter-link is-next", type = "button", `data-target` = nxt$id,
-                  span(class = "cl-dir", if (i < length(SECTIONS)) "Next chapter" else "Back to the start",
-                       icon("arrow-right")),
-                  span(class = "cl-name", sprintf("%02d  %s", match(nxt$id, ids) - 1L, nxt$label))))
+      tags$button(class = "chapter-next", type = "button", `data-target` = nxt$id,
+                  span(class = "cn-label", if (i < length(SECTIONS)) "Next" else "Back to the start"),
+                  span(class = "cn-name", nxt$label), icon("arrow-right")))
 }
-chapter_no <- function(id) sprintf("%02d", match(id, vapply(SECTIONS, `[[`, "", "id")) - 1L)
 
 # A panel: white card with a proper title row and optional controls.
 panel <- function(title, ..., sub = NULL, controls = NULL, class = "", footer = NULL) {
@@ -353,7 +380,7 @@ rail <- tags$nav(
           `data-target` = sct$id, `aria-label` = sct$label, title = sct$label,
           `aria-current` = if (i == 1) "page" else NULL,
           span(class = "rail-icon", icon(sct$icon)),
-          span(class = "rail-label", span(class = "rail-num", sprintf("%02d", i - 1L)), sct$label))
+          span(class = "rail-label", sct$label))
       }))
 )
 
@@ -381,6 +408,92 @@ status_pill <- div(
   span(class = "status-sep", `aria-hidden` = "true"),
   span(class = "status-quiet", paste0("Updated ", format(dash$built, "%e %b") |> trimws()))
 )
+
+
+# --- Blood 101 views ----------------------------------------------------------------
+
+# Red-cell flow for one blood type: donors it can receive from on the left,
+# recipients it can give to on the right, joined through the chosen type.
+compat_flow <- function(t) {
+  cmp <- compatibility_for(t)
+  W <- 720; H <- 400; cx <- W / 2; cy <- H / 2
+  ys <- seq(36, H - 36, length.out = length(BLOOD_TYPES))
+  node <- function(x, y, type, on, side) {
+    tags$g(class = paste("cf-node", side, if (on) "is-on" else "is-off"),
+           transform = sprintf("translate(%.1f %.1f)", x, y),
+           tags$path(d = "M0 -17 C0 -17 -12 -3 -12 5 a12 12 0 0 0 24 0 C12 -3 0 -17 0 -17 Z"),
+           tags$text(x = if (side == "left") -22 else 22, y = 5,
+                     `text-anchor` = if (side == "left") "end" else "start", type))
+  }
+  link <- function(x1, y1, x2, y2, i, cls) {
+    mx <- (x1 + x2) / 2
+    tags$path(class = paste("cf-link", cls), style = sprintf("--d:%dms", 90 * i),
+              d = sprintf("M%.1f %.1f C%.1f %.1f %.1f %.1f %.1f %.1f", x1, y1, mx, y1, mx, y2, x2, y2))
+  }
+  lx <- 120; rx <- W - 120
+  ins <- which(BLOOD_TYPES %in% cmp$receives_from)
+  outs <- which(BLOOD_TYPES %in% cmp$gives_to)
+  note <- if (t == "O-") {
+    "O- red cells can go to every type, which is why O- is called the universal red-cell donor."
+  } else if (t == "AB+") {
+    "AB+ can receive red cells from every type: the universal red-cell recipient."
+  } else if (endsWith(t, "-")) {
+    sprintf("RhD-negative types like %s can only receive RhD-negative red cells.", t)
+  } else {
+    sprintf("%s can receive from %d types and give to %d.", t, length(ins), length(outs))
+  }
+  div(class = "cf",
+      tags$svg(class = "cf-svg", viewBox = sprintf("0 0 %d %d", W, H), role = "img",
+               `aria-label` = sprintf("%s receives red cells from %s and gives to %s", t,
+                                      paste(cmp$receives_from, collapse = ", "),
+                                      paste(cmp$gives_to, collapse = ", ")),
+               tags$text(class = "cf-head", x = lx, y = 14, `text-anchor` = "middle", "Receives from"),
+               tags$text(class = "cf-head", x = rx, y = 14, `text-anchor` = "middle", "Gives to"),
+               lapply(seq_along(ins), function(k) link(lx + 14, ys[ins[k]], cx - 46, cy, k, "in")),
+               lapply(seq_along(outs), function(k) link(cx + 46, cy, rx - 14, ys[outs[k]], k + length(ins), "out")),
+               lapply(seq_along(BLOOD_TYPES), function(i)
+                 node(lx, ys[i], BLOOD_TYPES[i], i %in% ins, "left")),
+               lapply(seq_along(BLOOD_TYPES), function(i)
+                 node(rx, ys[i], BLOOD_TYPES[i], i %in% outs, "right")),
+               tags$g(class = "cf-centre", transform = sprintf("translate(%.1f %.1f)", cx, cy),
+                      tags$circle(class = "cf-halo", r = 58),
+                      tags$path(d = "M0 -48 C0 -48 -34 -8 -34 14 a34 34 0 0 0 68 0 C34 -8 0 -48 0 -48 Z"),
+                      tags$text(y = 22, `text-anchor` = "middle", t))),
+      div(class = "cf-summary",
+          div(class = "cf-stat", span(class = "cf-num", length(ins)), span("of 8 types it can receive from")),
+          div(class = "cf-stat", span(class = "cf-num", length(outs)), span("of 8 types it can give to")),
+          p(class = "cf-note", note)))
+}
+
+region_view <- function(r) {
+  st <- dash$states[!is.na(dash$states$region) & dash$states$region == r, ]
+  st <- st[order(-st$last30), ]
+  mx <- max(dash$states$last30, 1)
+  tagList(
+    div(class = "state-grid",
+        lapply(seq_len(nrow(st)), function(i)
+          div(class = "state-card", style = sprintf("--i:%d", i - 1),
+              div(class = "state-name", st$state[i]),
+              div(class = "state-num", fmt_int(st$last30[i])),
+              div(class = "state-label", paste("donations in the 30 days to", fmt_date(DATA_END))),
+              div(class = "state-track",
+                  div(class = "state-fill", style = sprintf("--w:%.1f%%", 100 * st$last30[i] / mx))),
+              div(class = "state-ytd", sprintf("%s so far in %s", fmt_int(st$ytd[i]), END_YEAR))))),
+    if (r == "Central") tagList(
+      h4(class = "centre-head", "PDN's fixed donation centres"),
+      div(class = "centre-grid",
+          lapply(DONATION_CENTRES, function(ct)
+            div(class = "centre",
+                span(class = "centre-icon", icon("location-dot")),
+                div(class = "centre-name", ct$name),
+                div(class = "centre-area", ct$area),
+                div(class = "centre-hours", ct$hours)))))
+    else p(class = "region-note", icon("circle-info"),
+           paste("PDN's list of fixed donation centres covers the Klang Valley only. Elsewhere,",
+                 "the donations above were collected at Ministry of Health blood collection sites",
+                 "and mobile campaigns; check PDN or the nearest state hospital for times and",
+                 "locations.")))
+}
 
 # --- UI -------------------------------------------------------------------------------
 
@@ -422,7 +535,7 @@ ui <- page(
                 div(class = "intro-copy",
                     div(class = "intro-top",
                         div(class = "chapter-eyebrow",
-                            span(class = "chapter-num", "00"),
+                            span(class = "chapter-badge", icon("droplet")),
                             span(class = "chapter-name", "Overview")),
                         status_pill),
                     h1("How well can past collections predict tomorrow's donations?"),
@@ -468,7 +581,7 @@ ui <- page(
                   method_back("Seven-day baseline", "The count from one week earlier."),
                   badge = rank_badge("Seven-day baseline")))
           ),
-          narrate("The story in five chapters. Start anywhere, or read them in order."),
+          narrate("The story in five parts. Start anywhere, or read them in order."),
           div(
             class = "story-strip stage-3", role = "list",
             story_card("live", "This week", WEEK_CHANGE,
@@ -658,18 +771,14 @@ ui <- page(
                       tags$ol(class = "steps", lapply(DONATION_STEPS, tags$li))),
               section("After donating", class = "",
                       tags$ul(class = "aftercare", lapply(AFTERCARE, tags$li)))),
-          narrate("Where to go in the Klang Valley."),
+          narrate("Where to go, wherever you are in Malaysia."),
           section(
-            "Fixed donation centres",
-            sub = paste("PDN's fixed donation centres. Mobile blood drives run across the region;",
-                        "PDN publishes their locations."),
-            div(class = "centre-grid",
-                lapply(DONATION_CENTRES, function(ct)
-                  div(class = "centre",
-                      span(class = "centre-icon", icon("location-dot")),
-                      div(class = "centre-name", ct$name),
-                      div(class = "centre-area", ct$area),
-                      div(class = "centre-hours", ct$hours))))),
+            "Where blood is collected",
+            sub = paste("Pick a region. Each state shows the donations recorded there in the official",
+                        "data; the Central region also lists PDN's fixed donation centres."),
+            div(class = "region-bar",
+                seg("region_pick", "Region", names(MALAYSIA_REGIONS), "Central")),
+            uiOutput("region_result")),
           narrate("And once it is given, whose blood can help whom?"),
           section(
             "Blood type compatibility explorer",
@@ -823,18 +932,13 @@ server <- function(input, output, session) {
   # Compatibility explorer -------------------------------------------------------------
   output$compat_result <- renderUI({
     t <- if (is.null(input$bt_pick) || !input$bt_pick %in% BLOOD_TYPES) "O+" else input$bt_pick
-    cmp <- compatibility_for(t)
-    chip_row <- function(on) div(class = "type-chips",
-      lapply(BLOOD_TYPES, function(x) span(class = paste("type-chip", if (x %in% on) "is-on"), x)))
-    div(class = "compat-result",
-        div(class = "compat-col",
-            h4(sprintf("%s can receive red cells from", t)),
-            chip_row(cmp$receives_from),
-            p(class = "compat-note", sprintf("%d of 8 types", length(cmp$receives_from)))),
-        div(class = "compat-col",
-            h4(sprintf("%s can give red cells to", t)),
-            chip_row(cmp$gives_to),
-            p(class = "compat-note", sprintf("%d of 8 types", length(cmp$gives_to)))))
+    compat_flow(t)
+  })
+
+  output$region_result <- renderUI({
+    r <- if (is.null(input$region_pick) || !input$region_pick %in% names(MALAYSIA_REGIONS)) "Central"
+         else input$region_pick
+    region_view(r)
   })
 
   # Compare ----------------------------------------------------------------------------------

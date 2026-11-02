@@ -50,19 +50,18 @@ A left rail (a bottom tab bar on phones) switches between sections:
 | Compare methods | MAE/RMSE by period and blood group; actual vs predicted daily counts |
 | Low-collection days | Errors on days at or below each group's lower quartile from earlier years |
 | Patterns | Weekly, weekday and annual patterns, and the blood-type mix of donations by year |
-| Blood 101: Malaysia | Who can donate, the donation steps, aftercare, Klang Valley donation centres and a compatibility explorer, all sourced from Pusat Darah Negara and two national blood services |
+| Blood 101: Malaysia | Who can donate, the donation steps and aftercare; recorded donations by state for each region of Malaysia, with PDN's fixed Klang Valley centres; and an animated red-cell compatibility explorer. Sourced from Pusat Darah Negara and two national blood services |
 | About the data | Methods, what the regression learned, data audit, limits, source and licence |
 
 ### Interface
 
-The dashboard reads as one storyboard. Each section is a numbered chapter (00 to 06)
-whose headline states the main finding, written from the current results so it stays
-true as the data changes. Every chart or table inside a chapter is a numbered scene
-(for example 02.3), short lines of narration lead from one scene to the next, and each
-chapter ends with links to the previous and next chapters. The Overview opens with an
-index of the five chapters.
+The dashboard reads as one storyboard. Each section opens like a chapter: a headline
+that states the main finding, written from the current results so it stays true as the
+data changes, beside a small looping illustration. Short lines of narration lead from
+one chart to the next, and each section ends with a link to the next one. The Overview
+opens with an index of the five parts of the story.
 
-Every chart is interactive: hover for exact values, and click a legend entry to hide
+Every chart is interactive: hover for exact values in a frosted-glass tooltip, and click a legend entry to hide
 a series. Bars rise and lines draw in as each chart appears. Filters are segmented
 switches and toggle chips. The navigation rail expands on hover and marks the open
 section in dark wine; on phones it becomes a bottom tab bar. The headline cards flip to
@@ -147,6 +146,7 @@ The tests also check:
 - that a failed download falls back safely;
 - that the claims written on the Overview tab hold;
 - the blood-type compatibility rule;
+- that every chart builds without warnings (R 4.6 in the browser treats some as errors);
 - that every app output renders. They run on each push via GitHub Actions.
 
 ## Repository layout

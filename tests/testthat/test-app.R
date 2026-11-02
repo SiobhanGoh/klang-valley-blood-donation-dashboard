@@ -26,7 +26,7 @@ test_that("all app outputs render and headline values match the report", {
         cmp_year = "2025", cmp_methods = methods, cmp_group = "O",
         cmp_dates = as.Date(c("2025-01-01", "2025-01-31")),
         low_year = "2025", month_year = "2025", month_methods = methods,
-        live_group = "A", bt_pick = "A+"
+        live_group = "A", bt_pick = "A+", region_pick = "Central"
       )
 
       for (id in c("overview_plot", "live_plot", "next_table", "live_change7",
@@ -34,14 +34,15 @@ test_that("all app outputs render and headline values match the report", {
                    "weekday_plot", "annual_plot", "mix_plot", "cmp_group_plot",
                    "cmp_table", "cmp_daily_plot", "cutoff_table", "low_plot",
                    "low_table", "min_pred_table", "coef_table", "bias_table",
-                   "monthly_plot", "compat_result")) {
+                   "monthly_plot", "compat_result", "region_result")) {
         expect_no_error(output[[id]])
       }
       expect_match(output$audit_table, "490,425")
       expect_match(output$audit_table, "280 of 98,085")
       expect_match(output$panel_table, "29,220")
       expect_match(output$cutoff_table, "82.75")
-      expect_match(as.character(output$compat_result$html), "A\\+ can receive red cells from")
+      expect_match(as.character(output$compat_result$html), "A+ receives red cells from O-, O+, A-, A+", fixed = TRUE)
+      expect_match(as.character(output$region_result$html), "W.P. Kuala Lumpur", fixed = TRUE)
 
       # Earlier periods switch cleanly.
       session$setInputs(cmp_year = "2023", low_year = "2023")
