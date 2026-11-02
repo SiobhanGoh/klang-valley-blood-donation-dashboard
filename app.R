@@ -352,15 +352,26 @@ ui <- page_navbar(
 server <- function(input, output, session) {
 
   # Charts adapt to their rendered width: on narrow screens the method legend
-  # wraps to two rows and crowded value labels are hidden.
+  # stacks in one column and crowded value labels are hidden.
   narrow <- function(id) {
     w <- session$clientData[[paste0("output_", id, "_width")]]
     !is.null(w) && w < 640
   }
   method_legend <- function(id) {
-    guides(fill = guide_legend(nrow = if (narrow(id)) 2 else 1),
-           colour = guide_legend(nrow = if (narrow(id)) 2 else 1))
+    if (narrow(id)) {
+      guides(fill = guide_legend(ncol = 1), colour = guide_legend(ncol = 1))
+    } else {
+      guides(fill = guide_legend(nrow = 1), colour = guide_legend(nrow = 1))
+    }
   }
+  # base_theme is a complete theme, so narrow-screen tweaks are added after it.
+  theme_for <- function(id) {
+    if (!narrow(id)) return(base_theme)
+    base_theme + theme(legend.text = element_text(size = 8.5),
+                       axis.title.y = element_text(size = 8),
+                       legend.key.size = unit(0.8, "lines"))
+  }
+
 
   headline <- function(m) {
     s <- dash$scores_overall
@@ -382,7 +393,7 @@ server <- function(input, output, session) {
       scale_fill_manual(values = PASTEL_METHOD, name = NULL) +
       scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
       labs(x = "Evaluation year", y = "MAE (donations per group-day)") +
-      base_theme
+      theme_for("overview_plot")
   })
 
   # Data audit
@@ -475,7 +486,7 @@ server <- function(input, output, session) {
       labs(x = NULL, y = "MAE (donations per day)",
            subtitle = paste0("Evaluation year ", input$cmp_year,
                              "; y-axes differ by group")) +
-      base_theme + theme(axis.text.x = element_blank())
+      theme_for("cmp_group_plot") + theme(axis.text.x = element_blank())
   })
 
   output$cmp_table <- renderDT({
@@ -510,7 +521,7 @@ server <- function(input, output, session) {
       method_legend("cmp_daily_plot") +
       scale_colour_manual(values = PASTEL_METHOD, name = NULL) +
       labs(x = NULL, y = "Donations per day",
-           subtitle = paste("Blood group", input$cmp_group)) + base_theme
+           subtitle = paste("Blood group", input$cmp_group)) + theme_for("cmp_daily_plot")
   })
 
   # Low-collection days
@@ -540,7 +551,7 @@ server <- function(input, output, session) {
       guides(alpha = "none") +
       labs(x = NULL, y = "MAE (donations per day)",
            subtitle = "Solid bars: low-collection days. Faded bars: other days.") +
-      base_theme + theme(axis.text.x = element_blank())
+      theme_for("low_plot") + theme(axis.text.x = element_blank())
   })
 
   output$low_table <- renderDT({
@@ -596,7 +607,7 @@ server <- function(input, output, session) {
       scale_x_date(date_labels = "%b", date_breaks = "1 month") +
       labs(x = NULL, y = "Pooled MAE (donations per group-day)",
            subtitle = "Describes when errors occurred; it cannot explain why") +
-      base_theme
+      theme_for("monthly_plot")
   })
 }
 
