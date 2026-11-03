@@ -218,9 +218,7 @@
     document.body.appendChild(tipEl);
     return tipEl;
   }
-  function showTip(gd, ev) {
-    var pts = (ev.points || []).filter(function (p) { return p.data && p.data.visible !== "legendonly"; });
-    if (!pts.length) return;
+  function tipHtml(gd, pts) {
     var unified = gd.layout && /unified/.test(gd.layout.hovermode || "");
     var xfmt = gd.layout && gd.layout.xaxis && gd.layout.xaxis.hoverformat;
     var html = "";
@@ -239,6 +237,15 @@
                 "<div>" + (body || (p.data.name + "<br>" + fmtNum(p.y))) + "</div></div>";
       });
     }
+    return html;
+  }
+  function isLineChart(gd) { return !!(gd.layout && /unified/.test(gd.layout.hovermode || "")); }
+  function showTip(gd, ev) {
+    if (gd.__pin) return;                       // a pinned reading stays put; no hover tip on top of it
+    var pts = (ev.points || []).filter(function (p) { return p.data && p.data.visible !== "legendonly"; });
+    if (!pts.length) return;
+    var html = tipHtml(gd, pts);
+    if (isLineChart(gd)) html += '<div class="gt-hint">Click to pin this day</div>';
     var tip = ensureTip();
     tip.innerHTML = html;
     var e = ev.event || {};
@@ -251,9 +258,57 @@
     tip.style.transform = "translate(" + Math.round(left) + "px," + Math.round(top) + "px)";
   }
   function hideTip() { if (tipEl) tipEl.classList.remove("is-on"); }
+  // ---------- Line charts: click to pin a reading in place ----------
+  // A click on a day draws a line there and keeps its numbers on screen; a click
+  // anywhere without a value (outside the plot, or elsewhere on the page) clears it.
+  function drawPin(gd) {
+    $all(".pin-line, .pin-card", gd).forEach(function (n) { n.remove(); });
+    var pin = gd.__pin, fl = gd._fullLayout;
+    if (!pin || !fl || !fl.xaxis) return;
+    var xa = fl.xaxis, ya = fl.yaxis;
+    var xc = xa.d2c(pin.x);
+    if (xc === undefined || isNaN(xc)) return;
+    var px = xa._offset + xa.c2p(xc);
+    if (px < xa._offset - 1 || px > xa._offset + xa._length + 1) return;
+    var line = document.createElement("div"); line.className = "pin-line";
+    line.style.left = px + "px"; line.style.top = ya._offset + "px"; line.style.height = ya._length + "px";
+    var card = document.createElement("div"); card.className = "glass-tip pin-card is-on";
+    card.innerHTML = pin.html + '<div class="gt-hint">Pinned. Click empty space to clear.</div>';
+    gd.appendChild(line); gd.appendChild(card);
+    var w = card.offsetWidth;
+    var left = px + 14;
+    if (left + w > xa._offset + xa._length) left = px - w - 14;
+    card.style.left = Math.max(4, left) + "px"; card.style.top = (ya._offset + 6) + "px";
+  }
+  function clearPin(gd) { gd.__pin = null; $all(".pin-line, .pin-card", gd).forEach(function (n) { n.remove(); }); }
+  function wirePin(gd) {
+    if (gd.__pinWired || !gd.on) return;
+    gd.__pinWired = true;
+    gd.on("plotly_click", function (ev) {
+      if (!isLineChart(gd)) return;
+      var pts = (ev.points || []).filter(function (p) { return p.data && p.data.visible !== "legendonly"; });
+      if (!pts.length) return;
+      gd.__pinAt = Date.now();
+      gd.__pin = { x: pts[0].x, html: tipHtml(gd, pts) };
+      hideTip(); drawPin(gd);
+    });
+    gd.on("plotly_afterplot", function () { if (gd.__pin) drawPin(gd); });
+  }
+  document.addEventListener("click", function () {
+    setTimeout(function () {
+      $all(".kvbd-chart").forEach(function (gd) {
+        if (gd.__pin && Date.now() - (gd.__pinAt || 0) > 250) clearPin(gd);
+      });
+    }, 0);
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") $all(".kvbd-chart").forEach(function (gd) { if (gd.__pin) clearPin(gd); });
+  });
+
   // A redraw can drop Plotly's listeners, so re-attach on every new render.
   function wireTips(gd) {
     if (!gd.on) return;
+    wirePin(gd);
     if (gd.__tipHover) {
       gd.removeListener("plotly_hover", gd.__tipHover);
       gd.removeListener("plotly_unhover", hideTip);
@@ -431,6 +486,7 @@
       return;
     }
     gd.classList.remove("co-go");
+    if (gd.__pin) clearPin(gd);
     compactForPhone(gd);
     wireCallouts(gd);
     placeCallouts(gd);
@@ -1046,3 +1102,13 @@
     });
   }
 })();
+
+// ---------- "What this shows": the glow tracks the cursor ----------
+document.addEventListener("pointermove", function (e) {
+  if (e.pointerType === "touch") return;
+  var box = e.target.closest && e.target.closest(".what-shows");
+  if (!box) return;
+  var r = box.getBoundingClientRect();
+  box.style.setProperty("--mx", (e.clientX - r.left) + "px");
+  box.style.setProperty("--my", (e.clientY - r.top) + "px");
+}, { passive: true });

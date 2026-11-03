@@ -419,11 +419,10 @@ panel <- function(title, ..., sub = NULL, controls = NULL, class = "", footer = 
   div(class = paste("panel", class),
       div(class = "panel-head",
           div(class = "panel-titles",
-              h3(class = "panel-title", title),
-              if (!is.null(sub) || !is.null(read))
-                div(class = "panel-subrow",
-                    if (!is.null(sub)) p(class = "panel-sub", sub),
-                    if (!is.null(read)) how_read(read))),
+              div(class = "panel-title-row",
+                  h3(class = "panel-title", title),
+                  if (!is.null(read)) how_read(read)),
+              if (!is.null(sub)) p(class = "panel-sub", sub)),
           if (!is.null(controls)) div(class = "panel-controls", controls)),
       div(class = "panel-body", ...),
       if (!is.null(footer)) div(class = "panel-foot", footer))

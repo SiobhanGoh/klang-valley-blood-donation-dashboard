@@ -2649,3 +2649,25 @@ html[data-theme="dark"] .ov-side { --sheen: rgba(242, 124, 151, 0.10); --glow: r
 .chart-panel .panel-head { margin-bottom: 4px; }
 .chart-panel .panel-foot { margin-top: 8px; padding-top: 10px; }
 .chart-row > .what-shows { padding: 16px 16px 18px; font-size: 0.9rem; }
+
+/* "What this shows": a soft glow follows the cursor while hovering */
+.what-shows { position: relative; overflow: hidden; isolation: isolate;
+  transition: border-color 260ms var(--ease-out), box-shadow 260ms var(--ease-out); }
+.what-shows::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: 0;
+  background: radial-gradient(180px circle at var(--mx, 50%) var(--my, 50%), rgba(242, 124, 151, 0.30), rgba(242, 124, 151, 0.08) 45%, transparent 70%);
+  transition: opacity 260ms var(--ease-out); }
+.what-shows:hover::after { opacity: 1; }
+.what-shows:hover { border-color: rgba(242, 124, 151, 0.45); box-shadow: 0 0 24px -6px rgba(242, 124, 151, 0.35); }
+.panel-ink .what-shows::after { background: radial-gradient(180px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 170, 190, 0.26), rgba(242, 124, 151, 0.08) 45%, transparent 70%); }
+/* "How to read this" sits right beside the chart title */
+.panel-title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.panel-title-row .how-read { flex: 0 0 auto; }
+.panel-title-row .how-read-pop { top: calc(100% + 10px); }
+
+/* Pinned reading on line charts */
+.gt-hint { margin-top: 8px; padding-top: 7px; border-top: 1px solid rgba(255, 255, 255, 0.14); font-size: 0.72rem; color: rgba(255, 255, 255, 0.6); }
+.glass-tip.pin-card { position: absolute; z-index: 4; transform: none; transition: none; animation: pinIn 260ms var(--ease-out); }
+.pin-line { position: absolute; z-index: 3; width: 0; margin-left: -1px; pointer-events: none;
+  border-left: 2px solid rgba(255, 196, 210, 0.85); box-shadow: 0 0 10px rgba(242, 124, 151, 0.6); animation: pinLine 300ms var(--ease-out); transform-origin: top; }
+@keyframes pinIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes pinLine { from { transform: scaleY(0); } to { transform: scaleY(1); } }
