@@ -287,7 +287,13 @@
   // On phones the 2 x 2 group grids have no room for method names under the
   // bars; the legend and the hover labels name them instead.
   function compactForPhone(gd) {
-    if (window.innerWidth > 600 || !window.Plotly || !gd.layout || !gd.layout.xaxis4) return;
+    if (window.innerWidth > 600 || !window.Plotly || !gd.layout) return;
+    // Two-line axis labels need the legend a little lower on a phone.
+    if (!gd.layout.xaxis4) {
+      var twoLine = (gd.data || []).some(function (t) { return (t.x || []).some(function (v) { return String(v).indexOf("<br>") > -1; }); });
+      if (twoLine) window.Plotly.relayout(gd, { "legend.y": -0.3 });
+      return;
+    }
     var upd = { "legend.y": -0.08 };
     ["xaxis", "xaxis2", "xaxis3", "xaxis4"].forEach(function (a) { upd[a + ".showticklabels"] = false; });
     window.Plotly.relayout(gd, upd);

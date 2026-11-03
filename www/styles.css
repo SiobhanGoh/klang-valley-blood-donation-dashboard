@@ -2234,10 +2234,10 @@ table.dataTable thead th.sorting, table.dataTable thead th.sorting_asc, table.da
   font: inherit; font-size: 0.86rem; font-weight: 500; color: var(--ink-soft); white-space: nowrap; cursor: pointer;
   transition: color var(--t-med) var(--ease-out);
 }
-.kv-tab .fa, .kv-tab svg { font-size: 0.8rem; opacity: 0.75; }
+.kv-tab i, .kv-tab svg { font-size: 0.8rem; opacity: 0.75; }
 .kv-tab:hover { color: var(--wine); }
 .kv-tab.is-on { color: #fff; }
-.kv-tab.is-on .fa, .kv-tab.is-on svg { opacity: 1; }
+.kv-tab.is-on i, .kv-tab.is-on svg { opacity: 1; }
 .kv-tab:focus-visible { outline: 2px solid var(--wine); outline-offset: 2px; }
 .kv-pane[hidden] { display: none !important; }
 .kv-pane.pane-in { animation: paneIn 420ms var(--ease-out) both; }
@@ -2384,3 +2384,72 @@ html[data-theme=dark] .panel.panel-ink { background: radial-gradient(120% 140% a
 .panel-ink .seg-thumb { background: linear-gradient(180deg, #F27C97, #C93A5F); box-shadow: 0 4px 14px rgba(201, 58, 95, 0.45); }
 .panel-ink .seg .radio-inline:has(input:checked) span { color: #fff; }
 html[data-theme=dark] .panel.panel-ink { border-color: rgba(255, 150, 175, 0.16); }
+
+/* ===== Walkthrough fixes ===== */
+/* Hero: one plain line on what the site is, and a way in for would-be donors */
+.ov-what { display: flex; gap: 8px; align-items: baseline; margin: 12px 0 0; font-size: 0.88rem; color: var(--muted); max-width: 60ch; }
+.ov-what i { color: var(--rose); }
+.ov-cta { display: inline-flex; align-items: center; gap: 10px; margin-top: 14px; padding: 8px 16px 8px 8px; width: fit-content;
+  border: 1px solid var(--hairline); border-radius: var(--r-pill); background: var(--surface); box-shadow: var(--shadow-1);
+  font: inherit; font-size: 0.88rem; color: var(--ink-soft); cursor: pointer;
+  transition: transform var(--t-med) var(--ease-out), box-shadow var(--t-med); }
+.ov-cta strong { color: var(--wine); font-weight: 600; }
+.ov-cta:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+.ov-cta > i, .ov-cta > svg { color: var(--wine); font-size: 0.8rem; transition: transform var(--t-med) var(--ease-out); }
+.ov-cta:hover > i, .ov-cta:hover > svg { transform: translateX(3px); }
+.ov-cta-icon { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(160deg, #E0526F, var(--wine)); color: #fff; font-size: 0.8rem; }
+.ov-side-lead { margin: -2px 0 4px; color: var(--ink-soft); font-size: 0.9rem; line-height: 1.45; }
+
+/* Overview cards: tighter, with a visible hint that they turn over */
+.ov-mini { grid-auto-rows: 140px; }
+.ov-mini .flip-hint { display: inline-flex; position: absolute; right: 14px; top: 12px; opacity: 0.85; transform: none;
+  font-size: 0.66rem; padding: 3px 8px; border-radius: var(--r-pill); background: var(--surface-2); }
+.ov-mini .tone-hero .flip-hint { background: rgba(255, 255, 255, 0.14); }
+.ov-mini .flip-label { padding-right: 70px; }
+.ov-mini .flip-card:hover .flip-hint i, .ov-mini .flip-card:hover .flip-hint svg { animation: hintSpin 700ms var(--ease-out); }
+@keyframes hintSpin { to { transform: rotate(360deg); } }
+
+/* The quick-actions button repeated the menu and covered buttons: retired */
+.quick-actions { display: none !important; }
+
+/* Bars that stay at the top: solid enough that charts don't show through */
+.control-bar { background: color-mix(in srgb, var(--surface) 96%, transparent); }
+.kv-tabset-page > .kv-tabs { background: color-mix(in srgb, var(--surface) 96%, transparent); }
+@media (max-width: 760px) {
+  .kv-tabset-page > .kv-tabs { position: static; }
+}
+
+/* Export: pickers sit in an even grid instead of ragged wrapped rows */
+.report-setup .seg .shiny-options-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); border-radius: 18px; }
+.report-setup .seg .radio-inline { display: block; }
+.report-setup .seg .radio-inline span { text-align: center; padding-inline: 8px; }
+.report-setup .seg .seg-thumb { border-radius: 14px; }
+
+/* Compatibility explorer on phones: two rows of chips instead of a tiny diagram */
+.cf-phone { display: none; }
+.cf-row { display: grid; gap: 8px; margin-top: 14px; }
+.cf-row-h { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.cf-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.cf-chip { display: grid; place-items: center; height: 38px; border-radius: 12px; font-weight: 600; font-size: 0.92rem;
+  background: var(--surface-2); color: var(--muted); opacity: 0.55; }
+.cf-chip.is-on { background: linear-gradient(160deg, #D84366, var(--wine)); color: #fff; opacity: 1;
+  box-shadow: 0 4px 12px rgba(122, 22, 48, 0.25); }
+@media (max-width: 700px) {
+  .cf-svg { display: none; }
+  .cf-phone { display: block; }
+}
+
+.ov-top { align-items: center; }
+.control-bar { background: var(--surface); backdrop-filter: none; -webkit-backdrop-filter: none; }
+/* Export pickers: blood types in an even 4 x 2 grid; the others wrap into rows that fill the width */
+.report-setup .seg .shiny-options-group { display: flex; flex-wrap: wrap; }
+.report-setup .seg .radio-inline { flex: 1 1 auto; }
+.report-setup #card_type.seg .shiny-options-group, .report-setup .seg#card_type .shiny-options-group,
+.report-setup #card_type .shiny-options-group { display: grid; grid-template-columns: repeat(4, 1fr); }
+/* Phones: the flip tag shrinks to its icon so card labels have room */
+@media (max-width: 600px) {
+  .ov-mini .flip-hint { font-size: 0; gap: 0; padding: 5px 6px; right: 10px; top: 10px; }
+  .ov-mini .flip-hint i, .ov-mini .flip-hint svg { font-size: 0.72rem; }
+  .ov-mini .flip-label { padding-right: 28px; }
+}

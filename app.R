@@ -47,6 +47,11 @@ load_dashboard <- function(source = Sys.getenv("KVBD_SOURCE", "auto")) {
 }
 
 dash <- load_dashboard()
+# Findings written by older data builds used other names for the methods.
+dash$findings <- Reduce(function(x, r) gsub(r[1], r[2], x, fixed = TRUE),
+                        list(c("full-history weekday mean", "weekday average"),
+                             c("recent weekday mean", "recent weekday average"),
+                             c("seven-day lag", "seven-day baseline")), dash$findings)
 LATEST <- dash$latest_year
 PERIOD_LABEL <- setNames(dash$periods$label, dash$periods$evaluation_year)
 PERIOD_CHOICES <- setNames(as.character(dash$periods$evaluation_year), dash$periods$label)
@@ -156,7 +161,7 @@ WEEK_CHANGE <- if (is.na(wk)) "n/a" else paste0(if (wk >= 0) "+" else "\u2212", 
 LIMITS_MAP <- list(
   list(title = "Tested on the past", sub = "Scored on days that already happened; the methods were chosen using 2006–2025, so older years aren't a fresh test"),
   list(title = "Overlapping tests", sub = "Test years share their past data, so they aren't fully separate checks"),
-  list(title = "3-year window untested", sub = "Three years for the recent mean was not compared with other window lengths"),
+  list(title = "3-year window untested", sub = "Three years for the recent weekday average was not compared with other window lengths"),
   list(title = "No outside factors", sub = "No weather, holidays, campaigns, blood stock or hospital demand, and no ranges of uncertainty"),
   list(title = "Zero days kept", sub = "Days with no donations may be closures or reporting gaps"),
   list(title = "Data can change", sub = "Official figures can be revised between daily refreshes"))
@@ -174,10 +179,10 @@ NEXT_TOTALS <- group_stat(dash$next_days[dash$next_days$method == "Recent weekda
                           "date", "prediction", sum, "total")
 NEXT_TOTALS <- NEXT_TOTALS[order(NEXT_TOTALS$date), ]
 
-method_phrase <- function(m) c("Seven-day baseline" = "seven-day lag",
-                               "Weekday average" = "full-history weekday mean",
+method_phrase <- function(m) c("Seven-day baseline" = "seven-day baseline",
+                               "Weekday average" = "weekday average",
                                "Linear regression" = "linear regression",
-                               "Recent weekday average" = "recent weekday mean")[[m]]
+                               "Recent weekday average" = "recent weekday average")[[m]]
 change_words <- function(now, before) {
   ch <- pct_change(now, before)
   if (is.na(ch)) return("")
@@ -199,8 +204,8 @@ count_span <- function(x, digits = 0, prefix = "", suffix = "", burst = FALSE, d
 lead_in <- function(...) p(class = "lead-in", ...)
 
 # Highlight the terms a reader should remember: method names and key phrases.
-KEY_TERMS <- c(METHODS, "recent weekday average", "linear regression", "seven-day lag",
-               "full-history weekday mean", "low-collection days", "too high on every one", "most accurate method")
+KEY_TERMS <- c(METHODS, "recent weekday average", "linear regression", "seven-day baseline",
+               "weekday average", "low-collection days", "too high on every one", "most accurate method")
 emphasise <- function(text) {
   pattern <- paste0("(", paste(unique(KEY_TERMS), collapse = "|"), ")")
   parts <- regmatches(text, gregexpr(pattern, text, ignore.case = TRUE), invert = NA)[[1]]
@@ -482,7 +487,7 @@ rail <- tags$nav(
       })),
   tags$button(class = "rail-item theme-toggle", type = "button", `aria-label` = "Switch light or dark theme",
               title = "Light or dark", `aria-pressed` = "false",
-              span(class = "rail-icon", span(class = "ti-sun", icon("sun")), span(class = "ti-moon", icon("moon"))),
+              span(class = "rail-icon", span(class = "ti-sun", icon("circle-half-stroke")), span(class = "ti-moon", icon("circle-half-stroke"))),
               span(class = "rail-label", span(class = "ti-text-light", "Dark theme"),
                    span(class = "ti-text-dark", "Light theme")))
 )
@@ -569,6 +574,13 @@ compat_flow <- function(t) {
                       tags$circle(class = "cf-halo", r = 58),
                       tags$path(d = "M0 -48 C0 -48 -34 -8 -34 14 a34 34 0 0 0 68 0 C34 -8 0 -48 0 -48 Z"),
                       tags$text(y = 22, `text-anchor` = "middle", t))),
+      div(class = "cf-phone",
+          div(class = "cf-row", span(class = "cf-row-h", "Receives from"),
+              div(class = "cf-chips", lapply(BLOOD_TYPES, function(b)
+                span(class = paste("cf-chip", if (b %in% cmp$receives_from) "is-on"), b)))),
+          div(class = "cf-row", span(class = "cf-row-h", "Gives to"),
+              div(class = "cf-chips", lapply(BLOOD_TYPES, function(b)
+                span(class = paste("cf-chip", if (b %in% cmp$gives_to) "is-on"), b))))),
       p(class = "cf-note", note))
 }
 
@@ -587,6 +599,9 @@ region_view <- function(r) {
                   div(class = "state-fill", style = sprintf("--w:%.1f%%", 100 * st$last30[i] / mx))),
               div(class = "state-ytd", sprintf("%s so far in %s", fmt_int(st$ytd[i]), END_YEAR))))),
     if (r == "Central") tagList(
+      p(class = "region-note", icon("circle-info"),
+        paste("Counts are by the state where each donation was recorded, not where donors live.",
+              "Kuala Lumpur is home to Pusat Darah Negara, which may explain part of its higher count.")),
       h4(class = "centre-head", "PDN's fixed donation centres"),
       div(class = "centre-grid",
           lapply(DONATION_CENTRES, function(ct)
@@ -712,7 +727,13 @@ ui <- page(
                           paste0("donations across Selangor and W.P. Kuala Lumpur",
                                  if (DAY_PHRASE %in% c("today", "yesterday"))
                                    paste0(" (", gsub("  ", " ", format(DATA_END, "%a %e %b")), ")") else "",
-                                 ". Every one of them is someone who made time to help.")))),
+                                 ". Every one of them is someone who made time to help.")),
+                        p(class = "ov-what", icon("circle-info"),
+                          "This site tests four simple ways to forecast tomorrow's donations, using official daily counts."),
+                        tags$button(class = "ov-cta", type = "button", `data-target` = "blood101",
+                                    span(class = "ov-cta-icon", icon("hand-holding-droplet")),
+                                    span("Thinking of donating? ", strong("See if you can", .noWS = "outside")),
+                                    icon("arrow-right")))),
                 div(class = "stat-grid ov-mini stage-2",
                     flip_card("This past week", count_span(dash$latest$last7, delay = 150), WEEK_LINE,
                               "Last seven days", mini_cols(LAST7_BARS)),
@@ -720,10 +741,10 @@ ui <- page(
                               "Latest day, by group",
                               mini_bars(latest_groups, highlight = names(which.max(latest_groups)))),
                     flip_card("Our best forecast was off by", count_span(BEST_MAE, 1, delay = 350),
-                              method_phrase(BEST_METHOD), "Error by blood group",
+                              "donations a day, per blood group", "Error by blood group",
                               mini_bars(group_mae(BEST_METHOD), digits = 1), "tone-hero"),
                     flip_card("Quiet days we guessed too high", count_span(LOW_OVER_PCT, 0, suffix = "%", delay = 450),
-                              sprintf("%d of %d low days", round(LOW_OVER_PCT * LOW_DAYS / 100), LOW_DAYS),
+                              sprintf("%d of %d quiet days. The hardest days to call", round(LOW_OVER_PCT * LOW_DAYS / 100), LOW_DAYS),
                               "Guessed too high, %",
                               mini_bars(LOW_OVER_BARS, digits = 0)))),
               panel("How far off each method was, year by year",
@@ -764,18 +785,19 @@ ui <- page(
                   tags$svg(class = "ecg", viewBox = "0 0 600 60", preserveAspectRatio = "none",
                            `aria-hidden` = "true",
                            tags$path(d = paste("M0 34 H210 l12 0 l10 -22 l12 44 l10 -30 l8 8",
-                                               "H330 l8 -6 l8 6 H600")))),
-              chapter_nav("overview")),
+                                               "H330 l8 -6 l8 6 H600"))))),
             tags$aside(
               class = "ov-side stage-2", `aria-label` = "Today's story",
               div(class = "ov-kicker", "Today's story"),
               h2(class = "ov-side-title",
-                 sprintf("The %s wins, by %s.", method_phrase(BEST_METHOD), pct_text(BEST_GAIN))),
+                 sprintf("Our most accurate forecast: the %s.", method_phrase(BEST_METHOD))),
+              p(class = "ov-side-lead",
+                sprintf("It misses by %s less than simply repeating last week's count.", pct_text(BEST_GAIN))),
               h4(class = "ov-side-h", "What stands out"),
               tags$ul(class = "ov-story",
                       lapply(dash$findings, function(f) tags$li(span(class = "ov-dot"), span(emphasise(f))))),
               h4(class = "ov-side-h", "Next seven days"),
-              p(class = "ov-side-note", "Expected donations, all groups, from the recent weekday mean."),
+              p(class = "ov-side-note", "Expected donations, all groups, from the recent weekday average."),
               div(class = "ov-next",
                   lapply(seq_len(nrow(NEXT_TOTALS)), function(i)
                     div(class = "ov-next-row", style = sprintf("--i:%d", i - 1),
@@ -788,7 +810,8 @@ ui <- page(
                   tags$button(class = "btn-pill btn-primary-solid", type = "button",
                               `data-target` = "live", "See the latest data", icon("arrow-right")),
                   tags$button(class = "btn-pill btn-quiet", type = "button",
-                              `data-target` = "blood101", "Can I donate?"))))
+                              `data-target` = "blood101", "Can I donate?")))),
+          chapter_nav("overview")
         ),
 
         # Live tracker -------------------------------------------------------------
@@ -796,7 +819,7 @@ ui <- page(
           "live",
           chapter_head("live",
                        tagList("Here's the latest: ", count_span(dash$latest$latest_total, burst = TRUE),
-                               " donations ", DAY_PHRASE, "."),
+                               paste0(" donations ", DAY_PHRASE, ".")),
                        paste0("That makes ", fmt_int(dash$latest$last7), " this past week, ",
                               change_words(dash$latest$last7, dash$latest$last7_prev_year),
                               ". Scroll on for the last 60 days, and what each method expects next.")),
@@ -815,11 +838,11 @@ ui <- page(
                 controls = seg("live_group", "Blood group", ABO_GROUPS, "O"),
                 class = "stage-3 chart-panel panel-ink",
                 chartOutput("live_plot", height = "300px"),
-                footer = "The seven-day lag can only look one week ahead, so the forecast window is seven days."),
-          narrate("Seven days out, the recent weekday mean expects this. Each daily refresh ",
+                footer = "The seven-day baseline can only look one week ahead, so the forecast window is seven days."),
+          narrate("Seven days out, the recent weekday average expects this. Each daily refresh ",
                   "replaces one forecast with the real count."),
           panel("Forecasts for the next seven days",
-                sub = paste("Expected donations from the recent weekday mean, the method with the",
+                sub = paste("Expected donations from the recent weekday average, the method with the",
                             "lowest error so far. Like every method, it overestimates unusually low days."),
                 class = "stage-3 next-panel",
                 tableOutput("next_table")),
@@ -830,7 +853,7 @@ ui <- page(
         nav_panel_hidden(
           "compare",
           chapter_head("compare",
-                       tagList("So, which forecast did best? The ", method_phrase(BEST_METHOD), ", with ",
+                       tagList(paste0("So, which forecast did best? The ", method_phrase(BEST_METHOD), ", with "),
                                count_span(BEST_GAIN, 0, suffix = "%"), " less error."),
                        sprintf(paste("In %s its forecasts were off by %s donations per blood group",
                                      "per day, against %s for simply repeating last week's count."),
@@ -843,7 +866,7 @@ ui <- page(
                 read = paste("One small chart per blood group. Each bar is a method's average error for that",
                              "group: shorter is better. Hover a bar for the big-miss error and the number of days."),
                 sub = tagList("The same ", term("average error", "error"), ", split by ",
-                              term("ABO group", "abo"), ".", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
+                              term("ABO group", "abo"), ".", span(class = "phone-only", " Left to right in each group: 7-day baseline, weekday average, regression, recent average.")),
                 class = "stage-3 chart-panel", chartOutput("cmp_group_plot", height = "500px")),
           panel("Scores", class = "stage-3",
                 sub = tagList("Every number behind the charts. ", term("Big-miss error", "rmse"), " and ",
@@ -889,7 +912,7 @@ ui <- page(
                 read = paste("For each method, the dark bar is its average error on the quietest days and the",
                              "light bar is its error on all other days. A dark bar much taller than its light",
                              "bar means the method struggles when donations drop."),
-                sub = tagList("Dark bars: ", term("low-collection days", "low_day"), ". Light bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
+                sub = tagList("Dark bars: ", term("low-collection days", "low_day"), ". Light bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day baseline, weekday average, regression, recent average.")),
                 class = "stage-3 chart-panel", chartOutput("low_plot", height = "500px")),
           narrate(LOW_WHY),
           panel("The numbers behind it", class = "stage-3",
@@ -1087,7 +1110,7 @@ ui <- page(
                           "2006–2025 data, so earlier evaluation years are not untouched holdouts."),
                   tags$li("Evaluation periods share overlapping training data and are not ",
                           "independent experiments. No significance testing is done."),
-                  tags$li("The three-year window for the recent weekday mean was not tuned or ",
+                  tags$li("The three-year window for the recent weekday average was not tuned or ",
                           "independently validated."),
                   tags$li("No forecast intervals, weather, holiday, campaign, inventory or ",
                           "hospital-demand data are used."),
@@ -1313,9 +1336,9 @@ server <- function(input, output, session) {
     cut <- as.data.frame(dash$low_cutoffs[dash$low_cutoffs$evaluation_year == y, ])
     k <- match(cut$blood_type, low$blood_type)
     data.frame(`Blood group` = cut$blood_type,
-               `Low-day line (≤)` = fmt(cut$low_cutoff),
+               `Low-day line (≤)` = sub("\\.?0+$", "", fmt(cut$low_cutoff)),
                `Low days` = ifelse(is.na(k), 0L, low$days[k]),
-               `Average on low days` = ifelse(is.na(k), "–", fmt(low$mean_actual[k])),
+               `Average on low days` = ifelse(is.na(k), "–", fmt(low$mean_actual[k], 1)),
                check.names = FALSE)
   }, width = "100%")
 

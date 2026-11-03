@@ -168,7 +168,7 @@ evaluation_periods <- function(panel, n_complete = 3L) {
 # --- Modelling features -------------------------------------------------------
 
 # Weekday as an unordered factor (Monday reference) and a day-count time index
-# from the first training date, exactly as in the Rmd. The seven-day lag is
+# from the first training date, exactly as in the Rmd. The seven-day baseline is
 # computed per blood group over the continuous 2006–2025 calendar.
 add_model_features <- function(panel) {
   model_start_date <- min(panel$date)
@@ -186,7 +186,7 @@ add_model_features <- function(panel) {
 }
 
 # Stop if any blood group's dates are not one continuous daily calendar,
-# because a seven-row lag would then not be a seven-day lag.
+# because a seven-row lag would then not be a seven-day baseline.
 check_calendar_continuity <- function(model_data) {
   gaps <- model_data |>
     group_by(blood_type) |>
@@ -344,7 +344,7 @@ weekday_summary <- function(model_data) {
 
 # Forecasts for the next `horizon` days after the data ends, using exactly the
 # four method definitions: each target date is predicted from years before its
-# own year (the seven-day lag uses the observed count a week earlier, so the
+# own year (the seven-day baseline uses the observed count a week earlier, so the
 # horizon is at most seven days).
 next_days_forecast <- function(model_data, horizon = 7L) {
   stopifnot(horizon >= 1L, horizon <= 7L)
@@ -445,13 +445,13 @@ summarise_findings <- function(scores_overall, scores_by_group, low_errors, peri
   non_ab <- filter(g, blood_type != "AB")
   lr_wd <- all(non_ab$`Linear regression` < non_ab$`Weekday average`)
   if (lr_lag) {
-    out <- c(out, paste0("Linear regression is more accurate than the seven-day lag for every blood group ",
+    out <- c(out, paste0("Linear regression is more accurate than the seven-day baseline for every blood group ",
                          "in every period",
-                         if (lr_wd) ", and more accurate than the full-history weekday mean for A, B and O." else "."))
+                         if (lr_wd) ", and more accurate than the weekday average for A, B and O." else "."))
   }
   ab <- filter(g, blood_type == "AB")
   if (nrow(ab) && all(ab$`Weekday average` < ab$`Linear regression`)) {
-    out <- c(out, "AB is the exception: there the full-history weekday mean is slightly more accurate than regression in every period.")
+    out <- c(out, "AB is the exception: there the weekday average is slightly more accurate than regression in every period.")
   }
   low <- low_errors |> filter(day_category == "Low collection")
   if (nrow(low)) {
@@ -459,7 +459,7 @@ summarise_findings <- function(scores_overall, scores_by_group, low_errors, peri
     wd_groups <- best_low$blood_type[best_low$best == "Weekday average"]
     over_all <- all(low$overprediction_percent[low$method == "Weekday average"] == 100)
     if (length(wd_groups)) {
-      out <- c(out, sprintf(paste0("On low-collection days in %s, the full-history weekday mean is the ",
+      out <- c(out, sprintf(paste0("On low-collection days in %s, the weekday average is the ",
                                    "most accurate for %s%s."),
                             label[as.character(max(low$evaluation_year))],
                             if (length(wd_groups) > 1)

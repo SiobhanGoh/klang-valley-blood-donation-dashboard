@@ -36,11 +36,11 @@ test_that("next-seven-day forecasts follow the method definitions", {
   expect_equal(nrow(nd), 7 * 4 * 4)
   expect_false(anyNA(nd$prediction))
   expect_equal(range(nd$date), as.Date(c("2026-08-29", "2026-09-04")))
-  # Seven-day lag equals the observed count a week earlier.
+  # Seven-day baseline equals the observed count a week earlier.
   lag_o <- nd |> filter(blood_type == "O", method == "Seven-day baseline", date == as.Date("2026-08-29"))
   obs <- live$panel |> filter(blood_type == "O", date == as.Date("2026-08-22"))
   expect_equal(lag_o$prediction, obs$donations)
-  # Recent weekday mean equals the 2023-2025 mean for that weekday.
+  # Recent weekday average equals the 2023-2025 mean for that weekday.
   rc <- nd |> filter(blood_type == "A", method == "Recent weekday average", date == as.Date("2026-08-31"))
   hist <- live$model_data |> filter(blood_type == "A", year(date) %in% 2023:2025, weekday == "Monday")
   expect_equal(rc$prediction, mean(hist$donations))
@@ -57,7 +57,7 @@ test_that("latest summary and blood-type mix are consistent with the panel", {
 test_that("findings are generated from the results", {
   f <- report$findings
   expect_match(f[1], "recent weekday average is the most accurate method in every test period, 2023 to 2025")
-  expect_true(any(grepl("Linear regression is more accurate than the seven-day lag", f)))
+  expect_true(any(grepl("Linear regression is more accurate than the seven-day baseline", f)))
   expect_true(any(grepl("AB is the exception", f)))
   expect_true(any(grepl("most accurate for A, B and O", f)))
   expect_true(length(live$findings) >= 2)

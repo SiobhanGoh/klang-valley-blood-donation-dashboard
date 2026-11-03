@@ -139,8 +139,8 @@ report_data <- function(group, from, to, forecasts, max_rows = 62L) {
   df <- data_extract(group, from, to, forecasts)
   shown <- utils::head(df, max_rows)
   names_shown <- c(date = "Date", blood_group = "Group", recorded = "Recorded",
-                   seven_day_baseline = "7-day lag", weekday_average = "Weekday mean",
-                   linear_regression = "Regression", recent_weekday_average = "Recent mean")
+                   seven_day_baseline = "7-day baseline", weekday_average = "Weekday average",
+                   linear_regression = "Regression", recent_weekday_average = "Recent average")
   report_paper(
     "data",
     report_masthead(
@@ -169,10 +169,10 @@ report_data <- function(group, from, to, forecasts, max_rows = 62L) {
     h2(class = "rp-h2", "Definitions"),
     tags$dl(class = "rp-defs",
       tags$dt("Recorded"), tags$dd("Donations recorded that day in the Blood Bank Information System for the group."),
-      tags$dt("7-day lag"), tags$dd("The count recorded seven days earlier."),
-      tags$dt("Weekday mean"), tags$dd("The group's mean for that weekday over all years before the evaluation year."),
+      tags$dt("7-day baseline"), tags$dd("The count recorded seven days earlier."),
+      tags$dt("Weekday average"), tags$dd("The group's mean for that weekday over all years before the evaluation year."),
       tags$dt("Regression"), tags$dd("lm(donations ~ weekday + time_index), fitted per group on all earlier years."),
-      tags$dt("Recent mean"), tags$dd("The group's mean for that weekday over the three complete years before.")),
+      tags$dt("Recent average"), tags$dd("The group's mean for that weekday over the three complete years before.")),
     report_footer(data_credit))
 }
 

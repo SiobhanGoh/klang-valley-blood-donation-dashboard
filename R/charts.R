@@ -20,10 +20,11 @@ GROUP_COL <- c("A" = "#F2B3C0", "AB" = "#E07D93", "B" = "#B8445F", "O" = "#6E1D3
 # Line styles keep forecasts apart from each other and from the recorded line.
 METHOD_DASH <- c("Seven-day baseline" = "dot", "Weekday average" = "dash",
                  "Linear regression" = "longdash", "Recent weekday average" = "solid")
-SHORT_METHOD <- c("Seven-day baseline" = "7-day lag",
-                  "Weekday average" = "Weekday mean",
-                  "Linear regression" = "Regression",
-                  "Recent weekday average" = "Recent mean")
+# One name per method everywhere; short forms only where space is tight.
+SHORT_METHOD <- c("Seven-day baseline" = "Seven-day baseline",
+                  "Weekday average" = "Weekday average",
+                  "Linear regression" = "Linear regression",
+                  "Recent weekday average" = "Recent weekday average")
 
 fmt2 <- function(x) formatC(x, format = "f", digits = 2, big.mark = ",")
 fmt0 <- function(x) formatC(round(x), format = "d", big.mark = ",")
@@ -85,14 +86,17 @@ chart_pooled_mae <- function(scores_overall, period_labels) {
   d$period <- period_labels[as.character(d$evaluation_year)]
   traces <- lapply(METHODS, function(m) {
     s <- d[d$method == m, ]
-    bar_trace(s$period, s$MAE, m, METHOD_COL[[m]],
+    bar_trace(tick_break(s$period), s$MAE, m, METHOD_COL[[m]],
               sprintf("<b>%s</b><br>%s<br>Average error <b>%s</b> donations a day<br>Big-miss error (RMSE) %s",
                       m, s$period, fmt2(s$MAE), fmt2(s$RMSE)))
   })
   figure(traces, ytitle = "Average error (donations a day)", barmode = "group",
-         xaxis = list(type = "category", categoryorder = "array", categoryarray = arr(unique(period_labels))),
+         xaxis = list(type = "category", categoryorder = "array", tickangle = 0,
+                      categoryarray = arr(tick_break(unique(period_labels)))),
          yaxis = list(rangemode = "tozero"), margin = list(t = 28))
 }
+# "2026 to date (to 28 Aug)" on two lines, so axis labels never slant or collide.
+tick_break <- function(x) sub(" (", "<br>(", x, fixed = TRUE)
 
 # A 2 x 2 grid of small multiples, one per blood group, with titles.
 # build_one(g, show_legend) returns that group's traces.
