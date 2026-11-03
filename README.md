@@ -129,7 +129,7 @@ blood group per day, pooled over the four groups.
 Requires R (≥ 4.3). Install the packages once:
 
 ```r
-install.packages(c("shiny", "bslib", "DT", "jsonlite", "dplyr", "tidyr",
+install.packages(c("shiny", "bslib", "jsonlite", "dplyr", "tidyr",
                    "readr", "lubridate", "janitor", "testthat"))
 ```
 

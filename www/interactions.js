@@ -591,6 +591,57 @@
     Shiny.outputBindings.register(chartBinding, "kvbd.chart");
   }
 
+
+  // ---------- Sortable, paged tables ----------
+  function initSortTable(wrap) {
+    if (wrap.__st) return;
+    wrap.__st = true;
+    var table = $("table", wrap), body = $("tbody", table), foot = $(".st-foot", wrap);
+    var rows = $all("tr", body), per = parseInt(wrap.getAttribute("data-page") || "8", 10), page = 0;
+    function draw() {
+      var pages = Math.max(1, Math.ceil(rows.length / per));
+      page = Math.min(page, pages - 1);
+      rows.forEach(function (r, i) { r.style.display = (i >= page * per && i < (page + 1) * per) ? "" : "none"; });
+      if (pages <= 1) { foot.innerHTML = ""; return; }
+      var html = '<span class="st-info">' + (page * per + 1) + "–" + Math.min(rows.length, (page + 1) * per) +
+                 " of " + rows.length + '</span><span class="st-pages">';
+      html += '<button type="button" data-p="prev"' + (page === 0 ? " disabled" : "") + ' aria-label="Previous page">‹</button>';
+      for (var p = 0; p < pages; p++) html += '<button type="button" data-p="' + p + '"' + (p === page ? ' class="is-on" aria-current="page"' : "") + ">" + (p + 1) + "</button>";
+      html += '<button type="button" data-p="next"' + (page === pages - 1 ? " disabled" : "") + ' aria-label="Next page">›</button></span>';
+      foot.innerHTML = html;
+    }
+    foot.addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b || b.disabled) return;
+      var v = b.getAttribute("data-p");
+      page = v === "prev" ? page - 1 : v === "next" ? page + 1 : parseInt(v, 10);
+      draw();
+    });
+    $all("th", table).forEach(function (th, col) {
+      function sort() {
+        var dir = th.getAttribute("aria-sort") === "ascending" ? "descending" : "ascending";
+        $all("th", table).forEach(function (h) { h.setAttribute("aria-sort", "none"); });
+        th.setAttribute("aria-sort", dir);
+        var num = th.classList.contains("num"), sign = dir === "ascending" ? 1 : -1;
+        rows.sort(function (a, b) {
+          var x = a.children[col], y = b.children[col];
+          var p = num ? parseFloat(x.getAttribute("data-v")) : x.textContent.trim();
+          var q = num ? parseFloat(y.getAttribute("data-v")) : y.textContent.trim();
+          return (num ? (p - q) : String(p).localeCompare(String(q))) * sign;
+        });
+        rows.forEach(function (r) { body.appendChild(r); });
+        page = 0; draw();
+      }
+      th.addEventListener("click", sort);
+      th.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sort(); } });
+    });
+    draw();
+  }
+  if (window.jQuery) {
+    jQuery(document).on("shiny:value", function (e) {
+      setTimeout(function () { $all(".st-wrap", e.target).forEach(initSortTable); }, 0);
+    });
+  }
+
   // ---------- Count-up numbers ----------
   function countTo(el, to, ms, decimals, from) {
     if (!el) return;

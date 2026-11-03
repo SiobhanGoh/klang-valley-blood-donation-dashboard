@@ -17,6 +17,13 @@ if (is.null(raw)) stop("Could not download the latest data from ", LIVE_CSV_URL)
 
 d <- build_dashboard_data(raw)
 dir.create("app_data", showWarnings = FALSE)
+# Plain data frames only: the in-browser app reads them without dplyr or tibble.
+untibble <- function(x) {
+  if (is.data.frame(x)) return(as.data.frame(x))
+  if (is.list(x) && !is.object(x)) return(lapply(x, untibble))
+  x
+}
+d <- untibble(d)
 saveRDS(d, "app_data/dashboard.rds", compress = "xz")
 
 cat(sprintf(paste0("Source: %s\nRows: %s\nData to: %s\nPeriods: %s\n",

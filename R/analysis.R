@@ -24,7 +24,11 @@ source(file.path(.kvbd_dir, "common.R"), local = environment())
 
 # readr and janitor are only needed when reading the raw CSV, so they are
 # called with `::`.
-suppressPackageStartupMessages(library(tidyr))
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(tidyr)
+  library(lubridate)
+})
 
 # --- Data loading and audit --------------------------------------------------
 

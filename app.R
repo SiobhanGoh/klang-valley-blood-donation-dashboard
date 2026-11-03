@@ -17,7 +17,6 @@
 suppressPackageStartupMessages({
   library(shiny)
   library(bslib)
-  library(DT)
 })
 source("R/common.R")
 # The full pipeline (download, cleaning, forecasting) is only needed when no
@@ -64,12 +63,23 @@ fmt_int <- function(x) formatC(round(x), format = "d", big.mark = ",")
 fmt_date <- function(x) format(x, "%e %b %Y") |> trimws()
 pct_change <- function(now, before) if (before > 0) 100 * (now - before) / before else NA_real_
 
-dt_table <- function(df, digits_cols = NULL, digits = 2, page_length = 10) {
-  out <- datatable(df, rownames = FALSE, class = "display compact",
-                   options = list(pageLength = page_length, dom = "tip", scrollX = TRUE,
-                                  autoWidth = FALSE))
-  if (length(digits_cols)) out <- formatRound(out, digits_cols, digits)
-  out
+# A plain HTML table that sorts by any column and pages long results, so the
+# browser does not need DataTables (and the knitr/rmarkdown stack behind it).
+sort_table <- function(df, digits_cols = character(), digits = 2, page_length = 8) {
+  num <- vapply(df, is.numeric, TRUE)
+  cell <- function(v, col) {
+    if (!num[[col]]) return(tags$td(v))
+    shown <- if (col %in% digits_cols) fmt(v, digits) else fmt_int(v)
+    tags$td(class = "num", `data-v` = format(v, scientific = FALSE, trim = TRUE), shown)
+  }
+  div(class = "st-wrap", `data-page` = page_length,
+      tags$table(class = "st-table",
+        tags$thead(tags$tr(lapply(names(df), function(n)
+          tags$th(class = if (num[[n]]) "num" else NULL, tabindex = "0", `aria-sort` = "none",
+                  span(n), span(class = "st-arrow", `aria-hidden` = "true"))))),
+        tags$tbody(lapply(seq_len(nrow(df)), function(i)
+          tags$tr(lapply(names(df), function(n) cell(df[[n]][i], n)))))),
+      div(class = "st-foot"))
 }
 
 source_link <- function(src) a(src$title, href = src$url, target = "_blank", rel = "noopener")
@@ -93,10 +103,9 @@ other_best <- dash$low_errors[dash$low_errors$evaluation_year == LATEST &
 LOW_MAE <- sum(low_best$days * low_best$MAE) / sum(low_best$days)
 OTHER_MAE <- sum(other_best$days * other_best$MAE) / sum(other_best$days)
 
-weekday_totals <- dash$panel |>
-  group_by(date) |> summarise(total = sum(donations), .groups = "drop") |>
-  mutate(weekday = WEEKDAYS[wday(date, week_start = 1)]) |>
-  group_by(weekday) |> summarise(mean_total = mean(total), .groups = "drop")
+daily_totals <- group_stat(dash$panel, "date", "donations", sum, "total")
+daily_totals$weekday <- WEEKDAYS[weekday_num(daily_totals$date)]
+weekday_totals <- group_stat(daily_totals, "weekday", "total", mean, "mean_total")
 BUSIEST_DAY <- weekday_totals$weekday[which.max(weekday_totals$mean_total)]
 QUIETEST_DAY <- weekday_totals$weekday[which.min(weekday_totals$mean_total)]
 BUSY_RATIO <- max(weekday_totals$mean_total) / min(weekday_totals$mean_total)
@@ -106,10 +115,13 @@ mix_latest <- dash$blood_mix[dash$blood_mix$year == mix_year, ]
 O_SHARE <- 100 * mix_latest$share[mix_latest$blood_type == "O"]
 
 pct_text <- function(x) paste0(fmt(x, 0), "%")
-low_all <- dash$low_errors[dash$low_errors$evaluation_year == LATEST &
-                             dash$low_errors$day_category == "Low collection", ] |>
-  group_by(method) |>
-  summarise(over = sum(days * overprediction_percent) / sum(days), .groups = "drop")
+low_rows <- dash$low_errors[dash$low_errors$evaluation_year == LATEST &
+                              dash$low_errors$day_category == "Low collection", ]
+low_all <- data.frame(method = unique(low_rows$method))
+low_all$over <- vapply(low_all$method, function(m) {
+  r <- low_rows[low_rows$method == m, ]
+  sum(r$days * r$overprediction_percent) / sum(r$days)
+}, 0)
 LOW_OVER_BARS <- setNames(low_all$over, c("Seven-day baseline" = "7-day", "Weekday average" = "Wkday",
                                            "Linear regression" = "Regr.", "Recent weekday average" = "Recent")[low_all$method])
 LOW_HEADLINE <- if (all(low_all$over == 100)) {
@@ -148,8 +160,9 @@ WEEK_LINE <- wk_line(dash$latest$last7, dash$latest$last7_prev_year, "last year"
 YTD_LINE <- wk_line(dash$latest$ytd, dash$latest$ytd_prev_year, "last year")
 last7 <- utils::tail(dash$latest$daily[order(dash$latest$daily$date), ], 7)
 LAST7_BARS <- setNames(last7$total, format(last7$date, "%a"))
-NEXT_TOTALS <- dash$next_days[dash$next_days$method == "Recent weekday average", ] |>
-  group_by(date) |> summarise(total = sum(prediction), .groups = "drop") |> arrange(date)
+NEXT_TOTALS <- group_stat(dash$next_days[dash$next_days$method == "Recent weekday average", ],
+                          "date", "prediction", sum, "total")
+NEXT_TOTALS <- NEXT_TOTALS[order(NEXT_TOTALS$date), ]
 
 method_phrase <- function(m) c("Seven-day baseline" = "seven-day lag",
                                "Weekday average" = "full-history weekday mean",
@@ -585,11 +598,9 @@ sources_drawer <- div(
 # --- UI -------------------------------------------------------------------------------
 
 ui <- page(
-  theme = bs_theme(version = 5, bg = "#FBF5F3", fg = "#2A1219", primary = "#A3213F",
-                   base_font = font_collection("-apple-system", "SF Pro Text", "Inter",
-                                               "Segoe UI", "system-ui", "sans-serif"),
-                   heading_font = font_collection("-apple-system", "SF Pro Display", "Inter",
-                                                  "Segoe UI", "system-ui", "sans-serif")),
+  # The default Bootstrap theme ships precompiled, so the browser never has to
+  # compile Sass; styles.css sets every colour and font.
+  theme = bs_theme(version = 5),
   title = "Klang Valley Blood Donation Forecasts",
   tags$head(
     tags$meta(name = "description", content = paste(
@@ -775,7 +786,7 @@ ui <- page(
           panel("Scores", class = "stage-3",
                 sub = tagList("Every number behind the charts. ", term("Big-miss error", "rmse"), " and ",
                               term("average bias", "bias"), " are explained when you hover them."),
-                DTOutput("cmp_table")),
+                uiOutput("cmp_table")),
           narrate("Averages hide the day-to-day story. Here is how each forecast tracked the ",
                   "real count, one day at a time."),
           panel("Recorded and forecast, day by day",
@@ -824,10 +835,10 @@ ui <- page(
                     sub = tagList("For each blood group, a day counts as low at or below this count: the ",
                                   term("lower quartile", "quartile"), " of earlier years."),
                     footer = "A lower-quartile count is not a clinical shortage threshold."),
-              panel("Why the forecasts aim too high", DTOutput("min_pred_table"),
+              panel("Why the forecasts aim too high", uiOutput("min_pred_table"),
                     sub = tagList("If a method's lowest ", term("forecast", "forecast"),
                                   " of the whole period is still above the low-day line, it can never predict a day that quiet."))),
-          panel("Low-day errors", class = "stage-3", DTOutput("low_table"),
+          panel("Low-day errors", class = "stage-3", uiOutput("low_table"),
                 sub = tagList("How often each method's forecast was ", term("too high", "overpredict"),
                               " on low days, and by how much."),
                 footer = paste("'Average overshoot' is how far above the real count the forecast was,",
@@ -969,7 +980,7 @@ ui <- page(
                                   " grow each year, and how much busier a Sunday is than a Monday. ",
                                   term("Fit (R²)", "r2"), " shows how much of the pattern it captures."),
                     footer = "The Sunday contrast holds the time index fixed."),
-              panel("Too high or too low on average?", DTOutput("bias_table"),
+              panel("Too high or too low on average?", uiOutput("bias_table"),
                     sub = tagList(term("Average bias", "bias"), ": the real count minus the forecast. ",
                                   "Positive means the forecasts ran low; negative means they ran high."),
                     footer = paste("Near-zero averages mean positive and negative errors cancel;",
@@ -1192,20 +1203,21 @@ server <- function(input, output, session) {
   cmp_year <- reactive(as.integer(if (is.null(input$cmp_year)) LATEST else input$cmp_year))
 
   output$cmp_group_plot <- renderChart({
-    chart_group_mae(filter(dash$scores_by_group, evaluation_year == cmp_year()), cmp_methods())
+    chart_group_mae(dash$scores_by_group[dash$scores_by_group$evaluation_year == cmp_year(), ], cmp_methods())
   })
 
-  output$cmp_table <- renderDT({
+  output$cmp_table <- renderUI({
     y <- cmp_year(); m <- cmp_methods()
-    pooled <- dash$scores_overall |>
-      filter(evaluation_year == y, method %in% m) |>
-      mutate(blood_type = "All groups")
-    bind_rows(pooled, filter(dash$scores_by_group, evaluation_year == y, method %in% m)) |>
-      arrange(blood_type != "All groups", blood_type, factor(method, levels = METHODS)) |>
-      transmute(`Blood group` = blood_type, Method = method, `Days scored` = observations,
-                `Average error (MAE)` = MAE, `Big-miss error (RMSE)` = RMSE,
-                `Average bias` = mean_signed_error) |>
-      dt_table(c("Average error (MAE)", "Big-miss error (RMSE)", "Average bias"), page_length = 8)
+    pooled <- dash$scores_overall[dash$scores_overall$evaluation_year == y & dash$scores_overall$method %in% m, ]
+    pooled$blood_type <- "All groups"
+    grp <- dash$scores_by_group[dash$scores_by_group$evaluation_year == y & dash$scores_by_group$method %in% m, ]
+    cols <- c("blood_type", "method", "observations", "MAE", "RMSE", "mean_signed_error")
+    d <- rbind(as.data.frame(pooled)[cols], as.data.frame(grp)[cols])
+    d <- d[order(d$blood_type != "All groups", d$blood_type, match(d$method, METHODS)), ]
+    sort_table(data.frame(`Blood group` = d$blood_type, Method = d$method, `Days scored` = d$observations,
+                          `Average error (MAE)` = d$MAE, `Big-miss error (RMSE)` = d$RMSE,
+                          `Average bias` = d$mean_signed_error, check.names = FALSE),
+               c("Average error (MAE)", "Big-miss error (RMSE)", "Average bias"))
   })
 
   output$cmp_daily_plot <- renderChart({
@@ -1219,42 +1231,38 @@ server <- function(input, output, session) {
   # Low-collection days ------------------------------------------------------------------
   low_y <- reactive(as.integer(if (is.null(input$low_year)) LATEST else input$low_year))
 
-  output$low_plot <- renderChart(chart_low_days(filter(dash$low_errors, evaluation_year == low_y())))
+  output$low_plot <- renderChart(chart_low_days(dash$low_errors[dash$low_errors$evaluation_year == low_y(), ]))
 
   output$cutoff_table <- renderTable({
     y <- low_y()
-    low_days <- dash$low_errors |>
-      filter(evaluation_year == y, day_category == "Low collection") |>
-      distinct(blood_type, days, mean_actual)
-    dash$low_cutoffs |>
-      filter(evaluation_year == y) |>
-      left_join(low_days, by = "blood_type") |>
-      transmute(`Blood group` = blood_type,
-                `Low-day line (≤)` = fmt(low_cutoff),
-                `Low days` = ifelse(is.na(days), 0L, days),
-                `Average on low days` = ifelse(is.na(mean_actual), "–", fmt(mean_actual)))
+    low <- dash$low_errors[dash$low_errors$evaluation_year == y & dash$low_errors$day_category == "Low collection", ]
+    low <- unique(as.data.frame(low)[c("blood_type", "days", "mean_actual")])
+    cut <- as.data.frame(dash$low_cutoffs[dash$low_cutoffs$evaluation_year == y, ])
+    k <- match(cut$blood_type, low$blood_type)
+    data.frame(`Blood group` = cut$blood_type,
+               `Low-day line (≤)` = fmt(cut$low_cutoff),
+               `Low days` = ifelse(is.na(k), 0L, low$days[k]),
+               `Average on low days` = ifelse(is.na(k), "–", fmt(low$mean_actual[k])),
+               check.names = FALSE)
   }, width = "100%")
 
-  output$low_table <- renderDT({
-    dash$low_errors |>
-      filter(evaluation_year == low_y(), day_category == "Low collection") |>
-      arrange(blood_type, factor(method, levels = METHODS)) |>
-      transmute(`Blood group` = blood_type, Method = method, `Low days` = days,
-                `Average error` = MAE,
-                `Days forecast too high (%)` = overprediction_percent,
-                `Average overshoot` = mean_excess) |>
-      dt_table(c("Average error", "Days forecast too high (%)", "Average overshoot"), page_length = 8)
+  output$low_table <- renderUI({
+    d <- dash$low_errors[dash$low_errors$evaluation_year == low_y() & dash$low_errors$day_category == "Low collection", ]
+    d <- d[order(d$blood_type, match(d$method, METHODS)), ]
+    sort_table(data.frame(`Blood group` = d$blood_type, Method = d$method, `Low days` = d$days,
+                          `Average error` = d$MAE, `Days forecast too high (%)` = d$overprediction_percent,
+                          `Average overshoot` = d$mean_excess, check.names = FALSE),
+               c("Average error", "Days forecast too high (%)", "Average overshoot"))
   })
 
-  output$min_pred_table <- renderDT({
-    dash$min_predictions |>
-      filter(evaluation_year == low_y()) |>
-      arrange(blood_type, factor(method, levels = METHODS)) |>
-      transmute(`Group` = blood_type, Method = method,
-                `Lowest forecast` = minimum_prediction,
-                `Low-day line` = low_cutoff,
-                `Can never reach it?` = ifelse(all_predictions_above_cutoff, "Yes", "No")) |>
-      dt_table(c("Lowest forecast", "Low-day line"), page_length = 8)
+  output$min_pred_table <- renderUI({
+    d <- dash$min_predictions[dash$min_predictions$evaluation_year == low_y(), ]
+    d <- d[order(d$blood_type, match(d$method, METHODS)), ]
+    sort_table(data.frame(Group = d$blood_type, Method = d$method,
+                          `Lowest forecast` = d$minimum_prediction, `Low-day line` = d$low_cutoff,
+                          `Can never reach it?` = ifelse(d$all_predictions_above_cutoff, "Yes", "No"),
+                          check.names = FALSE),
+               c("Lowest forecast", "Low-day line"))
   })
 
   # Patterns ---------------------------------------------------------------------------------
@@ -1262,16 +1270,17 @@ server <- function(input, output, session) {
     g <- if (is.null(input$pattern_groups) || !length(input$pattern_groups)) ABO_GROUPS
          else input$pattern_groups
     yrs <- if (is.null(input$pattern_years)) c(2006, END_YEAR) else input$pattern_years
-    dash$panel |> filter(blood_type %in% g, year(date) >= yrs[1], year(date) <= yrs[2])
+    yr <- year_of(dash$panel$date)
+    dash$panel[dash$panel$blood_type %in% g & yr >= yrs[1] & yr <= yrs[2], ]
   })
 
   output$weekly_plot <- renderChart(chart_month_totals(pattern_panel(), DATA_END))
   output$weekday_plot <- renderChart({
-    pattern_panel() |>
-      mutate(weekday = factor(WEEKDAYS[wday(date, week_start = 1)], levels = WEEKDAYS)) |>
-      group_by(blood_type, weekday) |>
-      summarise(mean_donations = mean(donations), .groups = "drop") |>
-      chart_weekday()
+    d <- pattern_panel()
+    d$weekday <- WEEKDAYS[weekday_num(d$date)]
+    m <- group_stat(d, c("blood_type", "weekday"), "donations", mean, "mean_donations")
+    m <- m[order(match(m$weekday, WEEKDAYS)), ]
+    chart_weekday(m)
   })
   output$annual_plot <- renderChart(chart_annual(annual_summary(pattern_panel())))
   output$mix_plot <- renderChart(chart_mix(dash$blood_mix, PARTIAL_YEAR))
@@ -1307,27 +1316,27 @@ server <- function(input, output, session) {
   }, width = "100%")
 
   output$coef_table <- renderTable({
-    dash$coefficients |>
-      transmute(`Blood group` = blood_type,
-                `Change per year` = fmt(change_per_365_days),
-                `Sunday vs Monday` = ifelse(sunday_minus_monday >= 0, paste0("+", fmt(sunday_minus_monday)), fmt(sunday_minus_monday)),
-                `Fit (R²)` = fmt(r_squared, 3))
+    d <- dash$coefficients
+    data.frame(`Blood group` = d$blood_type,
+               `Change per year` = fmt(d$change_per_365_days),
+               `Sunday vs Monday` = ifelse(d$sunday_minus_monday >= 0, paste0("+", fmt(d$sunday_minus_monday)),
+                                           fmt(d$sunday_minus_monday)),
+               `Fit (R²)` = fmt(d$r_squared, 3), check.names = FALSE)
   }, width = "100%")
 
-  output$bias_table <- renderDT({
-    dash$scores_by_group |>
-      filter(evaluation_year == LATEST) |>
-      arrange(blood_type, factor(method, levels = METHODS)) |>
-      transmute(`Group` = blood_type, Method = method,
-                `Average bias` = mean_signed_error, `Average error` = MAE) |>
-      dt_table(c("Average bias", "Average error"), page_length = 8)
+  output$bias_table <- renderUI({
+    d <- dash$scores_by_group[dash$scores_by_group$evaluation_year == LATEST, ]
+    d <- d[order(d$blood_type, match(d$method, METHODS)), ]
+    sort_table(data.frame(Group = d$blood_type, Method = d$method, `Average bias` = d$mean_signed_error,
+                          `Average error` = d$MAE, check.names = FALSE),
+               c("Average bias", "Average error"))
   })
 
   output$monthly_plot <- renderChart({
     y <- as.integer(if (is.null(input$month_year)) LATEST else input$month_year)
     m <- if (is.null(input$month_methods) || !length(input$month_methods)) METHODS
          else input$month_methods
-    chart_monthly(filter(dash$monthly, evaluation_year == y), m)
+    chart_monthly(dash$monthly[dash$monthly$evaluation_year == y, ], m)
   })
 }
 

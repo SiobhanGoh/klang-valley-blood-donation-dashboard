@@ -215,11 +215,11 @@ chart_live <- function(panel, predictions, next_days, group, data_end) {
 # Monthly totals stacked by blood group. An unfinished final month is left out
 # so the chart does not end in a false drop.
 chart_month_totals <- function(panel, data_end) {
-  d <- panel |>
-    mutate(month = floor_date(date, "month")) |>
-    group_by(month, blood_type) |>
-    summarise(donations = sum(donations), .groups = "drop")
-  if (data_end < ceiling_date(data_end, "month") - 1) d <- d[d$month < floor_date(data_end, "month"), ]
+  panel$month <- month_start(panel$date)
+  d <- group_stat(panel, c("month", "blood_type"), "donations", sum, "donations")
+  d <- d[order(d$month), ]
+  last_of_month <- seq(month_start(data_end), by = "1 month", length.out = 2)[2] - 1
+  if (data_end < last_of_month) d <- d[d$month < month_start(data_end), ]
   traces <- lapply(intersect(c("O", "B", "A", "AB"), unique(d$blood_type)), function(g) {
     s <- d[d$blood_type == g, ]
     line_trace(s$month, s$donations, paste("Group", g), list(color = GROUP_COL[[g]], width = 0.6),

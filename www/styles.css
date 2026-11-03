@@ -2143,3 +2143,32 @@ table.dataTable thead th.sorting, table.dataTable thead th.sorting_asc, table.da
   animation: shimmer 1.4s linear infinite;
 }
 .kvbd-chart.shiny-output-error { animation: none; background: none; height: auto !important; }
+
+/* Sortable tables (replacing DataTables) */
+.st-wrap { overflow-x: auto; }
+.st-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.84rem; font-variant-numeric: tabular-nums; }
+.st-table th {
+  position: relative; padding: 8px 26px 8px 10px; text-align: left; vertical-align: bottom;
+  font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  border-bottom: 1px solid var(--hairline); cursor: pointer; user-select: none; white-space: normal;
+  transition: background var(--t-fast), color var(--t-fast);
+}
+.st-table th.num, .st-table td.num { text-align: right; }
+.st-table th:hover { background: var(--blush-2); color: var(--wine); }
+.st-table th:focus-visible { outline: 2px solid var(--wine); outline-offset: -2px; }
+.st-arrow { position: absolute; right: 9px; bottom: 9px; width: 9px; height: 13px;
+  background: no-repeat center / 9px 13px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 14'%3E%3Cpath d='M5 1 9 5H1z' fill='%23C9AEB4'/%3E%3Cpath d='M5 13 1 9h8z' fill='%23C9AEB4'/%3E%3C/svg%3E"); }
+.st-table th[aria-sort="ascending"], .st-table th[aria-sort="descending"] { color: var(--wine); }
+.st-table th[aria-sort="ascending"] .st-arrow { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 14'%3E%3Cpath d='M5 1 9 5H1z' fill='%23A3213F'/%3E%3Cpath d='M5 13 1 9h8z' fill='%23E8D6D9'/%3E%3C/svg%3E"); }
+.st-table th[aria-sort="descending"] .st-arrow { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 14'%3E%3Cpath d='M5 1 9 5H1z' fill='%23E8D6D9'/%3E%3Cpath d='M5 13 1 9h8z' fill='%23A3213F'/%3E%3C/svg%3E"); }
+.st-table td { padding: 7px 10px; border-bottom: 1px solid var(--hairline); color: var(--ink-soft); }
+.st-table tbody tr:last-child td { border-bottom: 0; }
+.st-table tbody tr:hover td { background: var(--blush-2); }
+.st-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; font-size: 0.8rem; color: var(--muted); }
+.st-foot:empty { display: none; }
+.st-pages { display: inline-flex; gap: 4px; }
+.st-pages button { min-width: 30px; height: 30px; padding: 0 8px; border: 0; border-radius: var(--r-pill);
+  background: transparent; color: var(--ink-soft); font: 500 0.82rem var(--font-text); cursor: pointer; }
+.st-pages button:hover:not(:disabled) { background: var(--blush-2); color: var(--wine); }
+.st-pages button.is-on { background: var(--wine-deep); color: #fff; }
+.st-pages button:disabled { opacity: 0.35; cursor: default; }

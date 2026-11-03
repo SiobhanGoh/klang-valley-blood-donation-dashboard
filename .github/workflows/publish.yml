@@ -38,7 +38,6 @@ jobs:
           packages: |
             any::shiny
             any::bslib
-            any::DT
             any::jsonlite
             any::dplyr
             any::tidyr
