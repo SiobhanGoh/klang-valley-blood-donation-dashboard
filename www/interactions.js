@@ -302,6 +302,73 @@
       }
     });
   }, { threshold: 0.25 }) : null;
+  // ---------- Bars with depth: a soft top-lit gradient, and focus on hover ----------
+  function rgbOf(str) {
+    var m = /rgba?\(([^)]+)\)/.exec(str || "");
+    if (!m) return null;
+    var p = m[1].split(",").map(function (v) { return parseFloat(v); });
+    return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+  }
+  function mix(c, t, w) {
+    return "rgb(" + Math.round(c.r + (t - c.r) * w) + "," + Math.round(c.g + (t - c.g) * w) + "," +
+           Math.round(c.b + (t - c.b) * w) + ")";
+  }
+  function polishBars(gd) {
+    var svg = gd.querySelector(".main-svg");
+    if (!svg) return;
+    // Stacked bars stay flat: a gradient on every segment reads as stripes.
+    if (gd._fullLayout && gd._fullLayout.barmode === "stack") return;
+    var defs = svg.querySelector("defs") || svg.insertBefore(document.createElementNS("http://www.w3.org/2000/svg", "defs"), svg.firstChild);
+    var made = {};
+    $all(".barlayer .point path", gd).forEach(function (path) {
+      var inline = path.style.fill;
+      if (!inline || inline.indexOf("url(") === 0) return;
+      var c = rgbOf(inline);
+      if (!c) return;
+      // Ids are per chart: a gradient defined inside a hidden page would not paint here.
+      var key = "kvg-" + (gd.id || "c") + "-" + [c.r, c.g, c.b].join("-") + (isDark() ? "-d" : "");
+      if (!made[key] && !defs.querySelector("#" + key)) {
+        var g = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
+        g.setAttribute("id", key); g.setAttribute("x1", "0"); g.setAttribute("y1", "0");
+        g.setAttribute("x2", "0"); g.setAttribute("y2", "1");
+        var stops = [[0, mix(c, 255, 0.26)], [0.6, "rgb(" + c.r + "," + c.g + "," + c.b + ")"],
+                     [1, isDark() ? mix(c, 0, 0.12) : "rgb(" + c.r + "," + c.g + "," + c.b + ")"]];
+        stops.forEach(function (s) {
+          var st = document.createElementNS("http://www.w3.org/2000/svg", "stop");
+          st.setAttribute("offset", s[0]); st.setAttribute("stop-color", s[1]);
+          if (c.a < 1) st.setAttribute("stop-opacity", c.a);
+          g.appendChild(st);
+        });
+        defs.appendChild(g);
+      }
+      made[key] = true;
+      path.style.fill = "url(#" + key + ")";
+    });
+  }
+  function wireBars(gd) {
+    if (gd.__barsWired || !gd.on) return;
+    gd.__barsWired = true;
+    gd.on("plotly_afterplot", function () { polishBars(gd); });
+    gd.on("plotly_hover", function (ev) {
+      if (!gd.querySelector(".barlayer .point")) return;
+      var pt = ev.points && ev.points[0];
+      if (!pt || pt.data.type !== "bar") return;
+      $all(".barlayer .point.is-hot", gd).forEach(function (n) { n.classList.remove("is-hot"); });
+      $all(".barlayer .trace", gd).forEach(function (tr) {
+        var d = tr.__data__ && tr.__data__[0];
+        if (!d || !d.trace || d.trace.index !== pt.curveNumber) return;
+        $all(".point", tr).forEach(function (node) {
+          if (node.__data__ && node.__data__.i === pt.pointNumber) node.classList.add("is-hot");
+        });
+      });
+      gd.classList.add("is-focus");
+    });
+    gd.on("plotly_unhover", function () {
+      gd.classList.remove("is-focus");
+      $all(".barlayer .point.is-hot", gd).forEach(function (n) { n.classList.remove("is-hot"); });
+    });
+  }
+
   function queueChart(gd, tries) {
     if (!gd.querySelector(".main-svg")) {
       if ((tries || 0) < 60) setTimeout(function () { queueChart(gd, (tries || 0) + 1); }, 40);
@@ -309,6 +376,8 @@
     }
     compactForPhone(gd);
     wireTips(gd);
+    wireBars(gd);
+    polishBars(gd);
     gd.__origColours = null;       // a new render brings fresh colours
     if (isDark()) themeChart(gd);
     if (!chartObserver) { animateChart(gd); return; }

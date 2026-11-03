@@ -59,14 +59,14 @@ figure <- function(traces, ytitle = NULL, xtitle = NULL, hovermode = "closest", 
                     yanchor = "top", font = list(size = 12), itemclick = "toggle",
                     bgcolor = "rgba(0,0,0,0)"),
       hovermode = hovermode,
-      bargap = 0.32), list(...)),
+      bargap = 0.3, bargroupgap = 0.14, barcornerradius = 5), list(...)),
     config = list(displayModeBar = FALSE, responsive = TRUE)
   )
 }
 
 bar_trace <- function(x, y, name, colour, hovertext, ...) {
   c(list(type = "bar", x = arr(x), y = arr(y), name = name,
-         marker = list(color = colour), hovertext = arr(hovertext), hoverinfo = "text"), list(...))
+         marker = list(color = colour, line = list(width = 0)), hovertext = arr(hovertext), hoverinfo = "text"), list(...))
 }
 
 line_trace <- function(x, y, name, line, hovertemplate, mode = "lines", ...) {

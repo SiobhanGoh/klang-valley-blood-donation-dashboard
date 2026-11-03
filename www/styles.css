@@ -2323,3 +2323,14 @@ table.dataTable thead th.sorting, table.dataTable thead th.sorting_asc, table.da
   .ov-main .story-strip::-webkit-scrollbar { display: none; }
   .ov-main .story-strip > .story-card { flex: 0 0 78%; scroll-snap-align: start; min-height: 150px; }
 }
+
+/* Bars with depth: soft shadow, and a focus state that dims the other bars */
+.kvbd-chart .barlayer .point path {
+  filter: drop-shadow(0 3px 4px rgba(74, 20, 38, 0.14));
+  transition: opacity 220ms var(--ease-out), filter 220ms var(--ease-out);
+}
+html[data-theme=dark] .kvbd-chart .barlayer .point path { filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45)); }
+.kvbd-chart.is-focus .barlayer .point path { opacity: 0.42 !important; }
+.kvbd-chart.is-focus .barlayer .point.is-hot path {
+  opacity: 1 !important; filter: drop-shadow(0 6px 10px rgba(74, 20, 38, 0.26)) brightness(1.04);
+}
