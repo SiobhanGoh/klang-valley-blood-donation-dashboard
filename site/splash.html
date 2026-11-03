@@ -75,7 +75,9 @@
     var frame = document.querySelector("#root iframe, iframe");
     try {
       var doc = frame && frame.contentDocument;
-      return !!(doc && doc.querySelector(".app-shell .chapter-num, .app-shell .intro"));
+      // Any part of the first page counts: the app's own structure, not one card,
+      // so a layout change can never leave the loading screen up.
+      return !!(doc && doc.querySelector(".app-shell .tab-pane.active .ov-hero, .app-shell .tab-pane.active .chapter-head, .app-shell .tab-pane.active .panel"));
     } catch (e) { return false; }
   }
   var timer = setInterval(function () {
