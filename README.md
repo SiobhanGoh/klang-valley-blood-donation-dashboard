@@ -129,7 +129,7 @@ blood group per day, pooled over the four groups.
 Requires R (≥ 4.3). Install the packages once:
 
 ```r
-install.packages(c("shiny", "bslib", "DT", "plotly", "dplyr", "tidyr",
+install.packages(c("shiny", "bslib", "DT", "jsonlite", "dplyr", "tidyr",
                    "readr", "lubridate", "janitor", "testthat"))
 ```
 
@@ -171,7 +171,7 @@ The tests also check:
 app.R                    Shiny UI and server
 R/common.R               Shared constants and the light helpers the app needs
 R/analysis.R             Data loading (live or snapshot), forecasting and scoring (ported from the Rmd)
-R/charts.R               Interactive charts (plotly) in one shared style
+R/charts.R               Interactive charts: plotly.js figures built in R, one shared style
 R/reports.R              The three printable reports and the CSV extract
 R/visuals.R              Mind-map and flow diagrams (eligibility, donation journey, aftercare, methods, limits)
 R/content.R              Blood 101 facts (with sources) and the compatibility rule

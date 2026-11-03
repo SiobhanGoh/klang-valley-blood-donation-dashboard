@@ -39,7 +39,7 @@ jobs:
             any::shiny
             any::bslib
             any::DT
-            any::plotly
+            any::jsonlite
             any::dplyr
             any::tidyr
             any::readr

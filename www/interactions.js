@@ -319,7 +319,7 @@
   if (window.jQuery) {
     jQuery(document).on("shiny:value", function (e) {
       var el = e.target;
-      if (el && el.classList && el.classList.contains("plotly")) {
+      if (el && el.classList && el.classList.contains("kvbd-chart")) {
         setTimeout(function () { queueChart(el, 0); }, 30);
       }
     });
@@ -571,6 +571,25 @@
   document.addEventListener("DOMContentLoaded", function () {
     $all(".theme-toggle").forEach(function (b) { b.setAttribute("aria-pressed", isDark() ? "true" : "false"); });
   });
+
+
+  // ---------- Chart output binding ----------
+  // R sends a plotly.js figure as JSON; draw or update it in place.
+  if (window.Shiny && Shiny.OutputBinding) {
+    var chartBinding = new Shiny.OutputBinding();
+    chartBinding.find = function (scope) { return jQuery(scope).find(".kvbd-chart"); };
+    chartBinding.renderValue = function (el, value) {
+      if (!window.Plotly) return;
+      if (value === null || value === undefined) { window.Plotly.purge(el); return; }
+      var fig = typeof value === "string" ? JSON.parse(value) : value;
+      window.Plotly.react(el, fig.data, fig.layout, fig.config);
+    };
+    chartBinding.renderError = function (el, err) {
+      if (window.Plotly) window.Plotly.purge(el);
+      Shiny.OutputBinding.prototype.renderError.call(this, el, err);
+    };
+    Shiny.outputBindings.register(chartBinding, "kvbd.chart");
+  }
 
   // ---------- Count-up numbers ----------
   function countTo(el, to, ms, decimals, from) {

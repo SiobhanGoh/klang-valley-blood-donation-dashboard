@@ -27,6 +27,18 @@ if (file.exists("R/analysis.R")) source("R/analysis.R")
 source("R/content.R")
 source("R/charts.R")
 
+# Charts are drawn in the browser by plotly.js (www/plotly-basic.min.js); R
+# sends each figure as JSON through this small output binding.
+chartOutput <- function(id, height = "320px") {
+  div(id = id, class = "kvbd-chart", style = sprintf("width:100%%;height:%s;", height))
+}
+renderChart <- function(expr, env = parent.frame(), quoted = FALSE) {
+  func <- shiny::exprToFunction(expr, env, quoted)
+  shiny::createRenderFunction(func, function(value, session, name, ...) {
+    if (is.null(value)) NULL else as.character(chart_json(value))
+  }, chartOutput)
+}
+
 load_dashboard <- function(source = Sys.getenv("KVBD_SOURCE", "auto")) {
   if (identical(source, "auto") && file.exists("app_data/dashboard.rds")) {
     return(readRDS("app_data/dashboard.rds"))
@@ -595,6 +607,7 @@ ui <- page(
       "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300..700,50",
       "&family=Inter:wght@300;400;600;700&display=swap")),
     tags$link(rel = "stylesheet", href = "styles.css"),
+    tags$script(src = "plotly-basic.min.js"),
     tags$script(src = "interactions.js", defer = NA)
   ),
   div(class = "canvas-glow", `aria-hidden` = "true"),
@@ -646,7 +659,7 @@ ui <- page(
                     read = paste("Each bar is how many donations a method's forecast missed by, on an average",
                                  "day for one blood group. Shorter is better. Hover a bar for the exact numbers."),
                     class = "stage-3 chart-panel ov-chart",
-                    plotlyOutput("overview_plot", height = "300px"),
+                    chartOutput("overview_plot", height = "300px"),
                     footer = paste("Each period's averages and regression are fitted only on earlier",
                                    "years. Training windows overlap, so the periods are not independent tests.")),
               narrate("The story in five parts. Start anywhere, or read them in order."),
@@ -729,7 +742,7 @@ ui <- page(
                              "to see every number."),
                 controls = seg("live_group", "Blood group", ABO_GROUPS, "O"),
                 class = "stage-3 chart-panel",
-                plotlyOutput("live_plot", height = "300px"),
+                chartOutput("live_plot", height = "300px"),
                 footer = "The seven-day lag can only look one week ahead, so the forecast window is seven days."),
           narrate("Seven days out, the recent weekday mean expects this. Each daily refresh ",
                   "replaces one forecast with the real count."),
@@ -758,7 +771,7 @@ ui <- page(
                              "group: shorter is better. Hover a bar for the big-miss error and the number of days."),
                 sub = tagList("The same ", term("average error", "error"), ", split by ",
                               term("ABO group", "abo"), ".", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
-                class = "stage-3 chart-panel", plotlyOutput("cmp_group_plot", height = "500px")),
+                class = "stage-3 chart-panel", chartOutput("cmp_group_plot", height = "500px")),
           panel("Scores", class = "stage-3",
                 sub = tagList("Every number behind the charts. ", term("Big-miss error", "rmse"), " and ",
                               term("average bias", "bias"), " are explained when you hover them."),
@@ -777,7 +790,7 @@ ui <- page(
                                      end = DATA_END,
                                      min = min(dash$predictions$date), max = DATA_END))),
                 class = "stage-3 chart-panel",
-                plotlyOutput("cmp_daily_plot", height = "340px"),
+                chartOutput("cmp_daily_plot", height = "340px"),
                 footer = paste("The seven-day baseline uses the count observed a week earlier, so",
                                "it is a rolling benchmark rather than a forecast issued at the start",
                                "of the period.")),
@@ -804,7 +817,7 @@ ui <- page(
                              "light bar is its error on all other days. A dark bar much taller than its light",
                              "bar means the method struggles when donations drop."),
                 sub = tagList("Dark bars: ", term("low-collection days", "low_day"), ". Light bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
-                class = "stage-3 chart-panel", plotlyOutput("low_plot", height = "500px")),
+                class = "stage-3 chart-panel", chartOutput("low_plot", height = "500px")),
           narrate(LOW_WHY),
           div(class = "two-up stage-3",
               panel("Low-day lines", tableOutput("cutoff_table"),
@@ -840,21 +853,21 @@ ui <- page(
           panel("Recorded donations, month by month", sub = "Stacked by blood group. Hover a month for exact counts.",
                 read = paste("The height of the whole shape is all donations that month; each colour band is",
                              "one blood group. Bumps show busy and quiet months."),
-                class = "stage-3 chart-panel", plotlyOutput("weekly_plot", height = "320px")),
+                class = "stage-3 chart-panel", chartOutput("weekly_plot", height = "320px")),
           narrate("Zoom in on a single week and the rhythm is clear."),
           div(class = "two-up stage-3",
               panel("Mean donations by weekday", class = "chart-panel",
                     read = "Taller bars are busier weekdays. Each colour is one blood group.",
-                    plotlyOutput("weekday_plot", height = "300px")),
+                    chartOutput("weekday_plot", height = "300px")),
               panel("Mean donations a day, by year", class = "chart-panel",
                     read = "Each line is one blood group; rising lines mean more donations a day than before.",
-                    plotlyOutput("annual_plot", height = "300px"))),
+                    chartOutput("annual_plot", height = "300px"))),
           narrate(MIX_LINE),
           panel("Blood-type mix of donations",
                 read = "Each column is one year and adds up to 100%. The bands show each group's share.",
                 sub = paste("Share of recorded Klang Valley donations by ABO group each year. This",
                             "describes who donated, not how common each type is in the population."),
-                class = "stage-3 chart-panel", plotlyOutput("mix_plot", height = "310px")),
+                class = "stage-3 chart-panel", chartOutput("mix_plot", height = "310px")),
           chapter_nav("patterns")
         ),
 
@@ -970,7 +983,7 @@ ui <- page(
                   chips("month_methods", "Methods", METHODS,
                         c("Seven-day baseline", "Linear regression", "Recent weekday average"))),
                 class = "stage-3 chart-panel",
-                plotlyOutput("monthly_plot", height = "310px"),
+                chartOutput("monthly_plot", height = "310px"),
                 footer = "Describes when errors occurred; it cannot explain why."),
           narrate("Before trusting any of it, check the data itself."),
           div(class = "two-up stage-3",
@@ -1075,7 +1088,7 @@ server <- function(input, output, session) {
   })
 
   # Overview ---------------------------------------------------------------------------
-  output$overview_plot <- renderPlotly(chart_pooled_mae(dash$scores_overall, PERIOD_LABEL))
+  output$overview_plot <- renderChart(chart_pooled_mae(dash$scores_overall, PERIOD_LABEL))
 
   # Live tracker -------------------------------------------------------------------------
   change_ui <- function(now, before, what) {
@@ -1090,7 +1103,7 @@ server <- function(input, output, session) {
   output$live_change_ytd <- renderUI(change_ui(dash$latest$ytd, dash$latest$ytd_prev_year,
                                                "the same days last year"))
 
-  output$live_plot <- renderPlotly({
+  output$live_plot <- renderChart({
     g <- if (is.null(input$live_group)) "O" else input$live_group
     chart_live(dash$panel, dash$predictions, dash$next_days, g, DATA_END)
   })
@@ -1178,7 +1191,7 @@ server <- function(input, output, session) {
   })
   cmp_year <- reactive(as.integer(if (is.null(input$cmp_year)) LATEST else input$cmp_year))
 
-  output$cmp_group_plot <- renderPlotly({
+  output$cmp_group_plot <- renderChart({
     chart_group_mae(filter(dash$scores_by_group, evaluation_year == cmp_year()), cmp_methods())
   })
 
@@ -1195,7 +1208,7 @@ server <- function(input, output, session) {
       dt_table(c("Average error (MAE)", "Big-miss error (RMSE)", "Average bias"), page_length = 8)
   })
 
-  output$cmp_daily_plot <- renderPlotly({
+  output$cmp_daily_plot <- renderChart({
     req(input$cmp_dates)
     g <- if (is.null(input$cmp_group)) "O" else input$cmp_group
     p <- chart_daily(dash$predictions, g, cmp_methods(), input$cmp_dates[1], input$cmp_dates[2])
@@ -1206,7 +1219,7 @@ server <- function(input, output, session) {
   # Low-collection days ------------------------------------------------------------------
   low_y <- reactive(as.integer(if (is.null(input$low_year)) LATEST else input$low_year))
 
-  output$low_plot <- renderPlotly(chart_low_days(filter(dash$low_errors, evaluation_year == low_y())))
+  output$low_plot <- renderChart(chart_low_days(filter(dash$low_errors, evaluation_year == low_y())))
 
   output$cutoff_table <- renderTable({
     y <- low_y()
@@ -1252,16 +1265,16 @@ server <- function(input, output, session) {
     dash$panel |> filter(blood_type %in% g, year(date) >= yrs[1], year(date) <= yrs[2])
   })
 
-  output$weekly_plot <- renderPlotly(chart_month_totals(pattern_panel(), DATA_END))
-  output$weekday_plot <- renderPlotly({
+  output$weekly_plot <- renderChart(chart_month_totals(pattern_panel(), DATA_END))
+  output$weekday_plot <- renderChart({
     pattern_panel() |>
       mutate(weekday = factor(WEEKDAYS[wday(date, week_start = 1)], levels = WEEKDAYS)) |>
       group_by(blood_type, weekday) |>
       summarise(mean_donations = mean(donations), .groups = "drop") |>
       chart_weekday()
   })
-  output$annual_plot <- renderPlotly(chart_annual(annual_summary(pattern_panel())))
-  output$mix_plot <- renderPlotly(chart_mix(dash$blood_mix, PARTIAL_YEAR))
+  output$annual_plot <- renderChart(chart_annual(annual_summary(pattern_panel())))
+  output$mix_plot <- renderChart(chart_mix(dash$blood_mix, PARTIAL_YEAR))
 
   # About ------------------------------------------------------------------------------------------
   output$audit_table <- renderTable({
@@ -1310,7 +1323,7 @@ server <- function(input, output, session) {
       dt_table(c("Average bias", "Average error"), page_length = 8)
   })
 
-  output$monthly_plot <- renderPlotly({
+  output$monthly_plot <- renderChart({
     y <- as.integer(if (is.null(input$month_year)) LATEST else input$month_year)
     m <- if (is.null(input$month_methods) || !length(input$month_methods)) METHODS
          else input$month_methods

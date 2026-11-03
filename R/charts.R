@@ -1,8 +1,9 @@
-# Interactive charts (plotly). Every chart shares one style: transparent
-# background so the glass cards show through, the blood-red ramp, generous
-# margins, and a wine tooltip that shows exact values on hover.
-
-suppressPackageStartupMessages(library(plotly))
+# Interactive charts. Each builder returns a plain plotly.js figure
+# (list(data, layout, config)) that the browser draws with the small
+# plotly.js "basic" bundle in www/. Building figures directly, instead of with
+# the plotly R package, keeps the in-browser R download small: no ggplot2,
+# data.table, httr or stringi. Every chart shares one style: transparent
+# background, the blood-red ramp, generous margins and the glass tooltip.
 
 INK <- "#4A1426"
 MUTED <- "#8A6470"
@@ -24,184 +25,191 @@ SHORT_METHOD <- c("Seven-day baseline" = "7-day lag",
                   "Linear regression" = "Regression",
                   "Recent weekday average" = "Recent mean")
 
+fmt2 <- function(x) formatC(x, format = "f", digits = 2, big.mark = ",")
+fmt0 <- function(x) formatC(round(x), format = "d", big.mark = ",")
+
+# Arrays must stay arrays in JSON even when they hold one value.
+arr <- function(x) {
+  if (inherits(x, "Date")) x <- format(x, "%Y-%m-%d")
+  I(unname(as.vector(x)))
+}
+
 axis_style <- function(title = NULL, grid = TRUE, ...) {
   utils::modifyList(list(
     title = if (is.null(title)) list(text = "") else
-      list(text = title, standoff = 14, font = list(size = 12.5, color = MUTED)),
+      list(text = title, standoff = 14, font = list(size = 12, color = MUTED)),
     showgrid = grid, gridcolor = GRID, zeroline = FALSE, showline = FALSE,
-    tickfont = list(size = 12, color = MUTED), automargin = TRUE,
+    tickfont = list(size = 11.5, color = MUTED), automargin = TRUE,
     fixedrange = TRUE
   ), list(...))
 }
 
-glass_layout <- function(p, ytitle = NULL, xtitle = NULL, hovermode = "closest",
-                         legend = TRUE, xaxis = list(), yaxis = list(), margin = list(), ...) {
-  p |>
-    layout(
+figure <- function(traces, ytitle = NULL, xtitle = NULL, hovermode = "closest", legend = TRUE,
+                   xaxis = list(), yaxis = list(), margin = list(), ...) {
+  list(
+    data = unname(traces),
+    layout = c(list(
       paper_bgcolor = "rgba(0,0,0,0)", plot_bgcolor = "rgba(0,0,0,0)",
-      font = list(family = FONT, size = 13, color = INK),
+      font = list(family = FONT, size = 12.5, color = INK),
       margin = utils::modifyList(list(l = 12, r = 12, t = 16, b = 12, pad = 6), margin),
       xaxis = utils::modifyList(axis_style(xtitle, grid = FALSE), xaxis),
       yaxis = utils::modifyList(axis_style(ytitle), yaxis),
       showlegend = legend,
       legend = list(orientation = "h", x = 0.5, xanchor = "center", y = -0.16,
-                    yanchor = "top", font = list(size = 12.5), itemclick = "toggle",
+                    yanchor = "top", font = list(size = 12), itemclick = "toggle",
                     bgcolor = "rgba(0,0,0,0)"),
       hovermode = hovermode,
-      hoverlabel = list(bgcolor = INK, bordercolor = INK, align = "left",
-                        font = list(family = FONT, size = 13, color = "#FFFFFF")),
-      bargap = 0.32,
-      ...
-    ) |>
-    config(displayModeBar = FALSE, responsive = TRUE)
+      bargap = 0.32), list(...)),
+    config = list(displayModeBar = FALSE, responsive = TRUE)
+  )
 }
 
-fmt2 <- function(x) formatC(x, format = "f", digits = 2, big.mark = ",")
-fmt0 <- function(x) formatC(round(x), format = "d", big.mark = ",")
+bar_trace <- function(x, y, name, colour, hovertext, ...) {
+  c(list(type = "bar", x = arr(x), y = arr(y), name = name,
+         marker = list(color = colour), hovertext = arr(hovertext), hoverinfo = "text"), list(...))
+}
 
-# Grouped bars of pooled MAE per evaluation period.
+line_trace <- function(x, y, name, line, hovertemplate, mode = "lines", ...) {
+  c(list(type = "scatter", mode = mode, x = arr(x), y = arr(y), name = name,
+         line = line, hovertemplate = hovertemplate), list(...))
+}
+
+# Serialise a figure for the chart output binding.
+chart_json <- function(fig) {
+  jsonlite::toJSON(fig, auto_unbox = TRUE, null = "null", na = "null", digits = NA)
+}
+
+# Grouped bars of the average error per test period.
 chart_pooled_mae <- function(scores_overall, period_labels) {
-  d <- scores_overall |>
-    mutate(period = factor(period_labels[as.character(evaluation_year)],
-                           levels = unique(period_labels)),
-           method = factor(method, levels = METHODS),
-           tip = sprintf("<b>%s</b><br>%s<br>Average error <b>%s</b> donations a day<br>Big-miss error (RMSE) %s",
-                         method, period, fmt2(MAE), fmt2(RMSE)))
-  p <- plot_ly()
-  for (m in METHODS) {
+  d <- scores_overall
+  d$period <- period_labels[as.character(d$evaluation_year)]
+  traces <- lapply(METHODS, function(m) {
     s <- d[d$method == m, ]
-    p <- p |> add_bars(data = s, x = ~period, y = ~MAE, name = m,
-                       marker = list(color = METHOD_COL[[m]]),
-                       hovertext = ~tip, hoverinfo = "text")
-  }
-  glass_layout(p, ytitle = "Average error (donations a day)", barmode = "group",
-               yaxis = list(rangemode = "tozero"), margin = list(t = 28))
+    bar_trace(s$period, s$MAE, m, METHOD_COL[[m]],
+              sprintf("<b>%s</b><br>%s<br>Average error <b>%s</b> donations a day<br>Big-miss error (RMSE) %s",
+                      m, s$period, fmt2(s$MAE), fmt2(s$RMSE)))
+  })
+  figure(traces, ytitle = "Average error (donations a day)", barmode = "group",
+         xaxis = list(type = "category", categoryorder = "array", categoryarray = arr(unique(period_labels))),
+         yaxis = list(rangemode = "tozero"), margin = list(t = 28))
 }
 
 # A 2 x 2 grid of small multiples, one per blood group, with titles.
+# build_one(g, show_legend) returns that group's traces.
 group_grid <- function(build_one, groups = ABO_GROUPS, ytitle = NULL, legend_from = groups[1]) {
-  plots <- lapply(groups, function(g) build_one(g, show_legend = identical(g, legend_from)))
-  p <- subplot(plots, nrows = 2, shareX = FALSE, shareY = FALSE,
-               margin = c(0.045, 0.045, 0.1, 0.1))
-  p <- glass_layout(p, barmode = "group", margin = list(t = 40))
-  p <- plotly_build(p)
-  order <- unname(SHORT_METHOD)
-  ann <- list()
-  # Style every subplot axis the same way and title each panel above its plot.
+  gap_x <- 0.09; gap_y <- 0.2
+  w <- (1 - gap_x) / 2; h <- (1 - gap_y) / 2
+  order <- arr(unname(SHORT_METHOD))
+  traces <- list(); axes <- list(); ann <- list()
   for (i in seq_along(groups)) {
-    suffix <- if (i == 1) "" else i
-    xa <- paste0("xaxis", suffix); ya <- paste0("yaxis", suffix)
-    p$x$layout[[xa]] <- utils::modifyList(
-      p$x$layout[[xa]] %||% list(),
-      axis_style(grid = FALSE, categoryorder = "array", categoryarray = order))
-    p$x$layout[[ya]] <- utils::modifyList(
-      p$x$layout[[ya]] %||% list(),
-      axis_style(if (i %% 2 == 1) ytitle else NULL, rangemode = "tozero"))
-    xd <- p$x$layout[[xa]]$domain %||% c(0, 1)
-    yd <- p$x$layout[[ya]]$domain %||% c(0, 1)
+    col <- (i - 1) %% 2; row <- (i - 1) %/% 2
+    xd <- c(col * (w + gap_x), col * (w + gap_x) + w)
+    yd <- c(1 - row * (h + gap_y) - h, 1 - row * (h + gap_y))
+    sfx <- if (i == 1) "" else i
+    xref <- paste0("x", sfx); yref <- paste0("y", sfx)
+    tr <- build_one(groups[i], show_legend = identical(groups[i], legend_from))
+    tr <- lapply(tr, function(t) { t$xaxis <- xref; t$yaxis <- yref; t })
+    traces <- c(traces, tr)
+    axes[[paste0("xaxis", sfx)]] <- axis_style(grid = FALSE, domain = arr(xd), anchor = yref,
+                                               type = "category", categoryorder = "array",
+                                               categoryarray = order)
+    axes[[paste0("yaxis", sfx)]] <- axis_style(if (i %% 2 == 1) ytitle else NULL, domain = arr(yd),
+                                               anchor = xref, rangemode = "tozero")
     ann[[i]] <- list(text = paste0("<b>Group ", groups[i], "</b>"), showarrow = FALSE,
                      xref = "paper", yref = "paper", x = xd[1], y = yd[2] + 0.03,
-                     xanchor = "left", yanchor = "bottom", font = list(size = 14, color = INK))
+                     xanchor = "left", yanchor = "bottom", font = list(size = 13.5, color = INK))
   }
-  p$x$layout$annotations <- ann
-  p
+  fig <- figure(traces, barmode = "group", margin = list(t = 40), annotations = ann)
+  fig$layout <- utils::modifyList(fig$layout, axes)
+  fig
 }
 
 chart_group_mae <- function(scores_by_group, methods) {
-  d <- scores_by_group |> filter(method %in% methods)
+  d <- scores_by_group[scores_by_group$method %in% methods, ]
   group_grid(function(g, show_legend) {
-    p <- plot_ly()
-    for (m in intersect(METHODS, methods)) {
+    lapply(intersect(METHODS, methods), function(m) {
       s <- d[d$blood_type == g & d$method == m, ]
-      p <- p |> add_bars(data = s, x = SHORT_METHOD[[m]], y = ~MAE, name = m,
-                         legendgroup = m, showlegend = show_legend,
-                         marker = list(color = METHOD_COL[[m]]),
-                         hovertext = sprintf("<b>%s</b><br>Group %s<br>Average error <b>%s</b> a day<br>Big-miss error (RMSE) %s<br>%s days scored",
-                                             m, g, fmt2(s$MAE), fmt2(s$RMSE), s$observations),
-                         hoverinfo = "text")
-    }
-    p
+      bar_trace(SHORT_METHOD[[m]], s$MAE, m, METHOD_COL[[m]],
+                sprintf("<b>%s</b><br>Group %s<br>Average error <b>%s</b> a day<br>Big-miss error (RMSE) %s<br>%s days scored",
+                        m, g, fmt2(s$MAE), fmt2(s$RMSE), s$observations),
+                legendgroup = m, showlegend = show_legend)
+    })
   }, ytitle = "Average error")
 }
 
 chart_low_days <- function(low_errors) {
   group_grid(function(g, show_legend) {
-    s <- low_errors |> filter(blood_type == g) |>
-      mutate(method = factor(method, levels = METHODS)) |> arrange(method)
+    s <- low_errors[low_errors$blood_type == g, ]
+    s <- s[order(match(s$method, METHODS)), ]
     lo <- s[s$day_category == "Low collection", ]
     ot <- s[s$day_category == "Other days", ]
-    plot_ly() |>
-      add_bars(data = lo, x = SHORT_METHOD[as.character(lo$method)], y = ~MAE,
-               name = "Low-collection days", legendgroup = "low", showlegend = show_legend,
-               marker = list(color = "#7D2440"),
-               hovertext = sprintf("<b>%s</b><br>Group %s, %s low-collection days<br>Average error <b>%s</b> a day<br>Forecast too high on %s%% of them",
-                                   lo$method, g, lo$days, fmt2(lo$MAE), round(lo$overprediction_percent)),
-               hoverinfo = "text") |>
-      add_bars(data = ot, x = SHORT_METHOD[as.character(ot$method)], y = ~MAE,
-               name = "Other days", legendgroup = "other", showlegend = show_legend,
-               marker = list(color = "#F2C2CC"),
-               hovertext = sprintf("<b>%s</b><br>Group %s, %s other days<br>Average error <b>%s</b> a day",
-                                   ot$method, g, ot$days, fmt2(ot$MAE)),
-               hoverinfo = "text")
+    list(
+      bar_trace(SHORT_METHOD[lo$method], lo$MAE, "Low-collection days", "#7D2440",
+                sprintf("<b>%s</b><br>Group %s, %s low-collection days<br>Average error <b>%s</b> a day<br>Forecast too high on %s%% of them",
+                        lo$method, g, lo$days, fmt2(lo$MAE), round(lo$overprediction_percent)),
+                legendgroup = "low", showlegend = show_legend),
+      bar_trace(SHORT_METHOD[ot$method], ot$MAE, "Other days", "#F2C2CC",
+                sprintf("<b>%s</b><br>Group %s, %s other days<br>Average error <b>%s</b> a day",
+                        ot$method, g, ot$days, fmt2(ot$MAE)),
+                legendgroup = "other", showlegend = show_legend))
   }, ytitle = "Average error")
+}
+
+recorded_trace <- function(x, y) {
+  line_trace(x, y, "Recorded", list(color = INK, width = 3),
+             "Recorded: <b>%{y:,.0f}</b><extra></extra>", mode = "lines+markers",
+             marker = list(color = "#FFFFFF", size = 6, line = list(color = INK, width = 2)))
 }
 
 # Daily lines: recorded donations (dark) and each method's forecast.
 chart_daily <- function(predictions, group, methods, from, to) {
-  d <- predictions |> filter(blood_type == group, method %in% methods, date >= from, date <= to)
+  d <- predictions[predictions$blood_type == group & predictions$method %in% methods &
+                     predictions$date >= from & predictions$date <= to, ]
   if (!nrow(d)) return(NULL)
-  actual <- distinct(d, date, donations)
-  p <- plot_ly()
-  for (m in intersect(METHODS, methods)) {
-    s <- d[d$method == m, ]
-    p <- p |> add_lines(data = s, x = ~date, y = ~prediction, name = m,
-                        line = list(color = METHOD_COL[[m]], width = 1.8, dash = METHOD_DASH[[m]]),
-                        hovertemplate = paste0(m, ": <b>%{y:,.0f}</b><extra></extra>"))
-  }
-  p |>
-    add_trace(data = actual, x = ~date, y = ~donations, type = "scatter", mode = "lines+markers",
-              name = "Recorded", line = list(color = INK, width = 3),
-              marker = list(color = "#FFFFFF", size = 6, line = list(color = INK, width = 2)),
-              hovertemplate = "Recorded: <b>%{y:,.0f}</b><extra></extra>") |>
-    glass_layout(ytitle = paste("Group", group, "donations per day"), hovermode = "x unified",
-                 xaxis = list(tickformat = "%d %b", hoverformat = "%a %d %b %Y"))
+  actual <- unique(d[, c("date", "donations")])
+  actual <- actual[order(actual$date), ]
+  traces <- lapply(intersect(METHODS, methods), function(m) {
+    s <- d[d$method == m, ]; s <- s[order(s$date), ]
+    line_trace(s$date, s$prediction, m,
+               list(color = METHOD_COL[[m]], width = 1.8, dash = METHOD_DASH[[m]]),
+               paste0(m, ": <b>%{y:,.0f}</b><extra></extra>"))
+  })
+  figure(c(traces, list(recorded_trace(actual$date, actual$donations))),
+         ytitle = paste("Group", group, "donations per day"), hovermode = "x unified",
+         xaxis = list(type = "date", tickformat = "%d %b", hoverformat = "%a %d %b %Y"))
 }
 
 # Last 60 days plus the next seven, with the forecast window shaded.
 chart_live <- function(panel, predictions, next_days, group, data_end) {
   from <- data_end - 59
-  actual <- panel |> filter(blood_type == group, date >= from)
-  past <- predictions |> filter(blood_type == group, date >= from)
-  ahead <- next_days |> filter(blood_type == group)
-  p <- plot_ly()
+  actual <- panel[panel$blood_type == group & panel$date >= from, ]
+  actual <- actual[order(actual$date), ]
+  past <- predictions[predictions$blood_type == group & predictions$date >= from, ]
+  ahead <- next_days[next_days$blood_type == group, ]
+  traces <- list()
   for (m in METHODS) {
-    s <- past[past$method == m, ]
-    a <- ahead[ahead$method == m, ]
-    p <- p |>
-      add_lines(data = s, x = ~date, y = ~prediction, name = m, legendgroup = m,
-                line = list(color = METHOD_COL[[m]], width = 1.6, dash = METHOD_DASH[[m]]),
-                hovertemplate = paste0(m, ": <b>%{y:,.0f}</b><extra></extra>")) |>
-      add_trace(data = a, x = ~date, y = ~prediction, type = "scatter", mode = "lines+markers",
-                name = paste(m, "(next 7 days)"), legendgroup = m, showlegend = FALSE,
-                line = list(color = METHOD_COL[[m]], width = 2.4, dash = "dot"),
-                marker = list(color = METHOD_COL[[m]], size = 6),
-                hovertemplate = paste0(m, " forecast: <b>%{y:,.0f}</b><extra></extra>"))
+    s <- past[past$method == m, ]; s <- s[order(s$date), ]
+    a <- ahead[ahead$method == m, ]; a <- a[order(a$date), ]
+    traces <- c(traces, list(
+      line_trace(s$date, s$prediction, m,
+                 list(color = METHOD_COL[[m]], width = 1.6, dash = METHOD_DASH[[m]]),
+                 paste0(m, ": <b>%{y:,.0f}</b><extra></extra>"), legendgroup = m),
+      line_trace(a$date, a$prediction, paste(m, "(next 7 days)"),
+                 list(color = METHOD_COL[[m]], width = 2.4, dash = "dot"),
+                 paste0(m, " forecast: <b>%{y:,.0f}</b><extra></extra>"), mode = "lines+markers",
+                 marker = list(color = METHOD_COL[[m]], size = 6), legendgroup = m,
+                 showlegend = FALSE)))
   }
-  p |>
-    add_trace(data = actual, x = ~date, y = ~donations, type = "scatter", mode = "lines+markers",
-              name = "Recorded", line = list(color = INK, width = 3),
-              marker = list(color = "#FFFFFF", size = 6, line = list(color = INK, width = 2)),
-              hovertemplate = "Recorded: <b>%{y:,.0f}</b><extra></extra>") |>
-    glass_layout(ytitle = paste("Group", group, "donations per day"), hovermode = "x unified",
-                 xaxis = list(tickformat = "%d %b", hoverformat = "%a %d %b %Y"),
-                 shapes = list(list(type = "rect", xref = "x", yref = "paper",
-                                    x0 = as.character(data_end + 0.5),
-                                    x1 = as.character(max(ahead$date) + 0.5),
-                                    y0 = 0, y1 = 1, fillcolor = "rgba(242,179,192,0.28)",
-                                    line = list(width = 0), layer = "below")),
-                 annotations = list(list(x = as.character(data_end + 4), y = 1, xref = "x",
-                                         yref = "paper", yanchor = "bottom", showarrow = FALSE,
-                                         text = "Next 7 days", font = list(size = 12, color = MUTED))))
+  traces <- c(traces, list(recorded_trace(actual$date, actual$donations)))
+  figure(traces, ytitle = paste("Group", group, "donations per day"), hovermode = "x unified",
+         xaxis = list(type = "date", tickformat = "%d %b", hoverformat = "%a %d %b %Y"),
+         shapes = list(list(type = "rect", xref = "x", yref = "paper",
+                            x0 = format(data_end + 0.5), x1 = format(max(ahead$date) + 0.5),
+                            y0 = 0, y1 = 1, fillcolor = "rgba(242,179,192,0.28)",
+                            line = list(width = 0), layer = "below")),
+         annotations = list(list(x = format(data_end + 4), y = 1, xref = "x",
+                                 yref = "paper", yanchor = "bottom", showarrow = FALSE,
+                                 text = "Next 7 days", font = list(size = 12, color = MUTED))))
 }
 
 # Monthly totals stacked by blood group. An unfinished final month is left out
@@ -212,88 +220,63 @@ chart_month_totals <- function(panel, data_end) {
     group_by(month, blood_type) |>
     summarise(donations = sum(donations), .groups = "drop")
   if (data_end < ceiling_date(data_end, "month") - 1) d <- d[d$month < floor_date(data_end, "month"), ]
-  p <- plot_ly()
-  for (g in intersect(c("O", "B", "A", "AB"), unique(d$blood_type))) {
+  traces <- lapply(intersect(c("O", "B", "A", "AB"), unique(d$blood_type)), function(g) {
     s <- d[d$blood_type == g, ]
-    p <- p |> add_trace(data = s, x = ~month, y = ~donations, type = "scatter", mode = "lines",
-                        stackgroup = "one", name = paste("Group", g),
-                        line = list(color = GROUP_COL[[g]], width = 0.6),
-                        fillcolor = GROUP_COL[[g]],
-                        hovertemplate = paste0("Group ", g, ": <b>%{y:,.0f}</b><extra></extra>"))
-  }
-  glass_layout(p, ytitle = "Donations per month", hovermode = "x unified",
-               xaxis = list(hoverformat = "%B %Y"))
-}
-
-chart_weekly <- function(weekly) {
-  p <- plot_ly()
-  for (g in intersect(ABO_GROUPS, unique(weekly$blood_type))) {
-    s <- weekly[weekly$blood_type == g, ]
-    p <- p |> add_lines(data = s, x = ~week_start, y = ~donations, name = paste("Group", g),
-                        line = list(color = GROUP_COL[[g]], width = 1.4),
-                        hovertemplate = paste0("Group ", g, ": <b>%{y:,.0f}</b><extra></extra>"))
-  }
-  glass_layout(p, ytitle = "Donations per week", hovermode = "x unified",
-               xaxis = list(hoverformat = "Week of %d %b %Y"))
+    line_trace(s$month, s$donations, paste("Group", g), list(color = GROUP_COL[[g]], width = 0.6),
+               paste0("Group ", g, ": <b>%{y:,.0f}</b><extra></extra>"),
+               stackgroup = "one", fillcolor = GROUP_COL[[g]])
+  })
+  figure(traces, ytitle = "Donations per month", hovermode = "x unified",
+         xaxis = list(type = "date", hoverformat = "%B %Y"))
 }
 
 chart_weekday <- function(weekday_means) {
-  p <- plot_ly()
-  for (g in intersect(ABO_GROUPS, unique(weekday_means$blood_type))) {
+  traces <- lapply(intersect(ABO_GROUPS, unique(weekday_means$blood_type)), function(g) {
     s <- weekday_means[weekday_means$blood_type == g, ]
-    p <- p |> add_bars(data = s, x = ~substr(as.character(weekday), 1, 3), y = ~mean_donations,
-                       name = paste("Group", g), marker = list(color = GROUP_COL[[g]]),
-                       hovertext = sprintf("<b>Group %s, %s</b><br>Mean <b>%s</b> donations a day",
-                                           g, s$weekday, fmt0(s$mean_donations)),
-                       hoverinfo = "text")
-  }
-  glass_layout(p, ytitle = "Mean donations a day", barmode = "group",
-               xaxis = list(categoryorder = "array", categoryarray = substr(WEEKDAYS, 1, 3)))
+    bar_trace(substr(as.character(s$weekday), 1, 3), s$mean_donations, paste("Group", g),
+              GROUP_COL[[g]],
+              sprintf("<b>Group %s, %s</b><br>Mean <b>%s</b> donations a day",
+                      g, s$weekday, fmt0(s$mean_donations)))
+  })
+  figure(traces, ytitle = "Mean donations a day", barmode = "group",
+         xaxis = list(type = "category", categoryorder = "array",
+                      categoryarray = arr(substr(WEEKDAYS, 1, 3))))
 }
 
 chart_annual <- function(annual) {
-  p <- plot_ly()
-  for (g in intersect(ABO_GROUPS, unique(annual$blood_type))) {
+  traces <- lapply(intersect(ABO_GROUPS, unique(annual$blood_type)), function(g) {
     s <- annual[annual$blood_type == g, ]
-    p <- p |> add_trace(data = s, x = ~year, y = ~mean_daily, type = "scatter",
-                        mode = "lines+markers", name = paste("Group", g),
-                        line = list(color = GROUP_COL[[g]], width = 2.2),
-                        marker = list(color = GROUP_COL[[g]], size = 6),
-                        hovertemplate = paste0("Group ", g, ": <b>%{y:,.1f}</b> a day<extra></extra>"))
-  }
-  glass_layout(p, ytitle = "Mean donations a day", hovermode = "x unified",
-               xaxis = list(dtick = 2))
+    line_trace(s$year, s$mean_daily, paste("Group", g), list(color = GROUP_COL[[g]], width = 2.2),
+               paste0("Group ", g, ": <b>%{y:,.1f}</b> a day<extra></extra>"),
+               mode = "lines+markers", marker = list(color = GROUP_COL[[g]], size = 6))
+  })
+  figure(traces, ytitle = "Mean donations a day", hovermode = "x unified", xaxis = list(dtick = 2))
 }
 
 chart_mix <- function(mix, partial_year = NULL) {
   py <- if (is.null(partial_year)) NA_integer_ else partial_year
-  mix <- mix |> mutate(label = ifelse(!is.na(py) & year == py,
-                                      paste0(year, " so far"), as.character(year)))
-  p <- plot_ly()
-  for (g in c("O", "B", "A", "AB")) {
+  mix$label <- ifelse(!is.na(py) & mix$year == py, paste0(mix$year, " so far"), as.character(mix$year))
+  traces <- lapply(c("O", "B", "A", "AB"), function(g) {
     s <- mix[mix$blood_type == g, ]
-    p <- p |> add_bars(data = s, x = ~label, y = ~share, name = paste("Group", g),
-                       marker = list(color = GROUP_COL[[g]]),
-                       hovertext = sprintf("<b>%s, group %s</b><br><b>%.1f%%</b> of recorded donations<br>%s donations",
-                                           s$label, g, 100 * s$share, fmt0(s$donations)),
-                       hoverinfo = "text")
-  }
-  glass_layout(p, ytitle = "Share of recorded donations", barmode = "stack",
-               yaxis = list(tickformat = ".0%", range = c(0, 1)),
-               xaxis = list(tickangle = -45, type = "category"))
+    bar_trace(s$label, s$share, paste("Group", g), GROUP_COL[[g]],
+              sprintf("<b>%s, group %s</b><br><b>%.1f%%</b> of recorded donations<br>%s donations",
+                      s$label, g, 100 * s$share, fmt0(s$donations)))
+  })
+  figure(traces, ytitle = "Share of recorded donations", barmode = "stack",
+         yaxis = list(tickformat = ".0%", range = arr(c(0, 1))),
+         xaxis = list(tickangle = -45, type = "category"))
 }
 
 chart_monthly <- function(monthly, methods) {
-  d <- monthly |> filter(method %in% methods) |> mutate(month = as.Date(paste0(month, "-01")))
-  p <- plot_ly()
-  for (m in intersect(METHODS, methods)) {
-    s <- d[d$method == m, ]
-    p <- p |> add_trace(data = s, x = ~month, y = ~MAE, type = "scatter", mode = "lines+markers",
-                        name = m, line = list(color = METHOD_COL[[m]], width = 2.4),
-                        marker = list(color = METHOD_COL[[m]], size = 7),
-                        hovertemplate = paste0(m, ": off by <b>%{y:.1f}</b> a day<extra></extra>"))
-  }
-  glass_layout(p, ytitle = "Average error (donations)", hovermode = "x unified",
-               xaxis = list(tickformat = "%b", dtick = "M1", hoverformat = "%B %Y"),
-               yaxis = list(rangemode = "tozero"))
+  d <- monthly[monthly$method %in% methods, ]
+  d$month <- as.Date(paste0(d$month, "-01"))
+  traces <- lapply(intersect(METHODS, methods), function(m) {
+    s <- d[d$method == m, ]; s <- s[order(s$month), ]
+    line_trace(s$month, s$MAE, m, list(color = METHOD_COL[[m]], width = 2.4),
+               paste0(m, ": off by <b>%{y:.1f}</b> a day<extra></extra>"),
+               mode = "lines+markers", marker = list(color = METHOD_COL[[m]], size = 7))
+  })
+  figure(traces, ytitle = "Average error (donations)", hovermode = "x unified",
+         xaxis = list(type = "date", tickformat = "%b", dtick = "M1", hoverformat = "%B %Y"),
+         yaxis = list(rangemode = "tozero"))
 }

@@ -2136,3 +2136,10 @@ table.dataTable thead th.sorting, table.dataTable thead th.sorting_asc, table.da
 /* Reports */
 .paper { max-width: 720px; padding: 44px 48px 40px; min-height: 0; }
 .paper-stage { padding: 22px; }
+.kvbd-chart:not(:has(.plot-container)) {
+  border-radius: var(--r-md);
+  background: linear-gradient(100deg, var(--surface-2) 30%, var(--blush-2) 50%, var(--surface-2) 70%);
+  background-size: 220% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+.kvbd-chart.shiny-output-error { animation: none; background: none; height: auto !important; }
