@@ -2453,3 +2453,23 @@ html[data-theme=dark] .panel.panel-ink { border-color: rgba(255, 150, 175, 0.16)
   .ov-mini .flip-hint i, .ov-mini .flip-hint svg { font-size: 0.72rem; }
   .ov-mini .flip-label { padding-right: 28px; }
 }
+
+/* Every chart sits on an ink panel: controls, tabs and notes inside it, restyled for the dark ground */
+.panel-ink .chips .checkbox-inline span { background: rgba(255, 255, 255, 0.06); border-color: rgba(255, 255, 255, 0.16); color: rgba(247, 233, 236, 0.8); }
+.panel-ink .chips .checkbox-inline span::before { border-color: rgba(255, 255, 255, 0.4); }
+.panel-ink .chips .checkbox-inline:hover span { border-color: #F27C97; }
+.panel-ink .chips .checkbox-inline:has(input:checked) span { background: rgba(242, 124, 151, 0.18); border-color: #F27C97; color: #fff; }
+.panel-ink .chips .checkbox-inline:has(input:checked) span::before { border-color: #F27C97; background: #F27C97; box-shadow: inset 0 0 0 3px #3A0F1E; }
+.panel-ink .control .input-daterange .form-control { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.16); color: #fff; color-scheme: dark; }
+.panel-ink .control .input-daterange .form-control:focus { border-color: #F27C97; box-shadow: 0 0 0 3px rgba(242, 124, 151, 0.25); }
+.panel-ink .control .input-daterange .input-group-addon, .panel-ink .control .input-daterange .input-group-text { background: transparent; border: 0; color: rgba(247, 233, 236, 0.6); }
+.panel-ink .kv-tabs { background: rgba(255, 255, 255, 0.07); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.panel-ink .kv-tab { color: rgba(247, 233, 236, 0.75); }
+.panel-ink .kv-tab:hover { color: #fff; }
+.panel-ink .kv-tab-thumb { background: linear-gradient(180deg, #F27C97, #C93A5F); box-shadow: 0 4px 14px rgba(201, 58, 95, 0.45); }
+.panel-ink .tab-note { color: rgba(247, 233, 236, 0.75); }
+.panel-ink .tab-foot { color: rgba(247, 233, 236, 0.55); }
+.panel-ink .panel-sub .phone-only { color: inherit; }
+.panel-ink .kvbd-chart .barlayer .point path { filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45)); }
+.panel-ink .kvbd-chart.is-focus .barlayer .point.is-hot path { filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55)) brightness(1.08); }
+.panel-ink .chips .checkbox-inline span::before { background: transparent; }
