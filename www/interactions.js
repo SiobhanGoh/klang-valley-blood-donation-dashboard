@@ -904,3 +904,32 @@
     if (e.target.closest && e.target.closest(".rail-item, [data-target]")) setTimeout(placeAll, 450);
   });
 })();
+
+// ---------- Today's story: a floating arrow while there is more to read ----------
+(function () {
+  function update(side) {
+    var more = side.scrollHeight - side.clientHeight;
+    side.classList.toggle("no-scroll", more <= 4);
+    side.classList.toggle("is-end", side.scrollTop >= more - 4);
+  }
+  function wire() {
+    var side = document.querySelector(".ov-side");
+    if (!side || side.__moreWired) return;
+    side.__moreWired = true;
+    side.addEventListener("scroll", function () { update(side); }, { passive: true });
+    window.addEventListener("resize", function () { update(side); });
+    var btn = side.querySelector(".ov-more-btn");
+    if (btn) btn.addEventListener("click", function () {
+      side.scrollBy({ top: side.clientHeight * 0.7, behavior: "smooth" });
+    });
+    update(side);
+    setTimeout(function () { update(side); }, 800);
+  }
+  document.addEventListener("DOMContentLoaded", wire);
+  window.addEventListener("load", wire);
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest("[data-target='overview']")) {
+      setTimeout(function () { var s = document.querySelector(".ov-side"); if (s) update(s); }, 400);
+    }
+  });
+})();

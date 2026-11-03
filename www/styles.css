@@ -2473,3 +2473,37 @@ html[data-theme=dark] .panel.panel-ink { border-color: rgba(255, 150, 175, 0.16)
 .panel-ink .kvbd-chart .barlayer .point path { filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.45)); }
 .panel-ink .kvbd-chart.is-focus .barlayer .point.is-hot path { filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.55)) brightness(1.08); }
 .panel-ink .chips .checkbox-inline span::before { background: transparent; }
+
+/* Today's story: room at the bottom, a soft fade, and a floating "more below" arrow */
+.ov-side { padding-bottom: 30px; overscroll-behavior: contain; }
+.ov-more { position: sticky; bottom: 0; z-index: 2; flex: 0 0 auto; height: 76px; margin: -76px -22px -30px;
+  display: flex; align-items: flex-end; justify-content: center; padding-bottom: 14px; pointer-events: none;
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--surface) 0%, transparent), var(--surface) 72%);
+  border-radius: 0 0 var(--r-xl) var(--r-xl); transition: opacity 300ms var(--ease-out); }
+.ov-more-btn { pointer-events: auto; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%;
+  border: 1px solid var(--hairline); background: var(--surface); color: var(--wine); font-size: 0.78rem; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(74, 20, 38, 0.16); animation: moreBob 1.8s var(--ease-out) infinite;
+  transition: transform var(--t-fast), box-shadow var(--t-fast); }
+.ov-more-btn:hover { box-shadow: 0 8px 20px rgba(74, 20, 38, 0.24); animation-play-state: paused; transform: translateY(2px); }
+@keyframes moreBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+.ov-side.is-end .ov-more, .ov-side.no-scroll .ov-more { opacity: 0; }
+.ov-side.is-end .ov-more-btn, .ov-side.no-scroll .ov-more-btn { pointer-events: none; }
+@media (max-width: 1240px) { .ov-more { display: none; } }
+@media (prefers-reduced-motion: reduce) { .ov-more-btn { animation: none; } }
+/* The fade reaches the card's bottom edge, so nothing peeks out beneath it */
+.ov-more { bottom: -30px; margin-bottom: -30px; padding-bottom: 44px; height: 106px; margin-top: -106px;
+  background: linear-gradient(to bottom, transparent, color-mix(in srgb, var(--surface) 94%, transparent) 62%); }
+
+/* Today's story: a soft rose sheen that drifts slowly across the card */
+.ov-side {
+  --sheen: rgba(242, 124, 151, 0.16); --glow: rgba(242, 124, 151, 0.14);
+  background:
+    linear-gradient(115deg, transparent 32%, var(--sheen) 46%, transparent 60%) 0 0 / 260% 100% no-repeat,
+    radial-gradient(70% 40% at 100% 0%, var(--glow), transparent 70%),
+    radial-gradient(60% 30% at 0% 100%, rgba(201, 58, 95, 0.06), transparent 70%),
+    var(--surface);
+  animation: sideSheen 11s ease-in-out infinite alternate;
+}
+html[data-theme="dark"] .ov-side { --sheen: rgba(242, 124, 151, 0.10); --glow: rgba(242, 124, 151, 0.12); }
+@keyframes sideSheen { from { background-position: 120% 0, 0 0, 0 0, 0 0; } to { background-position: -20% 0, 0 0, 0 0, 0 0; } }
+@media (prefers-reduced-motion: reduce) { .ov-side { animation: none; } }

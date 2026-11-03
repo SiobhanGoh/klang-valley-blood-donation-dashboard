@@ -810,7 +810,10 @@ ui <- page(
                   tags$button(class = "btn-pill btn-primary-solid", type = "button",
                               `data-target` = "live", "See the latest data", icon("arrow-right")),
                   tags$button(class = "btn-pill btn-quiet", type = "button",
-                              `data-target` = "blood101", "Can I donate?")))),
+                              `data-target` = "blood101", "Can I donate?")),
+              div(class = "ov-more", `aria-hidden` = "true",
+                  tags$button(class = "ov-more-btn", type = "button", tabindex = "-1",
+                              title = "Scroll down", icon("chevron-down"))))),
           chapter_nav("overview")
         ),
 
