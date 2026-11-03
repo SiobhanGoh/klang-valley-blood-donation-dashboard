@@ -141,6 +141,16 @@ MIX_LINE <- if (diff(o_range) < 5) {
 } else "And who gives? The mix of blood groups shifts only slowly from year to year."
 
 wk <- pct_change(dash$latest$last7, dash$latest$last7_prev_year)
+# "yesterday" when the data is a day old (the usual case), otherwise the date.
+DAY_PHRASE <- local({
+  lag_days <- as.integer(Sys.Date() - DATA_END)
+  if (identical(lag_days, 0L)) "today" else if (identical(lag_days, 1L)) "yesterday"
+  else paste("on", gsub("  ", " ", format(DATA_END, "%A, %e %B")))
+})
+signed_span <- function(x, digits = 1, suffix = "%") {
+  if (is.na(x)) return(span("n/a"))
+  count_span(abs(x), digits, prefix = if (x >= 0) "+" else "\u2212", suffix = suffix)
+}
 WEEK_CHANGE <- if (is.na(wk)) "n/a" else paste0(if (wk >= 0) "+" else "\u2212", fmt(abs(wk), 1), "%")
 
 LIMITS_MAP <- list(
@@ -177,10 +187,16 @@ change_words <- function(now, before) {
 # --- Building blocks ----------------------------------------------------------------
 
 # Numbers that count up when their page opens (see www/interactions.js).
-count_span <- function(x, digits = 0) {
+# A number that counts up when it comes into view. `burst` adds a small
+# splash of drops as it lands, for the headline numbers.
+count_span <- function(x, digits = 0, prefix = "", suffix = "", burst = FALSE, delay = 0) {
   span(class = "countup", `data-count` = x, `data-decimals` = digits,
-       if (digits == 0) fmt_int(x) else fmt(x, digits))
+       `data-prefix` = if (nzchar(prefix)) prefix, `data-suffix` = if (nzchar(suffix)) suffix,
+       `data-burst` = if (burst) "true", `data-delay` = if (delay > 0) delay,
+       paste0(prefix, if (digits == 0) fmt_int(x) else fmt(x, digits), suffix), .noWS = "outside")
 }
+# A friendly line that types in word by word before the number it introduces.
+lead_in <- function(...) p(class = "lead-in", ...)
 
 # Highlight the terms a reader should remember: method names and key phrases.
 KEY_TERMS <- c(METHODS, "recent weekday average", "linear regression", "seven-day lag",
@@ -199,6 +215,18 @@ wave <- function(class = "") {
                      d = "M0 60 C150 20 300 100 450 60 S750 20 900 60 S1150 100 1200 60 V120 H0 Z"),
            tags$path(class = "wave-front",
                      d = "M0 75 C200 40 350 110 600 75 S1000 40 1200 75 V120 H0 Z"))
+}
+
+# Seven small columns for the last seven days, busiest day labelled.
+mini_cols <- function(values) {
+  mx <- max(values, 1); top <- which.max(values)
+  div(class = "mini-cols",
+      lapply(seq_along(values), function(i)
+        div(class = paste("mc", if (i == top) "is-top"), title = paste(names(values)[i], fmt_int(values[[i]])),
+            style = sprintf("--h:%.0f%%;--i:%d", 100 * values[[i]] / mx, i - 1),
+            span(class = "mc-val", if (i == top) fmt_int(values[[i]]) else ""),
+            span(class = "mc-bar"),
+            span(class = "mc-lab", substr(names(values)[i], 1, 2)))))
 }
 
 # Horizontal mini bars used on card backs.
@@ -325,6 +353,29 @@ term <- function(text, key) {
 
 # A line of narration that carries the reader from one panel to the next.
 narrate <- function(...) p(class = "narration stage-3", ...)
+
+# Tabs: one tab bar, one pane showing at a time, so a page reads as a few
+# short views instead of one long scroll.
+tab <- function(label, ..., icon = NULL) list(label = label, icon = icon, content = tagList(...))
+tab_set <- function(id, tabs, class = "") {
+  div(class = paste("kv-tabset", class), id = id,
+      div(class = "kv-tabs", role = "tablist",
+          lapply(seq_along(tabs), function(i)
+            tags$button(type = "button", class = paste("kv-tab", if (i == 1) "is-on"), role = "tab",
+                        `aria-selected` = if (i == 1) "true" else "false", `data-tab` = i,
+                        if (!is.null(tabs[[i]]$icon)) icon(tabs[[i]]$icon),
+                        span(tabs[[i]]$label)))),
+      lapply(seq_along(tabs), function(i)
+        div(class = paste("kv-pane", if (i == 1) "is-on"), role = "tabpanel", `data-pane` = i,
+            hidden = if (i != 1) NA, tabs[[i]]$content)))
+}
+
+# A fold: a quiet button that opens to show detail kept out of the way.
+fold <- function(label, ..., open = FALSE) {
+  tags$details(class = "fold", open = if (open) NA,
+               tags$summary(span(class = "fold-label", label), span(class = "fold-chev", icon("chevron-down"))),
+               div(class = "fold-body", ...))
+}
 
 # A scene that holds several tiles: the same white panel as every other scene,
 # so each page reads as one storyboard of numbered scenes.
@@ -645,24 +696,26 @@ ui <- page(
                             span(class = "chapter-badge", icon("droplet")),
                             span(class = "chapter-name", "Overview")),
                         status_pill),
-                    div(class = "ov-kicker", "Latest day"),
-                    div(class = "ov-big", count_span(dash$latest$latest_total)),
-                    p(class = "ov-unit", "donations recorded on ",
-                      strong(format(DATA_END, "%a %e %b") |> gsub(pattern = "  ", replacement = " "),
-                             .noWS = "outside"),
-                      ", Selangor and W.P. Kuala Lumpur combined.")),
+                    div(class = "ov-reveal", `data-reveal-group` = "hero",
+                        lead_in(paste0("Let's see how many donations were made ", DAY_PHRASE, "\u2026")),
+                        div(class = "ov-big", count_span(dash$latest$latest_total, burst = TRUE)),
+                        p(class = "ov-unit",
+                          paste0("donations across Selangor and W.P. Kuala Lumpur",
+                                 if (DAY_PHRASE %in% c("today", "yesterday"))
+                                   paste0(" (", gsub("  ", " ", format(DATA_END, "%a %e %b")), ")") else "",
+                                 ". Every one of them is someone who made time to help.")))),
                 div(class = "stat-grid ov-mini stage-2",
-                    flip_card("Past 7 days", count_span(dash$latest$last7), WEEK_LINE,
-                              "Last seven days", mini_bars(LAST7_BARS)),
-                    flip_card(paste(END_YEAR, "so far"), count_span(dash$latest$ytd), YTD_LINE,
+                    flip_card("This past week", count_span(dash$latest$last7, delay = 150), WEEK_LINE,
+                              "Last seven days", mini_cols(LAST7_BARS)),
+                    flip_card(paste("So far in", END_YEAR), count_span(dash$latest$ytd, delay = 250), YTD_LINE,
                               "Latest day, by group",
                               mini_bars(latest_groups, highlight = names(which.max(latest_groups)))),
-                    flip_card("Best method's error", count_span(BEST_MAE, 1),
+                    flip_card("Our best forecast was off by", count_span(BEST_MAE, 1, delay = 350),
                               method_phrase(BEST_METHOD), "Error by blood group",
                               mini_bars(group_mae(BEST_METHOD), digits = 1), "tone-hero"),
-                    flip_card("Low days forecast too high", span(pct_text(LOW_OVER_PCT)),
+                    flip_card("Quiet days we guessed too high", count_span(LOW_OVER_PCT, 0, suffix = "%", delay = 450),
                               sprintf("%d of %d low days", round(LOW_OVER_PCT * LOW_DAYS / 100), LOW_DAYS),
-                              "Low days forecast too high, %",
+                              "Guessed too high, %",
                               mini_bars(LOW_OVER_BARS, digits = 0)))),
               panel("How far off each method was, year by year",
                     sub = tagList("The ", term("average error", "error"), " of each method in each ",
@@ -673,21 +726,21 @@ ui <- page(
                     chartOutput("overview_plot", height = "300px"),
                     footer = paste("Each period's averages and regression are fitted only on earlier",
                                    "years. Training windows overlap, so the periods are not independent tests.")),
-              narrate("The story in five parts. Start anywhere, or read them in order."),
+              narrate("Here's the story in five parts. Dip in anywhere, or read them in order."),
               div(
                 class = "story-strip stage-3", role = "list",
-                story_card("live", "This week", WEEK_CHANGE,
+                story_card("live", "This week", signed_span(wk),
                            "donations in the past seven days, against the same week last year"),
-                story_card("compare", "The winner", paste0("\u2212", pct_text(BEST_GAIN)),
+                story_card("compare", "The winner", count_span(BEST_GAIN, 0, prefix = "\u2212", suffix = "%"),
                            sprintf("error with the %s, against repeating last week's count",
                                    method_phrase(BEST_METHOD))),
-                story_card("low", "The blind spot", pct_text(LOW_OVER_PCT),
+                story_card("low", "The blind spot", count_span(LOW_OVER_PCT, 0, suffix = "%"),
                            sprintf("of %d low-collection days forecast too high by the best method",
                                    LOW_DAYS)),
                 story_card("patterns", "The rhythm", BUSIEST_DAY,
                            sprintf("is the busiest day, with %s times a %s's donations",
                                    fmt(BUSY_RATIO, 1), QUIETEST_DAY)),
-                story_card("blood101", "Your part", "3 months",
+                story_card("blood101", "Your part", tagList(count_span(3), " months"),
                            "the minimum gap between donations. Donors can be aged 17 to 70")),
               div(class = "intro ov-intro stage-3",
                   div(class = "intro-copy",
@@ -733,11 +786,11 @@ ui <- page(
         nav_panel_hidden(
           "live",
           chapter_head("live",
-                       paste0(fmt_int(dash$latest$latest_total), " donations on ",
-                              format(DATA_END, "%e %B") |> trimws(), "."),
-                       paste0("The past week brought ", fmt_int(dash$latest$last7), " donations, ",
+                       tagList("Here's the latest: ", count_span(dash$latest$latest_total, burst = TRUE),
+                               " donations ", DAY_PHRASE, "."),
+                       paste0("That makes ", fmt_int(dash$latest$last7), " this past week, ",
                               change_words(dash$latest$last7, dash$latest$last7_prev_year),
-                              ". Below: the last 60 days, and what each method expects next.")),
+                              ". Scroll on for the last 60 days, and what each method expects next.")),
           div(class = "kpi-row stage-2",
               kpi("Latest day", count_span(dash$latest$latest_total),
                   paste("donations recorded on", fmt_date(DATA_END)), "kpi-hero"),
@@ -769,11 +822,12 @@ ui <- page(
         nav_panel_hidden(
           "compare",
           chapter_head("compare",
-                       sprintf("The %s wins, by %s.", method_phrase(BEST_METHOD), pct_text(BEST_GAIN)),
+                       tagList("So, which forecast did best? The ", method_phrase(BEST_METHOD), ", with ",
+                               count_span(BEST_GAIN, 0, suffix = "%"), " less error."),
                        sprintf(paste("In %s its forecasts were off by %s donations per blood group",
                                      "per day, against %s for simply repeating last week's count."),
                                LATEST_LABEL, fmt(BEST_MAE), fmt(LAG_MAE)),
-                       stat = big_stat(fmt(BEST_MAE, 1), "average daily error, best method")),
+                       stat = big_stat(count_span(BEST_MAE, 1, burst = TRUE), "average daily error, best method")),
           div(class = "control-bar stage-2",
               seg("cmp_year", "Test period", PERIOD_CHOICES, as.character(LATEST)),
               chips("cmp_methods", "Methods", METHODS, METHODS)),
@@ -786,7 +840,7 @@ ui <- page(
           panel("Scores", class = "stage-3",
                 sub = tagList("Every number behind the charts. ", term("Big-miss error", "rmse"), " and ",
                               term("average bias", "bias"), " are explained when you hover them."),
-                uiOutput("cmp_table")),
+                fold("Show every score", uiOutput("cmp_table"))),
           narrate("Averages hide the day-to-day story. Here is how each forecast tracked the ",
                   "real count, one day at a time."),
           panel("Recorded and forecast, day by day",
@@ -819,7 +873,7 @@ ui <- page(
                                              "other days. This looks back at what happened; it is not an",
                                              "early warning."),
                                        method_phrase(BEST_METHOD), fmt(LOW_MAE, 1), fmt(OTHER_MAE, 1))),
-                       stat = big_stat(pct_text(LOW_OVER_PCT),
+                       stat = big_stat(count_span(LOW_OVER_PCT, 0, suffix = "%", burst = TRUE),
                                        sprintf("of %d low days forecast too high, %s", LOW_DAYS, LATEST_SHORT))),
           div(class = "control-bar stage-2",
               seg("low_year", "Test period", PERIOD_CHOICES, as.character(LATEST))),
@@ -830,19 +884,24 @@ ui <- page(
                 sub = tagList("Dark bars: ", term("low-collection days", "low_day"), ". Light bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day lag, weekday mean, regression, recent mean.")),
                 class = "stage-3 chart-panel", chartOutput("low_plot", height = "500px")),
           narrate(LOW_WHY),
-          div(class = "two-up stage-3",
-              panel("Low-day lines", tableOutput("cutoff_table"),
-                    sub = tagList("For each blood group, a day counts as low at or below this count: the ",
-                                  term("lower quartile", "quartile"), " of earlier years."),
-                    footer = "A lower-quartile count is not a clinical shortage threshold."),
-              panel("Why the forecasts aim too high", uiOutput("min_pred_table"),
-                    sub = tagList("If a method's lowest ", term("forecast", "forecast"),
-                                  " of the whole period is still above the low-day line, it can never predict a day that quiet."))),
-          panel("Low-day errors", class = "stage-3", uiOutput("low_table"),
-                sub = tagList("How often each method's forecast was ", term("too high", "overpredict"),
-                              " on low days, and by how much."),
-                footer = paste("'Average overshoot' is how far above the real count the forecast was,",
-                               "counting zero on days it was not too high.")),
+          panel("The numbers behind it", class = "stage-3",
+                sub = "Three short tables. Pick one.",
+                tab_set("low_tabs", list(
+                  tab("Low-day lines", icon = "ruler-horizontal",
+                      p(class = "tab-note", "For each blood group, a day counts as low at or below this count: the ",
+                        term("lower quartile", "quartile"), " of earlier years."),
+                      tableOutput("cutoff_table"),
+                      p(class = "tab-foot", "A lower-quartile count is not a clinical shortage threshold.")),
+                  tab("Why they aim too high", icon = "arrow-up",
+                      p(class = "tab-note", "If a method's lowest ", term("forecast", "forecast"),
+                        " of the whole period is still above the low-day line, it can never predict a day that quiet."),
+                      uiOutput("min_pred_table")),
+                  tab("Low-day errors", icon = "table",
+                      p(class = "tab-note", "How often each method's forecast was ", term("too high", "overpredict"),
+                        " on low days, and by how much."),
+                      uiOutput("low_table"),
+                      p(class = "tab-foot", "'Average overshoot' is how far above the real count the forecast was,",
+                        " counting zero on days it was not too high."))))),
           chapter_nav("low")
         ),
 
@@ -850,11 +909,12 @@ ui <- page(
         nav_panel_hidden(
           "patterns",
           chapter_head("patterns",
-                       sprintf("%s is the busiest day. Group O gives %s of donations.",
-                               BUSIEST_DAY, pct_text(O_SHARE)),
-                       sprintf(paste("Twenty years of recorded donations, 2006 to %s. On an average %s",
-                                     "the Klang Valley records %s times as many donations as on a %s."),
-                               fmt_date(DATA_END), BUSIEST_DAY, fmt(BUSY_RATIO, 1), QUIETEST_DAY)),
+                       tagList("Guess the busiest day? It's ", BUSIEST_DAY, "."),
+                       sprintf(paste("On an average %s the Klang Valley records %s times as many donations",
+                                     "as on a %s, and group O gives %s of them. Twenty years of recorded",
+                                     "donations, 2006 to %s."),
+                               BUSIEST_DAY, fmt(BUSY_RATIO, 1), QUIETEST_DAY, pct_text(O_SHARE),
+                               fmt_date(DATA_END))),
           div(class = "control-bar stage-2",
               chips("pattern_groups", "Blood groups", ABO_GROUPS, ABO_GROUPS),
               div(class = "control control-wide",
@@ -865,20 +925,23 @@ ui <- page(
                 read = paste("The height of the whole shape is all donations that month; each colour band is",
                              "one blood group. Bumps show busy and quiet months."),
                 class = "stage-3 chart-panel", chartOutput("weekly_plot", height = "320px")),
-          narrate("Zoom in on a single week and the rhythm is clear."),
-          div(class = "two-up stage-3",
-              panel("Mean donations by weekday", class = "chart-panel",
-                    read = "Taller bars are busier weekdays. Each colour is one blood group.",
-                    chartOutput("weekday_plot", height = "300px")),
-              panel("Mean donations a day, by year", class = "chart-panel",
-                    read = "Each line is one blood group; rising lines mean more donations a day than before.",
-                    chartOutput("annual_plot", height = "300px"))),
-          narrate(MIX_LINE),
-          panel("Blood-type mix of donations",
-                read = "Each column is one year and adds up to 100%. The bands show each group's share.",
-                sub = paste("Share of recorded Klang Valley donations by ABO group each year. This",
-                            "describes who donated, not how common each type is in the population."),
-                class = "stage-3 chart-panel", chartOutput("mix_plot", height = "310px")),
+          panel("Zoom in on the rhythm", class = "stage-3 chart-panel",
+                sub = "Three ways to slice the same donations. Pick a view.",
+                tab_set("pattern_tabs", list(
+                  tab("By weekday", icon = "calendar-week",
+                      div(class = "how-read", span(class = "how-read-tag", "How to read this"),
+                          span("Taller bars are busier weekdays. Each colour is one blood group.")),
+                      chartOutput("weekday_plot", height = "300px")),
+                  tab("By year", icon = "chart-line",
+                      div(class = "how-read", span(class = "how-read-tag", "How to read this"),
+                          span("Each line is one blood group; rising lines mean more donations a day than before.")),
+                      chartOutput("annual_plot", height = "300px")),
+                  tab("Blood-type mix", icon = "droplet",
+                      p(class = "tab-note", MIX_LINE, " This describes who donated, not how common each type",
+                        " is in the population."),
+                      div(class = "how-read", span(class = "how-read-tag", "How to read this"),
+                          span("Each column is one year and adds up to 100%. The bands show each group's share.")),
+                      chartOutput("mix_plot", height = "310px"))))),
           chapter_nav("patterns")
         ),
 
@@ -886,10 +949,12 @@ ui <- page(
         nav_panel_hidden(
           "blood101",
           chapter_head("blood101",
-                       "Every forecast on this site is someone's donation.",
-                       paste("What it takes to give blood in Malaysia, summarised from Pusat Darah",
+                       "Thinking of giving blood? Every forecast here is someone's donation.",
+                       paste("Here's what it takes to give blood in Malaysia, summarised from Pusat Darah",
                              "Negara (National Blood Centre). Staff confirm eligibility on the day;",
                              "check PDN for the latest requirements.")),
+          tab_set("b101_tabs", class = "kv-tabset-page stage-2", list(
+            tab("Can I donate?", icon = "circle-check",
           section(
             "Can I donate?",
             sub = "The basics PDN checks before every donation.",
@@ -914,8 +979,8 @@ ui <- page(
                   tags$li(strong(d$what), span(d$wait)))),
                 p(class = "viz-note", "Examples only. ",
                   tags$button(class = "link-btn", type = "button", `data-open` = "sources",
-                              "Sources & notes")))),
-          narrate("On the day, a donation follows the same six steps."),
+                              "Sources & notes"))))),
+            tab("On the day", icon = "hand-holding-medical",
           section("How a donation works",
                   viz(journey(Map(function(t, s) list(title = t, sub = s), DONATION_STEP_TITLES, DONATION_STEP_NOTES),
                               label = paste(DONATION_STEPS, collapse = " ")),
@@ -925,16 +990,16 @@ ui <- page(
                               Map(function(t, s, k) list(title = t, sub = s, art = k),
                                   AFTERCARE_TITLES, AFTERCARE, AFTERCARE_ART),
                               label = paste(AFTERCARE, collapse = " ")),
-                      tags$ul(class = "aftercare", lapply(AFTERCARE, tags$li)))),
-          narrate("Where to go, wherever you are in Malaysia."),
+                      tags$ul(class = "aftercare", lapply(AFTERCARE, tags$li))))),
+            tab("Where to go", icon = "location-dot",
           section(
             "Where blood is collected",
             sub = paste("Pick a region. Each state shows the donations recorded there in the official",
                         "data; the Central region also lists PDN's fixed donation centres."),
             div(class = "region-bar",
                 seg("region_pick", "Region", names(MALAYSIA_REGIONS), "Central")),
-            uiOutput("region_result")),
-          narrate("And once it is given, whose blood can help whom?"),
+            uiOutput("region_result"))),
+            tab("Who can receive", icon = "people-arrows",
           section(
             "Blood type compatibility explorer",
             sub = tagList("A blood type is the ", term("ABO group", "abo"), " plus ", term("RhD", "rhd"),
@@ -948,7 +1013,7 @@ ui <- page(
             uiOutput("compat_result"),
             p(class = "viz-note", "A simplified guide, not medical advice. ",
               tags$button(class = "link-btn", type = "button", `data-open` = "sources",
-                          "Sources & notes"))),
+                          "Sources & notes")))))),
           chapter_nav("blood101")
         ),
 
@@ -956,9 +1021,11 @@ ui <- page(
         nav_panel_hidden(
           "about",
           chapter_head("about",
-                       "How the forecasts are tested, and what they cannot tell you.",
-                       paste("The methods, what the regression learned, a full audit of the raw data",
-                             "and the limits of a retrospective evaluation.")),
+                       "Curious how it all works? Here's how the forecasts are tested.",
+                       paste("The methods, what the regression learned, a check of the raw data,",
+                             "and, just as important, what a look back like this can't tell you.")),
+          tab_set("about_tabs", class = "kv-tabset-page stage-2", list(
+            tab("The methods", icon = "diagram-project",
           section(
             "Four forecasting methods",
             sub = "Each one uses only data recorded before the day it predicts.",
@@ -971,8 +1038,9 @@ ui <- page(
                     div(class = "method", span(class = "method-tag", "Trend"), h4("Linear regression"),
                         p("A separate lm(donations ~ weekday + time_index) per blood group, fitted on all earlier years.")),
                     div(class = "method", span(class = "method-tag", "Last 3 years"), h4("Recent weekday average"),
-                        p("Mean for the blood group and weekday over the three complete years before the evaluation year."))))),
-          narrate(sprintf("What did the regression learn from 2006 to %d? Associations, not causes.",
+                        p("Mean for the blood group and weekday over the three complete years before the evaluation year.")))))),
+            tab("What it learned", icon = "brain",
+          p(class = "tab-note", sprintf("What did the regression learn from 2006 to %d? Associations, not causes.",
                           LATEST - 1L)),
           div(class = "two-up stage-3",
               panel("What the regression learned", tableOutput("coef_table"),
@@ -995,15 +1063,15 @@ ui <- page(
                         c("Seven-day baseline", "Linear regression", "Recent weekday average"))),
                 class = "stage-3 chart-panel",
                 chartOutput("monthly_plot", height = "310px"),
-                footer = "Describes when errors occurred; it cannot explain why."),
-          narrate("Before trusting any of it, check the data itself."),
+                footer = "Describes when errors occurred; it cannot explain why.")),
+            tab("Data checks", icon = "clipboard-check",
           div(class = "two-up stage-3",
               panel("Raw data checks", tableOutput("audit_table"),
                     sub = "Basic checks on the official file before anything is calculated: size, dates, gaps and duplicates."),
               panel("What goes into the forecasts", tableOutput("panel_table"),
                     sub = "The daily counts used: one row per blood group per day, for the Klang Valley.",
-                    footer = "The ALL category is excluded from modelling to avoid double counting.")),
-          narrate("And be clear about what this cannot show."),
+                    footer = "The ALL category is excluded from modelling to avoid double counting."))),
+            tab("Limits", icon = "triangle-exclamation",
           section(
             "Validation limits",
             viz(mindmap(c("What this", "can't show"), LIMITS_MAP,
@@ -1020,7 +1088,7 @@ ui <- page(
                           "hospital-demand data are used."),
                   tags$li("Zero counts are kept; they may be closures or reporting gaps."),
                   tags$li("The official data can be revised, so past numbers may change slightly ",
-                          "between daily refreshes.")))),
+                          "between daily refreshes."))))))),
           chapter_nav("about")
         ),
 

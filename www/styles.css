@@ -2172,3 +2172,154 @@ table.dataTable thead th.sorting, table.dataTable thead th.sorting_asc, table.da
 .st-pages button:hover:not(:disabled) { background: var(--blush-2); color: var(--wine); }
 .st-pages button.is-on { background: var(--wine-deep); color: #fff; }
 .st-pages button:disabled { opacity: 0.35; cursor: default; }
+
+/* Wide screens: use the full width instead of stopping at a fixed size and
+   leaving an empty band on the right. Very wide screens centre the content. */
+@media (min-width: 761px) {
+  .stage {
+    margin: 0 auto;
+    padding-left: calc(var(--rail-w) + 44px);
+    padding-right: 36px;
+    max-width: calc(1720px + var(--rail-w) + 80px);
+  }
+}
+@media (min-width: 1600px) { .ov-layout { grid-template-columns: minmax(0, 1fr) 360px; } }
+/* The story panel scrolls on its own without showing a scrollbar. */
+.ov-side { scrollbar-width: none; }
+.ov-side::-webkit-scrollbar { display: none; }
+
+/* Overview card backs: content centred as one group, the same rhythm on all four */
+.ov-mini .flip-back { justify-content: center; gap: 10px; padding: 16px 20px; }
+.ov-mini .flip-back > .wave { position: absolute; }
+.ov-mini .mini-bars { margin-top: 0; gap: 6px; }
+.ov-mini .mini-bar { grid-template-columns: 50px 1fr 40px; }
+.mini-cols { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: end; height: 92px; }
+.mc { display: grid; grid-template-rows: 14px 1fr 14px; height: 100%; justify-items: center; gap: 3px; }
+.mc-bar { align-self: end; width: 100%; max-width: 16px; height: var(--h); min-height: 4px; border-radius: 6px 6px 3px 3px;
+  background: rgba(255, 255, 255, 0.28); transform-origin: bottom; transform: scaleY(0); }
+.mc.is-top .mc-bar { background: linear-gradient(180deg, #FFD3DC, var(--rose)); }
+.mc-val { font-size: 0.66rem; font-weight: 600; color: #fff; white-space: nowrap; align-self: end; }
+.mc-lab { font-size: 0.66rem; color: var(--on-dark-soft); }
+.flip-card.is-flipped .mc-bar { transform: scaleY(1); transition: transform 700ms var(--ease-out); transition-delay: calc(400ms + var(--i) * 60ms); }
+
+/* Story strip: five cards that always fill their rows (5 across, or 3 + 2) */
+.ov-main { container-type: inline-size; container-name: ovmain; }
+.ov-main .story-strip { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.ov-main .story-strip > .story-card { grid-column: span 2; }
+.ov-main .story-strip > .story-card:nth-child(n+4) { grid-column: span 3; }
+@container ovmain (min-width: 1040px) {
+  .ov-main .story-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .ov-main .story-strip > .story-card, .ov-main .story-strip > .story-card:nth-child(n+4) { grid-column: auto; }
+}
+@container ovmain (max-width: 560px) {
+  .ov-main .story-strip { grid-template-columns: minmax(0, 1fr); }
+  .ov-main .story-strip > .story-card, .ov-main .story-strip > .story-card:nth-child(n+4) { grid-column: auto; }
+}
+
+/* Tabs: a pill bar with a sliding thumb, one view at a time */
+.kv-tabset { margin-top: 4px; }
+.kv-tabs {
+  position: relative; display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 4px;
+  border-radius: var(--r-pill); background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hairline);
+  margin-bottom: 16px; max-width: 100%;
+}
+.kv-tab-thumb {
+  position: absolute; top: 0; left: 0; border-radius: var(--r-pill); background: var(--wine-deep);
+  box-shadow: 0 4px 12px rgba(74, 20, 38, 0.28); pointer-events: none;
+  transition: transform 460ms var(--ease-spring), width 360ms var(--ease-out), opacity var(--t-fast);
+}
+.kv-tab {
+  position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 15px; border: 0; border-radius: var(--r-pill); background: transparent;
+  font: inherit; font-size: 0.86rem; font-weight: 500; color: var(--ink-soft); white-space: nowrap; cursor: pointer;
+  transition: color var(--t-med) var(--ease-out);
+}
+.kv-tab .fa, .kv-tab svg { font-size: 0.8rem; opacity: 0.75; }
+.kv-tab:hover { color: var(--wine); }
+.kv-tab.is-on { color: #fff; }
+.kv-tab.is-on .fa, .kv-tab.is-on svg { opacity: 1; }
+.kv-tab:focus-visible { outline: 2px solid var(--wine); outline-offset: 2px; }
+.kv-pane[hidden] { display: none !important; }
+.kv-pane.pane-in { animation: paneIn 420ms var(--ease-out) both; }
+@keyframes paneIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.kv-pane > .panel + .panel, .kv-pane > .block + .block, .kv-pane > .two-up + .panel { margin-top: 18px; }
+.tab-note { margin: 0 0 12px; color: var(--ink-soft); font-size: 0.9rem; line-height: 1.55; max-width: 72ch; }
+.tab-foot { margin: 12px 0 0; color: var(--muted); font-size: 0.8rem; }
+.kv-pane .how-read { margin: 0 0 12px; }
+
+/* Page-level tabs (Blood 101, About): a bar that stays in reach while you read */
+.kv-tabset-page > .kv-tabs {
+  position: sticky; top: 12px; z-index: 20; margin-bottom: 18px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  backdrop-filter: blur(14px) saturate(1.4); -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  box-shadow: inset 0 0 0 1px var(--hairline), 0 8px 24px rgba(74, 20, 38, 0.08);
+}
+.kv-tabset-page > .kv-tabs .kv-tab { padding: 9px 18px; font-size: 0.9rem; }
+.kv-tabset-page .reveal { opacity: 1 !important; transform: none !important; }
+
+/* Folds: detail that opens on request */
+.fold { margin-top: 4px; }
+.fold > summary {
+  list-style: none; display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+  padding: 8px 16px; border-radius: var(--r-pill); background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--hairline); color: var(--wine-deep); font-size: 0.86rem; font-weight: 600;
+  transition: background var(--t-fast), box-shadow var(--t-fast);
+}
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary:hover { box-shadow: inset 0 0 0 1px var(--hairline-strong); background: var(--surface); }
+.fold-chev { display: inline-flex; transition: transform 300ms var(--ease-out); font-size: 0.72rem; }
+.fold[open] > summary .fold-chev { transform: rotate(180deg); }
+.fold[open] > .fold-body { animation: paneIn 380ms var(--ease-out) both; margin-top: 14px; }
+.fold:not([open]) + * { margin-top: 0; }
+
+@media (max-width: 760px) {
+  .kv-tabs { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; border-radius: 18px; }
+  .kv-tabs::-webkit-scrollbar { display: none; }
+  .kv-tabset-page > .kv-tabs { top: 64px; }
+}
+
+/* Warm number reveals: a lead-in line, a count-up, a soft landing */
+.lead-in { margin: 0 0 2px; font-family: "Fraunces", Georgia, serif; font-style: italic; font-weight: 400;
+  font-size: clamp(1.02rem, 1.4vw, 1.22rem); color: var(--ink-soft); line-height: 1.4; }
+.lead-in .li-word { display: inline-block; opacity: 0; transform: translateY(6px); filter: blur(3px); }
+.lead-in.is-playing .li-word { animation: liWord 520ms var(--ease-out) forwards; animation-delay: calc(var(--w) * 70ms); }
+@keyframes liWord { to { opacity: 1; transform: none; filter: none; } }
+.countup { display: inline-block; transition: opacity 320ms var(--ease-out), transform 420ms var(--ease-out); }
+.countup.is-waiting { opacity: 0; transform: translateY(12px) scale(0.96); }
+.countup.is-landed { animation: numLand 620ms var(--ease-spring); }
+@keyframes numLand { 0% { transform: scale(1); } 35% { transform: scale(1.06); } 70% { transform: scale(0.985); } 100% { transform: scale(1); } }
+.ov-big, .kpi-value, .big-stat-value, .burst-host, .chapter-title { position: relative; }
+.num-drop { position: absolute; top: 50%; width: 9px; height: 12px; pointer-events: none;
+  background: var(--rose); border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+  clip-path: path("M4.5 0 C4.5 0 9 5.5 9 8 A4.5 4.5 0 0 1 0 8 C0 5.5 4.5 0 4.5 0 Z");
+  opacity: 0; animation: numDrop 900ms var(--ease-out) forwards; }
+@keyframes numDrop {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.4); }
+  20% { opacity: 0.95; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1); }
+}
+.ov-reveal { display: grid; gap: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .lead-in .li-word { opacity: 1; transform: none; filter: none; }
+  .countup.is-landed, .num-drop { animation: none; }
+}
+.ov-unit { max-width: 40ch; }
+.ov-reveal { margin-top: 14px; }
+.ov-unit { margin-top: 10px; }
+/* Values line up across the strip: same distance from the title on every card */
+.story-card { grid-template-rows: auto auto auto 1fr; }
+.story-card .story-value { align-self: start; }
+.story-card .story-text { align-self: start; }
+/* Below laptop width the story panel moves under the main column (restated
+   here so the later size pass cannot override it). */
+@media (max-width: 1240px) {
+  .ov-layout { grid-template-columns: minmax(0, 1fr); }
+  .ov-side { position: static; max-height: none; }
+}
+/* On a phone the five story cards become a swipeable row instead of a tall stack */
+@container ovmain (max-width: 560px) {
+  .ov-main .story-strip { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; gap: 12px;
+    margin-inline: -16px; padding: 4px 16px 10px; scrollbar-width: none; }
+  .ov-main .story-strip::-webkit-scrollbar { display: none; }
+  .ov-main .story-strip > .story-card { flex: 0 0 78%; scroll-snap-align: start; min-height: 150px; }
+}

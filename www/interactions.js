@@ -643,35 +643,187 @@
   }
 
   // ---------- Count-up numbers ----------
-  function countTo(el, to, ms, decimals, from) {
+  function countTo(el, to, ms, decimals, from, done) {
     if (!el) return;
     decimals = decimals || 0;
+    var pre = el.getAttribute("data-prefix") || "", suf = el.getAttribute("data-suffix") || "";
     var show = function (v) {
-      el.textContent = v.toLocaleString("en-GB", { minimumFractionDigits: decimals,
-                                                  maximumFractionDigits: decimals });
+      el.textContent = pre + v.toLocaleString("en-GB", { minimumFractionDigits: decimals,
+                                                       maximumFractionDigits: decimals }) + suf;
     };
-    if (reduceMotion || from === to) { show(to); return; }
+    if (reduceMotion || from === to) { show(to); if (done) done(); return; }
     var start = performance.now();
     function frame(now) {
       var t = Math.min(1, (now - start) / ms);
       var eased = 1 - Math.pow(1 - t, 3);
       show(from + (to - from) * eased);
-      if (t < 1) requestAnimationFrame(frame);
+      if (t < 1) requestAnimationFrame(frame); else if (done) done();
     }
     requestAnimationFrame(frame);
   }
 
-  // Headline numbers count up from zero each time their page opens.
+  // ---------- Number reveals ----------
+  // A lead-in line ("Let's see how many people gave blood...") fades in word by
+  // word; then its number counts up and lands with a small pop. Big numbers
+  // also send out a few tiny drops.
+  function splitLeadIn(el) {
+    if (el.__split) return el.__words || 0;
+    el.__split = true;
+    var words = el.textContent.trim().split(/\s+/);
+    el.textContent = "";
+    words.forEach(function (w, i) {
+      var s = document.createElement("span");
+      s.className = "li-word";
+      s.style.setProperty("--w", i);
+      s.textContent = w;
+      el.appendChild(s);
+      el.appendChild(document.createTextNode(" "));
+    });
+    el.__words = words.length;
+    return words.length;
+  }
+  function playLeadIn(el) {
+    var n = splitLeadIn(el);
+    el.classList.remove("is-playing"); void el.offsetWidth; el.classList.add("is-playing");
+    return reduceMotion ? 0 : Math.min(1400, n * 70 + 250);
+  }
+  function burst(el) {
+    if (reduceMotion) return;
+    var host = el.closest(".ov-big, .kpi-value, .big-stat-value, .burst-host") || el;
+    for (var i = 0; i < 7; i++) {
+      var d = document.createElement("span");
+      d.className = "num-drop";
+      var a = (Math.PI * 2 * i) / 7 + Math.random() * 0.5;
+      d.style.setProperty("--dx", Math.round(Math.cos(a) * (40 + Math.random() * 30)) + "px");
+      d.style.setProperty("--dy", Math.round(Math.sin(a) * (30 + Math.random() * 24) - 10) + "px");
+      d.style.left = (20 + Math.random() * 60) + "%";
+      host.appendChild(d);
+      d.addEventListener("animationend", function () { this.remove(); });
+    }
+  }
+  function revealNumber(el, wait) {
+    var to = parseFloat(el.getAttribute("data-count"));
+    if (isNaN(to)) return;
+    var dec = parseInt(el.getAttribute("data-decimals") || "0", 10);
+    el.classList.remove("is-landed");
+    setTimeout(function () {
+      countTo(el, to, 1000, dec, 0, function () {
+        el.classList.remove("is-landed"); void el.offsetWidth; el.classList.add("is-landed");
+        if (el.hasAttribute("data-burst")) burst(el);
+      });
+    }, wait || 0);
+  }
+  // Count each number when it scrolls into view (or at once if already there).
+  var numObserver = "IntersectionObserver" in window ? new IntersectionObserver(function (es) {
+    es.forEach(function (e) {
+      if (!e.isIntersecting) return;
+      numObserver.unobserve(e.target);
+      startReveal(e.target);
+    });
+  }, { threshold: 0.4 }) : null;
+  function startReveal(el) {
+    var group = el.closest("[data-reveal-group]") || el.parentElement;
+    var lead = group && group.querySelector(".lead-in");
+    var wait = lead && !lead.__played ? (lead.__played = true, playLeadIn(lead)) : 0;
+    if (wait && !reduceMotion) {
+      // Hold the number back (shown as a soft placeholder) until the lead-in has played.
+      el.classList.add("is-waiting");
+      setTimeout(function () { el.classList.remove("is-waiting"); }, wait);
+    }
+    revealNumber(el, wait + (parseInt(el.getAttribute("data-delay") || "0", 10)));
+  }
   function countUpIn(root) {
+    $all(".lead-in", root).forEach(function (l) { l.__played = false; });
     $all(".countup", root).forEach(function (el) {
-      var to = parseFloat(el.getAttribute("data-count"));
-      if (isNaN(to)) return;
-      var dec = parseInt(el.getAttribute("data-decimals") || "0", 10);
-      countTo(el, to, 1000, dec, 0);
+      if (!numObserver) { startReveal(el); return; }
+      numObserver.unobserve(el);
+      numObserver.observe(el);
     });
   }
   window.addEventListener("load", function () {
     var first = document.querySelector(".tab-pane.active");
     if (first) setTimeout(function () { countUpIn(first); }, 200);
+  });
+  // Numbers that arrive later from the server (region cards, reports) count up too.
+  if (window.jQuery) {
+    jQuery(document).on("shiny:value", function (e) {
+      if (!e.target || !e.target.querySelector) return;
+      setTimeout(function () { if (e.target.querySelector(".countup")) countUpIn(e.target); }, 30);
+    });
+  }
+})();
+
+// ---------- Tabs and folds: shorter pages, detail on demand ----------
+(function () {
+  function placeTabThumb(bar) {
+    var on = bar.querySelector(".kv-tab.is-on");
+    var thumb = bar.querySelector(".kv-tab-thumb");
+    if (!thumb) {
+      thumb = document.createElement("span");
+      thumb.className = "kv-tab-thumb"; thumb.setAttribute("aria-hidden", "true");
+      bar.insertBefore(thumb, bar.firstChild);
+    }
+    if (!on || !on.offsetWidth) { thumb.style.opacity = "0"; return; }
+    thumb.style.opacity = "1";
+    thumb.style.width = on.offsetWidth + "px";
+    thumb.style.height = on.offsetHeight + "px";
+    thumb.style.transform = "translate(" + on.offsetLeft + "px," + on.offsetTop + "px)";
+  }
+  function placeAll() { document.querySelectorAll(".kv-tabs").forEach(placeTabThumb); }
+  function wake(root) {
+    // Let Shiny render outputs that were hidden, and size charts drawn while hidden.
+    if (window.jQuery) jQuery(root).trigger("shown");
+    setTimeout(function () {
+      window.dispatchEvent(new Event("resize"));
+      root.querySelectorAll(".kvbd-chart").forEach(function (c) {
+        if (c._fullLayout && window.Plotly) { try { Plotly.Plots.resize(c); } catch (e) {} }
+      });
+    }, 40);
+  }
+  function select(btn) {
+    var set = btn.closest(".kv-tabset");
+    var k = btn.getAttribute("data-tab");
+    set.querySelectorAll(":scope > .kv-tabs > .kv-tab").forEach(function (b) {
+      var on = b === btn;
+      b.classList.toggle("is-on", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    set.querySelectorAll(":scope > .kv-pane").forEach(function (p) {
+      var on = p.getAttribute("data-pane") === k;
+      p.hidden = !on;
+      p.classList.toggle("is-on", on);
+      if (on) {
+        p.classList.remove("pane-in"); void p.offsetWidth; p.classList.add("pane-in");
+        wake(p);
+      }
+    });
+    placeTabThumb(set.querySelector(":scope > .kv-tabs"));
+  }
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest(".kv-tab");
+    if (btn) select(btn);
+  });
+  document.addEventListener("keydown", function (e) {
+    var btn = e.target.closest && e.target.closest(".kv-tab");
+    if (!btn || (e.key !== "ArrowRight" && e.key !== "ArrowLeft")) return;
+    var tabs = Array.prototype.slice.call(btn.parentElement.querySelectorAll(".kv-tab"));
+    var i = tabs.indexOf(btn) + (e.key === "ArrowRight" ? 1 : -1);
+    var next = tabs[(i + tabs.length) % tabs.length];
+    next.focus(); select(next); e.preventDefault();
+  });
+  document.addEventListener("toggle", function (e) {
+    if (e.target.classList && e.target.classList.contains("fold") && e.target.open) wake(e.target);
+  }, true);
+  window.addEventListener("resize", placeAll);
+  window.addEventListener("load", function () { setTimeout(placeAll, 60); });
+  if (window.jQuery) {
+    jQuery(document).on("shiny:connected", function () { setTimeout(placeAll, 80); });
+    // Switching pages shows tab bars that were hidden; place their thumbs once visible.
+    jQuery(document).on("shiny:inputchanged", function (e) {
+      if (e.name === "pages") setTimeout(placeAll, 120);
+    });
+  }
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest(".rail-item, [data-target]")) setTimeout(placeAll, 450);
   });
 })();
