@@ -2671,3 +2671,22 @@ html[data-theme="dark"] .ov-side { --sheen: rgba(242, 124, 151, 0.10); --glow: r
   border-left: 2px solid rgba(255, 196, 210, 0.85); box-shadow: 0 0 10px rgba(242, 124, 151, 0.6); animation: pinLine 300ms var(--ease-out); transform-origin: top; }
 @keyframes pinIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes pinLine { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+/* "How to read this" opens into one card in the page flow: no floating note, nothing covered */
+.how-read[open] { display: block; flex: 1 1 100%; max-width: 62ch; margin: 4px 0 2px; padding: 10px 14px 13px;
+  border-radius: 14px; background: var(--blush-2); border: 1px solid var(--hairline);
+  animation: hrOpen 320ms var(--ease-out); }
+.kv-pane > .how-read[open] { margin: 0 0 12px; }
+.how-read[open] > summary { position: relative; width: 100%; height: auto; min-height: 26px; padding: 0 26px 0 0;
+  justify-content: flex-start; background: none; box-shadow: none; transform: none; }
+.how-read[open] > summary::after { content: "\00d7"; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
+  font-size: 1.1rem; line-height: 1; opacity: 0.6; }
+.how-read[open] > summary:hover::after { opacity: 1; }
+.how-read .how-read-pop { position: static; width: auto; margin: 4px 0 0 26px; padding: 0; border: 0; border-radius: 0;
+  background: none; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none;
+  color: var(--ink-soft); font-size: 0.88rem; line-height: 1.55; animation: hrText 360ms var(--ease-out) 60ms both; }
+.panel-ink .how-read[open] { background: rgba(255, 255, 255, 0.07); border-color: rgba(255, 255, 255, 0.14); }
+.panel-ink .how-read[open] > summary { color: #FFD3DC; }
+.panel-ink .how-read .how-read-pop { color: rgba(247, 233, 236, 0.85); }
+@keyframes hrOpen { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes hrText { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
