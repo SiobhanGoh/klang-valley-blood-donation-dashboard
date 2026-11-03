@@ -268,7 +268,45 @@
   // ---------- Chart entrances ----------
   // Bars rise from the baseline; lines draw from left to right. Each chart
   // animates when new data arrives and it is on screen, never on hover.
+  // ---------- Call-outs: a pill in the headroom above the data, a thin line to the point ----------
+  function placeCallouts(gd) {
+    $all(".co", gd).forEach(function (n) { n.remove(); });
+    var fl = gd._fullLayout, meta = gd.layout && gd.layout.meta;
+    var list = meta && meta.callouts;
+    if (!fl || !list || !list.length) return;
+    list.forEach(function (c, i) {
+      var xa = fl[(c.xref || "x").replace(/^x/, "xaxis")], ya = fl[(c.yref || "y").replace(/^y/, "yaxis")];
+      if (!xa || !ya) return;
+      var xc = xa.d2c(c.x);
+      if (xc === undefined || xc === null || isNaN(xc)) return;
+      var px = xa._offset + xa.c2p(xc + (c.dx || 0));
+      var py = ya._offset + ya.c2p(c.y);
+      var top = ya._offset + 4;
+      var box = document.createElement("div");
+      box.className = "co" + (c.align === "end" ? " co-end" : "");
+      box.style.setProperty("--i", i);
+      var pill = document.createElement("span"); pill.className = "co-pill"; pill.textContent = c.text;
+      var line = document.createElement("span"); line.className = "co-line";
+      var dot = document.createElement("span"); dot.className = "co-dot";
+      box.appendChild(line); box.appendChild(dot); box.appendChild(pill);
+      gd.appendChild(box);
+      var pw = pill.offsetWidth, ph = pill.offsetHeight;
+      var left = c.align === "end" ? px - pw + 10 : px - pw / 2;
+      left = Math.max(xa._offset, Math.min(left, xa._offset + xa._length - pw));
+      pill.style.left = left + "px"; pill.style.top = top + "px";
+      var lineTop = top + ph, lineH = Math.max(0, py - lineTop - 5);
+      line.style.left = px + "px"; line.style.top = lineTop + "px"; line.style.height = lineH + "px";
+      dot.style.left = px + "px"; dot.style.top = (py - 5) + "px";
+    });
+  }
+  function wireCallouts(gd) {
+    if (gd.__coWired || !gd.on) return;
+    gd.__coWired = true;
+    gd.on("plotly_afterplot", function () { placeCallouts(gd); });
+  }
+
   function animateChart(gd) {
+    gd.classList.add("co-go");
     if (reduceMotion || !gd.animate) return;
     var bars = $all(".barlayer .point path", gd);
     bars.forEach(function (bar, i) {
@@ -276,6 +314,18 @@
       bar.style.transformOrigin = "50% 100%";
       bar.animate([{ transform: "scaleY(0)" }, { transform: "scaleY(1)" }],
                   { duration: 720, delay: Math.min(i * 14, 420), easing: EASE_OUT, fill: "backwards" });
+    });
+    // Call-outs draw in after the bars: the pointer grows, then the label fades up.
+    $all(".annotation", gd).forEach(function (an, i) {
+      an.animate([{ opacity: 0 }, { opacity: 1 }],
+                 { duration: 520, delay: 820 + i * 70, easing: EASE_OUT, fill: "backwards" });
+      $all(".annotation-arrow-g path", an).forEach(function (pth) {
+        var len = pth.getTotalLength ? pth.getTotalLength() : 0;
+        if (!len) return;
+        pth.style.strokeDasharray = len;
+        pth.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }],
+                    { duration: 520, delay: 760 + i * 70, easing: EASE_OUT, fill: "backwards" });
+      });
     });
     $all(".scatterlayer", gd).forEach(function (layer) {
       if (!layer.querySelector(".js-line, .point")) return;
@@ -380,7 +430,10 @@
       if ((tries || 0) < 60) setTimeout(function () { queueChart(gd, (tries || 0) + 1); }, 40);
       return;
     }
+    gd.classList.remove("co-go");
     compactForPhone(gd);
+    wireCallouts(gd);
+    placeCallouts(gd);
     wireTips(gd);
     wireBars(gd);
     polishBars(gd);
@@ -932,4 +985,64 @@
       setTimeout(function () { var s = document.querySelector(".ov-side"); if (s) update(s); }, 400);
     }
   });
+})();
+
+
+// ---------- First-visit help: a welcome card over a softly blurred page ----------
+(function () {
+  function seen(k) { try { return localStorage.getItem(k) === "1"; } catch (e) { return false; } }
+  function mark(k) { try { localStorage.setItem(k, "1"); } catch (e) { /* private mode */ } }
+  var layer = document.getElementById("welcome");
+  function closeWelcome() {
+    if (!layer || layer.hidden || layer.classList.contains("is-out")) return;
+    layer.classList.remove("is-in"); layer.classList.add("is-out"); mark("kvbd-welcomed");
+    setTimeout(function () { layer.hidden = true; layer.classList.remove("is-out"); }, 650);
+  }
+  function showWelcome() {
+    if (!layer || seen("kvbd-welcomed")) return;
+    layer.hidden = false;
+    requestAnimationFrame(function () {
+      layer.classList.add("is-in");
+      var b = layer.querySelector(".welcome-go"); if (b) setTimeout(function () { b.focus({ preventScroll: true }); }, 500);
+    });
+  }
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest("[data-welcome='close']")) closeWelcome();
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeWelcome(); });
+  window.addEventListener("load", function () { setTimeout(showWelcome, 3600); });
+
+  // "How to read this": the label slides out for a few seconds the first time a chart
+  // is on screen, tucks back into its icon, and the icon gives a small bounce.
+  if ("IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        io.unobserve(e.target);
+        var hr = e.target;
+        setTimeout(function () {
+          hr.classList.add("hr-peek");
+          setTimeout(function () {
+            hr.classList.remove("hr-peek"); hr.classList.add("hr-bounce");
+            setTimeout(function () { hr.classList.remove("hr-bounce"); }, 1500);
+          }, 3800);
+        }, 900);
+      });
+    }, { threshold: 0.9 });
+    var watch = function () { $all(".how-read:not([data-hr])").forEach(function (h) { h.setAttribute("data-hr", "1"); io.observe(h); }); };
+    window.addEventListener("load", watch);
+    document.addEventListener("click", function () { setTimeout(watch, 600); });
+  }
+  function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+
+  // A "What this shows" sentence glows briefly when it rewrites itself.
+  if (window.jQuery) {
+    jQuery(document).on("shiny:value", function (e) {
+      var el = e.target;
+      if (!el || !el.classList || !el.classList.contains("ws-text")) return;
+      var box = el.closest(".what-shows");
+      if (!box) return;
+      box.classList.remove("is-new"); void box.offsetWidth; box.classList.add("is-new");
+    });
+  }
 })();

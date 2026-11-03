@@ -59,7 +59,7 @@ jobs:
           # R/analysis.R keeps readr, janitor and tidyr out of the browser download.
           mkdir -p _app/R
           cp app.R _app/
-          cp R/common.R R/charts.R R/content.R R/reports.R R/visuals.R _app/R/
+          cp R/common.R R/charts.R R/content.R R/reports.R R/visuals.R R/explain.R _app/R/
           cp -r www app_data _app/
           Rscript -e 'shinylive::export("_app", "_site")'
           Rscript scripts/add_splash.R _site

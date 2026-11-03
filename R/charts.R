@@ -21,10 +21,10 @@ GROUP_COL <- c("A" = "#F2B3C0", "AB" = "#E07D93", "B" = "#B8445F", "O" = "#6E1D3
 METHOD_DASH <- c("Seven-day baseline" = "dot", "Weekday average" = "dash",
                  "Linear regression" = "longdash", "Recent weekday average" = "solid")
 # One name per method everywhere; short forms only where space is tight.
-SHORT_METHOD <- c("Seven-day baseline" = "Seven-day baseline",
-                  "Weekday average" = "Weekday average",
-                  "Linear regression" = "Linear regression",
-                  "Recent weekday average" = "Recent weekday average")
+SHORT_METHOD <- c("Seven-day baseline" = "Seven-day<br>baseline",
+                  "Weekday average" = "Weekday<br>average",
+                  "Linear regression" = "Linear<br>regression",
+                  "Recent weekday average" = "Recent weekday<br>average")
 
 fmt2 <- function(x) formatC(x, format = "f", digits = 2, big.mark = ",")
 fmt0 <- function(x) formatC(round(x), format = "d", big.mark = ",")
@@ -75,6 +75,15 @@ line_trace <- function(x, y, name, line, hovertemplate, mode = "lines", ...) {
          line = line, hovertemplate = hovertemplate), list(...))
 }
 
+# A label that marks the answer on a chart. The page draws it as a pill in the
+# empty space above the data, with a thin line down to the point, so it never
+# covers a bar or line. dx shifts within a category (for grouped bars).
+callout <- function(x, y, text, xref = "x", yref = "y", dx = 0, align = "center") {
+  list(x = x, y = y, text = text, xref = xref, yref = yref, dx = dx, align = align)
+}
+# Grouped bars: the centre of bar i (1-based) of n within its category.
+bar_offset <- function(i, n, gap = 0.3) -(1 - gap) / 2 + (i - 0.5) * (1 - gap) / n
+
 # Serialise a figure for the chart output binding.
 chart_json <- function(fig) {
   jsonlite::toJSON(fig, auto_unbox = TRUE, null = "null", na = "null", digits = NA)
@@ -90,10 +99,16 @@ chart_pooled_mae <- function(scores_overall, period_labels) {
               sprintf("<b>%s</b><br>%s<br>Average error <b>%s</b> donations a day<br>Big-miss error (RMSE) %s",
                       m, s$period, fmt2(s$MAE), fmt2(s$RMSE)))
   })
+  # Point at the most accurate method in the latest period.
+  periods <- unique(period_labels); last <- max(d$evaluation_year)
+  s <- d[d$evaluation_year == last, ]; s <- s[match(METHODS, s$method), ]
+  i <- which.min(s$MAE)
   figure(traces, ytitle = "Average error (donations a day)", barmode = "group",
          xaxis = list(type = "category", categoryorder = "array", tickangle = 0,
-                      categoryarray = arr(tick_break(unique(period_labels)))),
-         yaxis = list(rangemode = "tozero"), margin = list(t = 28))
+                      categoryarray = arr(tick_break(periods))),
+         yaxis = list(range = arr(c(0, max(d$MAE) * 1.38))), margin = list(t = 28),
+         meta = list(callouts = list(callout(tick_break(period_labels[[as.character(last)]]), s$MAE[i],
+                                             "Most accurate", dx = bar_offset(i, length(METHODS))))))
 }
 # "2026 to date (to 28 Aug)" on two lines, so axis labels never slant or collide.
 tick_break <- function(x) sub(" (", "<br>(", x, fixed = TRUE)
@@ -101,7 +116,7 @@ tick_break <- function(x) sub(" (", "<br>(", x, fixed = TRUE)
 # A 2 x 2 grid of small multiples, one per blood group, with titles.
 # build_one(g, show_legend) returns that group's traces.
 group_grid <- function(build_one, groups = ABO_GROUPS, ytitle = NULL, legend_from = groups[1]) {
-  gap_x <- 0.09; gap_y <- 0.2
+  gap_x <- 0.09; gap_y <- 0.3
   w <- (1 - gap_x) / 2; h <- (1 - gap_y) / 2
   order <- arr(unname(SHORT_METHOD))
   traces <- list(); axes <- list(); ann <- list()
@@ -116,14 +131,15 @@ group_grid <- function(build_one, groups = ABO_GROUPS, ytitle = NULL, legend_fro
     traces <- c(traces, tr)
     axes[[paste0("xaxis", sfx)]] <- axis_style(grid = FALSE, domain = arr(xd), anchor = yref,
                                                type = "category", categoryorder = "array",
-                                               categoryarray = order)
+                                               categoryarray = order, tickangle = 0,
+                                               tickfont = list(size = 10.5, color = MUTED))
     axes[[paste0("yaxis", sfx)]] <- axis_style(if (i %% 2 == 1) ytitle else NULL, domain = arr(yd),
                                                anchor = xref, rangemode = "tozero")
     ann[[i]] <- list(text = paste0("<b>Group ", groups[i], "</b>"), showarrow = FALSE,
                      xref = "paper", yref = "paper", x = xd[1], y = yd[2] + 0.03,
                      xanchor = "left", yanchor = "bottom", font = list(size = 13.5, color = INK))
   }
-  fig <- figure(traces, barmode = "group", margin = list(t = 40), annotations = ann)
+  fig <- figure(traces, barmode = "group", margin = list(t = 34, b = 4), annotations = ann, bargap = 0.42)
   fig$layout <- utils::modifyList(fig$layout, axes)
   fig
 }
@@ -138,7 +154,21 @@ chart_group_mae <- function(scores_by_group, methods) {
                         m, g, fmt2(s$MAE), fmt2(s$RMSE), s$observations),
                 legendgroup = m, showlegend = show_legend)
     })
-  }, ytitle = "Average error")
+  }, ytitle = "Average error") |> mark_group_best(d, methods)
+}
+
+# On each blood group's small chart, point at the method with the smallest error.
+mark_group_best <- function(fig, d, methods) {
+  for (i in seq_along(ABO_GROUPS)) {
+    s <- d[d$blood_type == ABO_GROUPS[i] & d$method %in% methods, ]
+    if (!nrow(s)) next
+    k <- which.min(s$MAE); sfx <- if (i == 1) "" else i
+    fig$layout[[paste0("yaxis", sfx)]]$range <- arr(c(0, max(s$MAE) * 1.5))
+    fig$layout$meta$callouts <- c(fig$layout$meta$callouts,
+                                  list(callout(SHORT_METHOD[[s$method[k]]], s$MAE[k], "Best",
+                                               paste0("x", sfx), paste0("y", sfx))))
+  }
+  fig
 }
 
 chart_low_days <- function(low_errors) {
@@ -211,6 +241,10 @@ chart_live <- function(panel, predictions, next_days, group, data_end) {
                             x0 = format(data_end + 0.5), x1 = format(max(ahead$date) + 0.5),
                             y0 = 0, y1 = 1, fillcolor = "rgba(232,110,140,0.16)",
                             line = list(width = 0), layer = "below")),
+         yaxis = list(range = arr(c(0, max(c(actual$donations, past$prediction, ahead$prediction)) * 1.3))),
+         meta = list(callouts = list(callout(format(max(actual$date)), actual$donations[nrow(actual)],
+                                             paste("Latest:", fmt0(actual$donations[nrow(actual)])),
+                                             align = "end"))),
          annotations = list(list(x = format(data_end + 4), y = 1, xref = "x",
                                  yref = "paper", yanchor = "bottom", showarrow = FALSE,
                                  text = "Next 7 days", font = list(size = 12, color = MUTED))))
@@ -242,9 +276,17 @@ chart_weekday <- function(weekday_means) {
               sprintf("<b>Group %s, %s</b><br>Mean <b>%s</b> donations a day",
                       g, s$weekday, fmt0(s$mean_donations)))
   })
+  tot <- tapply(weekday_means$mean_donations, as.character(weekday_means$weekday), sum)
+  busy <- names(which.max(tot))
+  on_day <- weekday_means[as.character(weekday_means$weekday) == busy, ]
+  groups <- intersect(ABO_GROUPS, unique(weekday_means$blood_type))
+  k <- match(on_day$blood_type[which.max(on_day$mean_donations)], groups)
   figure(traces, ytitle = "Mean donations a day", barmode = "group",
          xaxis = list(type = "category", categoryorder = "array",
-                      categoryarray = arr(substr(WEEKDAYS, 1, 3))))
+                      categoryarray = arr(substr(WEEKDAYS, 1, 3))),
+         yaxis = list(range = arr(c(0, max(weekday_means$mean_donations) * 1.35))),
+         meta = list(callouts = list(callout(substr(busy, 1, 3), max(on_day$mean_donations), "Busiest day",
+                                             dx = bar_offset(k, length(groups))))))
 }
 
 chart_annual <- function(annual) {
@@ -280,7 +322,13 @@ chart_monthly <- function(monthly, methods) {
                paste0(m, ": off by <b>%{y:.1f}</b> a day<extra></extra>"),
                mode = "lines+markers", marker = list(color = METHOD_COL[[m]], size = 7))
   })
+  ann <- list()
+  if (nrow(d)) {
+    avg <- tapply(d$MAE, format(d$month), mean); hard <- names(which.max(avg))
+    ann <- list(callout(hard, max(d$MAE[format(d$month) == hard]), "Hardest month"))
+    # (drawn by the page; see callout())
+  }
   figure(traces, ytitle = "Average error (donations)", hovermode = "x unified",
          xaxis = list(type = "date", tickformat = "%b", dtick = "M1", hoverformat = "%B %Y"),
-         yaxis = list(rangemode = "tozero"))
+         yaxis = list(range = arr(c(0, max(c(d$MAE, 1)) * 1.4))), meta = list(callouts = ann))
 }

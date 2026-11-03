@@ -410,7 +410,8 @@ chapter_nav <- function(id) {
 # "How to read this" as a small chip; the explanation opens on hover, focus or tap.
 how_read <- function(text) {
   tags$details(class = "how-read",
-               tags$summary(span(class = "hr-icon", icon("circle-question")), span("How to read this")),
+               tags$summary(`aria-label` = "How to read this", span(class = "hr-icon", icon("circle-question")),
+                            span(class = "hr-label", "How to read this")),
                div(class = "how-read-pop", role = "note", text))
 }
 
@@ -589,6 +590,7 @@ region_view <- function(r) {
   st <- st[order(-st$last30), ]
   mx <- max(dash$states$last30, 1)
   tagList(
+    what_shows(text = explain_region(st, r)),
     div(class = "state-grid",
         lapply(seq_len(nrow(st)), function(i)
           div(class = "state-card", style = sprintf("--i:%d", i - 1),
@@ -619,6 +621,44 @@ region_view <- function(r) {
 
 source("R/reports.R", local = TRUE)
 source("R/visuals.R", local = TRUE)
+source("R/explain.R", local = TRUE)
+
+# "What this shows": one plain sentence under a chart that rewrites itself for the selection.
+# A chart with its plain-words reading beside it (stacked on narrow screens).
+chart_row <- function(note, chart) div(class = "chart-row", div(class = "chart-main", chart), note)
+
+what_shows <- function(id = NULL, text = NULL) {
+  div(class = "what-shows",
+      span(class = "ws-tag", icon("lightbulb"), "What this shows"),
+      if (!is.null(id)) uiOutput(id, inline = TRUE, class = "ws-text") else span(class = "ws-text", text))
+}
+
+# A first-visit card: three things a newcomer would not discover on their own.
+# It floats over a softly blurred page, so it never reads as one more content card.
+welcome_card <- div(
+  class = "welcome-layer", id = "welcome", hidden = NA,
+  div(class = "welcome-scrim", `data-welcome` = "close"),
+  div(class = "welcome", role = "dialog", `aria-modal` = "true", `aria-labelledby` = "welcome-title",
+      div(class = "welcome-hero", `aria-hidden` = "true",
+          span(class = "wh-blob b1"), span(class = "wh-blob b2"), span(class = "wh-blob b3"),
+          span(class = "wh-spark s1"), span(class = "wh-spark s2"), span(class = "wh-spark s3"),
+          span(class = "wh-drop", icon("droplet"))),
+      div(class = "welcome-body",
+          div(class = "welcome-kicker", "Welcome"),
+          h3(id = "welcome-title", "A quick tour, in three taps"),
+          p(class = "welcome-lead", "Everything here can be explored. These are the three things people miss."),
+          tags$ul(class = "welcome-tips",
+                  tags$li(span(class = "wt-icon t1", icon("rotate")),
+                          span(strong("Tap a card"), " with a turn icon to see what's behind the number.")),
+                  tags$li(span(class = "wt-icon t2", icon("hand-pointer")),
+                          span(strong("Hover or tap a chart"), " for the exact numbers on any bar or day.")),
+                  tags$li(span(class = "wt-icon t3", icon("book-open")),
+                          span(strong("Dotted words"), " explain themselves when you hover or tap them."))),
+          div(class = "welcome-foot",
+              tags$button(class = "welcome-go", type = "button", `data-welcome` = "close",
+                          "Start exploring", icon("arrow-right")),
+              tags$button(class = "welcome-alt", type = "button", `data-welcome` = "close",
+                          `data-target` = "blood101", icon("hand-holding-droplet"), "I'm here to donate")))))
 
 # Every source and footnote in one drawer, so they never interrupt the story.
 sources_drawer <- div(
@@ -729,7 +769,7 @@ ui <- page(
                                    paste0(" (", gsub("  ", " ", format(DATA_END, "%a %e %b")), ")") else "",
                                  ". Every one of them is someone who made time to help.")),
                         p(class = "ov-what", icon("circle-info"),
-                          "This site tests four simple ways to forecast tomorrow's donations, using official daily counts."),
+                          "This site tests four simple ways to forecast tomorrow's donations from official daily counts. It forecasts donations collected, not blood stock or demand."),
                         tags$button(class = "ov-cta", type = "button", `data-target` = "blood101",
                                     span(class = "ov-cta-icon", icon("hand-holding-droplet")),
                                     span("Thinking of donating? ", strong("See if you can", .noWS = "outside")),
@@ -753,7 +793,8 @@ ui <- page(
                                  "day for one blood group, in one test period. All four blood groups are",
                                  "counted together. Hover a bar for the exact numbers."),
                     class = "stage-3 chart-panel ov-chart panel-ink",
-                    chartOutput("overview_plot", height = "300px"),
+                    chart_row(what_shows(text = explain_overview(dash$scores_overall, PERIOD_LABEL)),
+                    chartOutput("overview_plot", height = "250px")),
                     footer = paste("Each period's averages and regression are fitted only on earlier",
                                    "years. Training windows overlap, so the periods are not independent tests.")),
               narrate("Here's the story in five parts. Dip in anywhere, or read them in order."),
@@ -771,21 +812,7 @@ ui <- page(
                            sprintf("is the busiest day, with %s times a %s's donations",
                                    fmt(BUSY_RATIO, 1), QUIETEST_DAY)),
                 story_card("blood101", "Your part", tagList(count_span(3), " months"),
-                           "the minimum gap between donations. Donors can be aged 17 to 70")),
-              div(class = "intro ov-intro stage-3",
-                  div(class = "intro-copy",
-                      div(class = "ov-kicker", "About this dashboard"),
-                      h2("How well can past collections predict tomorrow's donations?"),
-                      p(class = "intro-lead",
-                        "Four forecasting methods, tested every day on recorded blood donations ",
-                        "in Selangor and W.P. Kuala Lumpur."),
-                      p(class = "intro-scope", icon("circle-info"),
-                        "Forecasts of donations collected, not of blood demand, stock or shortage.")),
-                  ascii_drop(),
-                  tags$svg(class = "ecg", viewBox = "0 0 600 60", preserveAspectRatio = "none",
-                           `aria-hidden` = "true",
-                           tags$path(d = paste("M0 34 H210 l12 0 l10 -22 l12 44 l10 -30 l8 8",
-                                               "H330 l8 -6 l8 6 H600"))))),
+                           "the minimum gap between donations. Donors can be aged 17 to 70"))),
             tags$aside(
               class = "ov-side stage-2", `aria-label` = "Today's story",
               div(class = "ov-kicker", "Today's story"),
@@ -796,16 +823,6 @@ ui <- page(
               h4(class = "ov-side-h", "What stands out"),
               tags$ul(class = "ov-story",
                       lapply(dash$findings, function(f) tags$li(span(class = "ov-dot"), span(emphasise(f))))),
-              h4(class = "ov-side-h", "Next seven days"),
-              p(class = "ov-side-note", "Expected donations, all groups, from the recent weekday average."),
-              div(class = "ov-next",
-                  lapply(seq_len(nrow(NEXT_TOTALS)), function(i)
-                    div(class = "ov-next-row", style = sprintf("--i:%d", i - 1),
-                        span(format(NEXT_TOTALS$date[i], "%a %e %b") |> gsub(pattern = "  ", replacement = " ")),
-                        span(class = "ov-next-track",
-                             span(class = "ov-next-fill",
-                                  style = sprintf("--w:%.1f%%", 100 * NEXT_TOTALS$total[i] / max(NEXT_TOTALS$total)))),
-                        strong(fmt_int(NEXT_TOTALS$total[i]))))),
               div(class = "ov-side-actions",
                   tags$button(class = "btn-pill btn-primary-solid", type = "button",
                               `data-target` = "live", "See the latest data", icon("arrow-right")),
@@ -840,7 +857,8 @@ ui <- page(
                              "seven days, still to come. Hover any day to see every number."),
                 controls = seg("live_group", "Blood group", ABO_GROUPS, "O"),
                 class = "stage-3 chart-panel panel-ink",
-                chartOutput("live_plot", height = "300px"),
+                chart_row(what_shows("live_explain"),
+                chartOutput("live_plot", height = "260px")),
                 footer = "The seven-day baseline can only look one week ahead, so the forecast window is seven days."),
           narrate("Seven days out, the recent weekday average expects this. Each daily refresh ",
                   "replaces one forecast with the real count."),
@@ -855,13 +873,8 @@ ui <- page(
         # Compare ------------------------------------------------------------------
         nav_panel_hidden(
           "compare",
-          chapter_head("compare",
-                       tagList(paste0("So, which forecast did best? The ", method_phrase(BEST_METHOD), ", with "),
-                               count_span(BEST_GAIN, 0, suffix = "%"), " less error."),
-                       sprintf(paste("In %s its forecasts were off by %s donations per blood group",
-                                     "per day, against %s for simply repeating last week's count."),
-                               LATEST_LABEL, fmt(BEST_MAE), fmt(LAG_MAE)),
-                       stat = big_stat(count_span(BEST_MAE, 1, burst = TRUE), "average daily error, best method")),
+          chapter_head("compare", uiOutput("cmp_headline", inline = TRUE), uiOutput("cmp_sub", inline = TRUE),
+                       stat = uiOutput("cmp_stat")),
           div(class = "control-bar stage-2",
               seg("cmp_year", "Test period", PERIOD_CHOICES, as.character(LATEST)),
               chips("cmp_methods", "Methods", METHODS, METHODS)),
@@ -870,7 +883,8 @@ ui <- page(
                              "group: shorter is better. Hover a bar for the big-miss error and the number of days."),
                 sub = tagList("The same ", term("average error", "error"), ", split by ",
                               term("ABO group", "abo"), ".", span(class = "phone-only", " Left to right in each group: 7-day baseline, weekday average, regression, recent average.")),
-                class = "stage-3 chart-panel panel-ink", chartOutput("cmp_group_plot", height = "500px")),
+                class = "stage-3 chart-panel panel-ink", chart_row(what_shows("cmp_explain"),
+                chartOutput("cmp_group_plot", height = "380px"))),
           panel("Scores", class = "stage-3",
                 sub = tagList("Every number behind the charts. ", term("Big-miss error", "rmse"), " and ",
                               term("average bias", "bias"), " are explained when you hover them."),
@@ -889,7 +903,8 @@ ui <- page(
                                      end = DATA_END,
                                      min = min(dash$predictions$date), max = DATA_END))),
                 class = "stage-3 chart-panel panel-ink",
-                chartOutput("cmp_daily_plot", height = "340px"),
+                chart_row(what_shows("daily_explain"),
+                chartOutput("cmp_daily_plot", height = "270px")),
                 footer = paste("The seven-day baseline uses the count observed a week earlier, so",
                                "it is a rolling benchmark rather than a forecast issued at the start",
                                "of the period.")),
@@ -899,16 +914,11 @@ ui <- page(
         # Low-collection days ------------------------------------------------------
         nav_panel_hidden(
           "low",
-          chapter_head("low",
-                       LOW_HEADLINE,
+          chapter_head("low", uiOutput("low_headline", inline = TRUE),
                        tagList(term("Low-collection days", "low_day"),
                                " are the quietest quarter of days for each blood group. ",
-                               sprintf(paste("On them, the %s was off by %s donations a day, against %s on",
-                                             "other days. This looks back at what happened; it is not an",
-                                             "early warning."),
-                                       method_phrase(BEST_METHOD), fmt(LOW_MAE, 1), fmt(OTHER_MAE, 1))),
-                       stat = big_stat(count_span(LOW_OVER_PCT, 0, suffix = "%", burst = TRUE),
-                                       sprintf("of %d low days forecast too high, %s", LOW_DAYS, LATEST_SHORT))),
+                               uiOutput("low_sub", inline = TRUE)),
+                       stat = uiOutput("low_stat")),
           div(class = "control-bar stage-2",
               seg("low_year", "Test period", PERIOD_CHOICES, as.character(LATEST))),
           panel("Error on low-collection days and other days",
@@ -916,9 +926,10 @@ ui <- page(
                              "muted bar is its error on all other days. A bright bar much taller than its muted",
                              "bar means the method struggles when donations drop."),
                 sub = tagList("Bright bars: ", term("low-collection days", "low_day"), ". Muted bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day baseline, weekday average, regression, recent average.")),
-                class = "stage-3 chart-panel panel-ink", chartOutput("low_plot", height = "500px")),
+                class = "stage-3 chart-panel panel-ink", chart_row(what_shows("low_explain"),
+                chartOutput("low_plot", height = "380px"))),
           narrate(LOW_WHY),
-          panel("The numbers behind it", class = "stage-3",
+          panel("The numbers behind it", class = "stage-3 tabs-in-head",
                 sub = "Three short tables. Pick one.",
                 tab_set("low_tabs", list(
                   tab("Low-day lines", icon = "ruler-horizontal",
@@ -958,21 +969,23 @@ ui <- page(
           panel("Recorded donations, month by month", sub = "Stacked by blood group. Hover a month for exact counts.",
                 read = paste("The height of the whole shape is all donations that month; each colour band is",
                              "one blood group. Bumps show busy and quiet months."),
-                class = "stage-3 chart-panel panel-ink", chartOutput("weekly_plot", height = "320px")),
-          panel("Zoom in on the rhythm", class = "stage-3 chart-panel panel-ink",
+                class = "stage-3 chart-panel panel-ink", chartOutput("weekly_plot", height = "250px")),
+          panel("Zoom in on the rhythm", class = "stage-3 chart-panel panel-ink tabs-in-head",
                 sub = "Three ways to slice the same donations. Pick a view.",
                 tab_set("pattern_tabs", list(
                   tab("By weekday", icon = "calendar-week",
                       how_read("Taller bars are busier weekdays. Each colour is one blood group."),
-                      chartOutput("weekday_plot", height = "300px")),
+                      chart_row(what_shows("weekday_explain"),
+                      chartOutput("weekday_plot", height = "250px"))),
                   tab("By year", icon = "chart-line",
                       how_read("Each line is one blood group; rising lines mean more donations a day than before."),
-                      chartOutput("annual_plot", height = "300px")),
+                      chart_row(what_shows("annual_explain"),
+                      chartOutput("annual_plot", height = "250px"))),
                   tab("Blood-type mix", icon = "droplet",
-                      p(class = "tab-note", MIX_LINE, " This describes who donated, not how common each type",
-                        " is in the population."),
                       how_read("Each column is one year and adds up to 100%. The bands show each group's share."),
-                      chartOutput("mix_plot", height = "310px"))))),
+                      chart_row(what_shows(text = paste(MIX_LINE, "This describes who donated, not how common each type",
+                                                        "is in the population.")),
+                                chartOutput("mix_plot", height = "250px")))))),
           chapter_nav("patterns")
         ),
 
@@ -1093,7 +1106,8 @@ ui <- page(
                   chips("month_methods", "Methods", METHODS,
                         c("Seven-day baseline", "Linear regression", "Recent weekday average"))),
                 class = "stage-3 chart-panel panel-ink",
-                chartOutput("monthly_plot", height = "310px"),
+                chart_row(what_shows("monthly_explain"),
+                chartOutput("monthly_plot", height = "250px")),
                 footer = "Describes when errors occurred; it cannot explain why.")),
             tab("Data checks", icon = "clipboard-check",
           div(class = "two-up stage-3",
@@ -1182,7 +1196,8 @@ ui <- page(
       )
     ),
     quick_actions,
-    sources_drawer
+    sources_drawer,
+    welcome_card
   )
 )
 
@@ -1217,6 +1232,9 @@ server <- function(input, output, session) {
     g <- if (is.null(input$live_group)) "O" else input$live_group
     chart_live(dash$panel, dash$predictions, dash$next_days, g, DATA_END)
   })
+
+  output$live_explain <- renderUI(explain_live(dash$predictions,
+                                               if (is.null(input$live_group)) "O" else input$live_group, DATA_END))
 
   output$next_table <- renderTable({
     d <- dash$next_days[dash$next_days$method == "Recent weekday average", ]
@@ -1327,8 +1345,83 @@ server <- function(input, output, session) {
     p
   })
 
+  # The headline, its sentence and the big number follow the chosen period and methods.
+  cmp_story <- reactive({
+    y <- cmp_year(); m <- cmp_methods()
+    o <- dash$scores_overall[dash$scores_overall$evaluation_year == y & dash$scores_overall$method %in% m, ]
+    o <- o[order(o$MAE), ]
+    ref <- if ("Seven-day baseline" %in% o$method && o$method[1] != "Seven-day baseline") "Seven-day baseline"
+           else if (nrow(o) > 1) o$method[2] else NA
+    list(y = y, best = o$method[1], mae = o$MAE[1], ref = ref,
+         ref_mae = if (is.na(ref)) NA else o$MAE[o$method == ref],
+         label = PERIOD_LABEL[[as.character(y)]])
+  })
+  output$cmp_headline <- renderUI({
+    st <- cmp_story()
+    if (is.na(st$ref)) return(paste0("Showing the ", method_phrase(st$best), " on its own."))
+    tagList(paste0("So, which forecast did best? The ", method_phrase(st$best), ", with "),
+            count_span(100 * (st$ref_mae - st$mae) / st$ref_mae, 0, suffix = "%"), " less error.")
+  })
+  output$cmp_sub <- renderUI({
+    st <- cmp_story()
+    if (is.na(st$ref)) return(sprintf("In %s its forecasts were off by %s donations per blood group per day.",
+                                      st$label, fmt(st$mae)))
+    sprintf("In %s its forecasts were off by %s donations per blood group per day, against %s for %s.",
+            st$label, fmt(st$mae), fmt(st$ref_mae),
+            if (st$ref == "Seven-day baseline") "simply repeating last week's count"
+            else paste("the", method_phrase(st$ref)))
+  })
+  output$cmp_stat <- renderUI({
+    st <- cmp_story()
+    big_stat(count_span(st$mae, 1, burst = TRUE),
+             paste("average daily error, best method,", sub(" \\(.*", "", st$label)))
+  })
+  output$cmp_explain <- renderUI({
+    y <- cmp_year()
+    explain_compare(dash$scores_overall[dash$scores_overall$evaluation_year == y, ],
+                    dash$scores_by_group[dash$scores_by_group$evaluation_year == y, ],
+                    cmp_methods(), PERIOD_LABEL[[as.character(y)]])
+  })
+  output$daily_explain <- renderUI({
+    req(input$cmp_dates)
+    explain_daily(dash$predictions, if (is.null(input$cmp_group)) "O" else input$cmp_group,
+                  cmp_methods(), input$cmp_dates[1], input$cmp_dates[2])
+  })
+
   # Low-collection days ------------------------------------------------------------------
   low_y <- reactive(as.integer(if (is.null(input$low_year)) LATEST else input$low_year))
+  low_story <- reactive({
+    y <- low_y()
+    o <- dash$scores_overall[dash$scores_overall$evaluation_year == y, ]
+    best <- o$method[which.min(o$MAE)]
+    le <- dash$low_errors[dash$low_errors$evaluation_year == y, ]
+    lo <- le[le$day_category == "Low collection" & le$method == best, ]
+    ot <- le[le$day_category == "Other days" & le$method == best, ]
+    rows <- le[le$day_category == "Low collection", ]
+    over_all <- vapply(split(rows, rows$method), function(r) sum(r$days * r$overprediction_percent) / sum(r$days), 0)
+    list(best = best, days = sum(lo$days), label = PERIOD_LABEL[[as.character(y)]],
+         over = sum(lo$days * lo$overprediction_percent) / sum(lo$days), over_all = over_all,
+         low_mae = sum(lo$days * lo$MAE) / sum(lo$days), other_mae = sum(ot$days * ot$MAE) / sum(ot$days))
+  })
+  output$low_headline <- renderUI({
+    a <- low_story()$over_all
+    if (all(a == 100)) "On the quietest days, every forecast aims too high."
+    else if (all(a > 50)) "On the quietest days, the forecasts aim too high."
+    else "The quietest days are the hardest to forecast."
+  })
+  output$low_sub <- renderUI({
+    st <- low_story()
+    sprintf(paste("In %s, the %s was off by %s donations a day on them, against %s on other days.",
+                  "This looks back at what happened; it is not an early warning."),
+            st$label, method_phrase(st$best), fmt(st$low_mae, 1), fmt(st$other_mae, 1))
+  })
+  output$low_stat <- renderUI({
+    st <- low_story()
+    big_stat(count_span(st$over, 0, suffix = "%", burst = TRUE),
+             sprintf("of %d low days forecast too high, %s", st$days, sub(" \\(.*", "", st$label)))
+  })
+  output$low_explain <- renderUI(explain_low(dash$low_errors[dash$low_errors$evaluation_year == low_y(), ],
+                                             PERIOD_LABEL[[as.character(low_y())]]))
 
   output$low_plot <- renderChart(chart_low_days(dash$low_errors[dash$low_errors$evaluation_year == low_y(), ]))
 
@@ -1382,6 +1475,11 @@ server <- function(input, output, session) {
     chart_weekday(m)
   })
   output$annual_plot <- renderChart(chart_annual(annual_summary(pattern_panel())))
+  output$weekday_explain <- renderUI({
+    d <- pattern_panel(); d$weekday <- WEEKDAYS[weekday_num(d$date)]
+    explain_weekday(group_stat(d, c("blood_type", "weekday"), "donations", mean, "mean_donations"))
+  })
+  output$annual_explain <- renderUI(explain_annual(annual_summary(pattern_panel())))
   output$mix_plot <- renderChart(chart_mix(dash$blood_mix, PARTIAL_YEAR))
 
   # About ------------------------------------------------------------------------------------------
@@ -1431,6 +1529,11 @@ server <- function(input, output, session) {
                c("Average bias", "Average error"))
   })
 
+  output$monthly_explain <- renderUI({
+    y <- as.integer(if (is.null(input$month_year)) LATEST else input$month_year)
+    m <- if (is.null(input$month_methods) || !length(input$month_methods)) METHODS else input$month_methods
+    explain_monthly(dash$monthly[dash$monthly$evaluation_year == y, ], m, PERIOD_LABEL[[as.character(y)]])
+  })
   output$monthly_plot <- renderChart({
     y <- as.integer(if (is.null(input$month_year)) LATEST else input$month_year)
     m <- if (is.null(input$month_methods) || !length(input$month_methods)) METHODS

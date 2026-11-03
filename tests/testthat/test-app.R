@@ -34,7 +34,9 @@ test_that("all app outputs render and headline values match the report", {
                    "weekday_plot", "annual_plot", "mix_plot", "cmp_group_plot",
                    "cmp_table", "cmp_daily_plot", "cutoff_table", "low_plot",
                    "low_table", "min_pred_table", "coef_table", "bias_table",
-                   "monthly_plot", "compat_result", "region_result")) {
+                   "monthly_plot", "compat_result", "region_result", "cmp_headline", "cmp_sub",
+                   "cmp_stat", "cmp_explain", "daily_explain", "low_headline", "low_sub", "low_stat",
+                   "low_explain", "live_explain", "weekday_explain", "annual_explain", "monthly_explain")) {
         expect_no_error(output[[id]])
       }
       expect_match(output$audit_table, "490,425")
