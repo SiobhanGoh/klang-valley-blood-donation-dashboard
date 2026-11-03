@@ -326,13 +326,13 @@
       var c = rgbOf(inline);
       if (!c) return;
       // Ids are per chart: a gradient defined inside a hidden page would not paint here.
-      var key = "kvg-" + (gd.id || "c") + "-" + [c.r, c.g, c.b].join("-") + (isDark() ? "-d" : "");
+      var key = "kvg-" + (gd.id || "c") + "-" + [c.r, c.g, c.b].join("-") + (chartDark(gd) ? "-d" : "");
       if (!made[key] && !defs.querySelector("#" + key)) {
         var g = document.createElementNS("http://www.w3.org/2000/svg", "linearGradient");
         g.setAttribute("id", key); g.setAttribute("x1", "0"); g.setAttribute("y1", "0");
         g.setAttribute("x2", "0"); g.setAttribute("y2", "1");
         var stops = [[0, mix(c, 255, 0.26)], [0.6, "rgb(" + c.r + "," + c.g + "," + c.b + ")"],
-                     [1, isDark() ? mix(c, 0, 0.12) : "rgb(" + c.r + "," + c.g + "," + c.b + ")"]];
+                     [1, chartDark(gd) ? mix(c, 0, 0.12) : "rgb(" + c.r + "," + c.g + "," + c.b + ")"]];
         stops.forEach(function (s) {
           var st = document.createElementNS("http://www.w3.org/2000/svg", "stop");
           st.setAttribute("offset", s[0]); st.setAttribute("stop-color", s[1]);
@@ -379,7 +379,7 @@
     wireBars(gd);
     polishBars(gd);
     gd.__origColours = null;       // a new render brings fresh colours
-    if (isDark()) themeChart(gd);
+    if (chartDark(gd)) themeChart(gd);
     if (!chartObserver) { animateChart(gd); return; }
     pendingCharts.add(gd);
     chartObserver.unobserve(gd);
@@ -584,6 +584,8 @@
     "#F2B3C0": "#7A3F50", "#E07D93": "#A84F66", "#B8445F": "#D06580", "#6E1D37": "#F4A3B6"
   };
   function isDark() { return document.documentElement.getAttribute("data-theme") === "dark"; }
+  // A chart on a dark "ink" panel uses the dark palette in either theme.
+  function chartDark(gd) { return isDark() || !!(gd && gd.closest && gd.closest(".panel-ink")); }
   function mapColour(c, dark) {
     if (typeof c !== "string") return c;
     if (!dark) return c;
@@ -591,7 +593,7 @@
   }
   function themeChart(gd) {
     if (!window.Plotly || !gd.data || !gd.layout) return;
-    var dark = isDark();
+    var dark = chartDark(gd);
     if (!gd.__origColours) {
       gd.__origColours = gd.data.map(function (t) {
         return { m: t.marker && t.marker.color, ml: t.marker && t.marker.line && t.marker.line.color,
@@ -623,7 +625,7 @@
       window.Plotly.relayout(gd, lay);
     } catch (e) { /* chart not ready */ }
   }
-  function themeAllCharts() { $all(".js-plotly-plot").forEach(function (gd) { if (gd.__origColours || isDark()) themeChart(gd); }); }
+  function themeAllCharts() { $all(".js-plotly-plot").forEach(function (gd) { if (gd.__origColours || chartDark(gd)) themeChart(gd); }); }
   function setTheme(t) {
     var root = document.documentElement;
     root.classList.add("theme-switching");

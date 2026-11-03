@@ -205,7 +205,7 @@ chart_live <- function(panel, predictions, next_days, group, data_end) {
          xaxis = list(type = "date", tickformat = "%d %b", hoverformat = "%a %d %b %Y"),
          shapes = list(list(type = "rect", xref = "x", yref = "paper",
                             x0 = format(data_end + 0.5), x1 = format(max(ahead$date) + 0.5),
-                            y0 = 0, y1 = 1, fillcolor = "rgba(242,179,192,0.28)",
+                            y0 = 0, y1 = 1, fillcolor = "rgba(232,110,140,0.16)",
                             line = list(width = 0), layer = "below")),
          annotations = list(list(x = format(data_end + 4), y = 1, xref = "x",
                                  yref = "paper", yanchor = "bottom", showarrow = FALSE,

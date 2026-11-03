@@ -402,14 +402,23 @@ chapter_nav <- function(id) {
 }
 
 # A panel: white card with a proper title row and optional controls.
+# "How to read this" as a small chip; the explanation opens on hover, focus or tap.
+how_read <- function(text) {
+  tags$details(class = "how-read",
+               tags$summary(span(class = "hr-icon", icon("circle-question")), span("How to read this")),
+               div(class = "how-read-pop", role = "note", text))
+}
+
 panel <- function(title, ..., sub = NULL, controls = NULL, class = "", footer = NULL, read = NULL) {
   div(class = paste("panel", class),
       div(class = "panel-head",
           div(class = "panel-titles",
               h3(class = "panel-title", title),
-              if (!is.null(sub)) p(class = "panel-sub", sub)),
+              if (!is.null(sub) || !is.null(read))
+                div(class = "panel-subrow",
+                    if (!is.null(sub)) p(class = "panel-sub", sub),
+                    if (!is.null(read)) how_read(read))),
           if (!is.null(controls)) div(class = "panel-controls", controls)),
-      if (!is.null(read)) div(class = "how-read", span(class = "how-read-tag", "How to read this"), span(read)),
       div(class = "panel-body", ...),
       if (!is.null(footer)) div(class = "panel-foot", footer))
 }
@@ -718,11 +727,11 @@ ui <- page(
                               "Guessed too high, %",
                               mini_bars(LOW_OVER_BARS, digits = 0)))),
               panel("How far off each method was, year by year",
-                    sub = tagList("The ", term("average error", "error"), " of each method in each ",
-                                  term("test period", "test_period"), ", with all four blood groups together."),
+                    sub = tagList("Shorter bars mean a smaller ", term("average error", "error"), "."),
                     read = paste("Each bar is how many donations a method's forecast missed by, on an average",
-                                 "day for one blood group. Shorter is better. Hover a bar for the exact numbers."),
-                    class = "stage-3 chart-panel ov-chart",
+                                 "day for one blood group, in one test period. All four blood groups are",
+                                 "counted together. Hover a bar for the exact numbers."),
+                    class = "stage-3 chart-panel ov-chart panel-ink",
                     chartOutput("overview_plot", height = "300px"),
                     footer = paste("Each period's averages and regression are fitted only on earlier",
                                    "years. Training windows overlap, so the periods are not independent tests.")),
@@ -799,13 +808,12 @@ ui <- page(
               kpi(paste0(END_YEAR, " so far"), count_span(dash$latest$ytd),
                   uiOutput("live_change_ytd", inline = TRUE))),
           panel("The last 60 days and the next seven",
-                sub = tagList("The dark line is what was really recorded; the paler lines are each method's ",
-                              term("forecast", "forecast"), "."),
-                read = paste("Where a pale line sits close to the dark line, that method got the day right.",
-                             "The shaded strip on the right is the next seven days, still to come. Hover any day",
-                             "to see every number."),
+                sub = tagList("Bold line: what was recorded. Fainter lines: each ", term("forecast", "forecast"), "."),
+                read = paste("The bold line with dots is what was really recorded. Where a fainter line sits close",
+                             "to it, that method got the day right. The shaded strip on the right is the next",
+                             "seven days, still to come. Hover any day to see every number."),
                 controls = seg("live_group", "Blood group", ABO_GROUPS, "O"),
-                class = "stage-3 chart-panel",
+                class = "stage-3 chart-panel panel-ink",
                 chartOutput("live_plot", height = "300px"),
                 footer = "The seven-day lag can only look one week ahead, so the forecast window is seven days."),
           narrate("Seven days out, the recent weekday mean expects this. Each daily refresh ",
@@ -929,18 +937,15 @@ ui <- page(
                 sub = "Three ways to slice the same donations. Pick a view.",
                 tab_set("pattern_tabs", list(
                   tab("By weekday", icon = "calendar-week",
-                      div(class = "how-read", span(class = "how-read-tag", "How to read this"),
-                          span("Taller bars are busier weekdays. Each colour is one blood group.")),
+                      how_read("Taller bars are busier weekdays. Each colour is one blood group."),
                       chartOutput("weekday_plot", height = "300px")),
                   tab("By year", icon = "chart-line",
-                      div(class = "how-read", span(class = "how-read-tag", "How to read this"),
-                          span("Each line is one blood group; rising lines mean more donations a day than before.")),
+                      how_read("Each line is one blood group; rising lines mean more donations a day than before."),
                       chartOutput("annual_plot", height = "300px")),
                   tab("Blood-type mix", icon = "droplet",
                       p(class = "tab-note", MIX_LINE, " This describes who donated, not how common each type",
                         " is in the population."),
-                      div(class = "how-read", span(class = "how-read-tag", "How to read this"),
-                          span("Each column is one year and adds up to 100%. The bands show each group's share.")),
+                      how_read("Each column is one year and adds up to 100%. The bands show each group's share."),
                       chartOutput("mix_plot", height = "310px"))))),
           chapter_nav("patterns")
         ),
