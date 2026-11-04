@@ -1,8 +1,8 @@
 name: Refresh data and publish dashboard
 
 # Runs every day after data.gov.my updates the CSV (around 21:00 UTC),
-# on every push to main, and on demand. The site is served by GitHub Pages
-# and runs the Shiny app in the visitor's browser with Shinylive (webR).
+# on every push to main, and on demand. R builds the dashboard as a static
+# site (scripts/build_static.R) and GitHub Pages serves it.
 on:
   schedule:
     - cron: "17 22 * * *"      # 06:17 Malaysia time
@@ -45,7 +45,6 @@ jobs:
             any::lubridate
             any::janitor
             any::testthat
-            any::shinylive
 
       - name: Run tests (frozen snapshot reproduces the FIT5145 report)
         run: Rscript -e 'testthat::test_dir("tests/testthat", reporter = "summary", stop_on_failure = TRUE)'
@@ -53,17 +52,8 @@ jobs:
       - name: Download the latest official data and rebuild results
         run: Rscript scripts/build_data.R
 
-      - name: Package the app for the browser
-        run: |
-          # Only what the app needs to show precomputed results: leaving out
-          # R/analysis.R keeps readr, janitor and tidyr out of the browser download.
-          mkdir -p _app/R
-          cp app.R _app/
-          cp R/common.R R/charts.R R/content.R R/reports.R R/visuals.R R/explain.R _app/R/
-          cp -r www app_data _app/
-          Rscript -e 'shinylive::export("_app", "_site")'
-          Rscript scripts/add_splash.R _site
-          touch _site/.nojekyll
+      - name: Build the static site
+        run: Rscript scripts/build_static.R _site
 
       - uses: actions/upload-pages-artifact@v3
         with:

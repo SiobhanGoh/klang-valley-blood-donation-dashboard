@@ -623,6 +623,24 @@ source("R/visuals.R", local = TRUE)
 source("R/explain.R", local = TRUE)
 
 # "What this shows": one plain sentence under a chart that rewrites itself for the selection.
+# Native range controls: the page is a static site, so no Shiny widgets.
+date_range <- function(id, start, end, min, max) {
+  div(class = "input-daterange", id = id, role = "group", `aria-label` = "Date range",
+      tags$input(type = "date", class = "form-control", id = paste0(id, "_from"), value = format(start),
+                 min = format(min), max = format(max), `aria-label` = "From"),
+      span(class = "input-group-addon", "to"),
+      tags$input(type = "date", class = "form-control", id = paste0(id, "_to"), value = format(end),
+                 min = format(min), max = format(max), `aria-label` = "To"))
+}
+year_range <- function(id, from, to, min, max) {
+  yrs <- as.character(seq(min, max))
+  sel <- function(suffix, value, label)
+    tags$select(class = "year-select", id = paste0(id, suffix), `aria-label` = label,
+                lapply(yrs, function(y) tags$option(value = y, selected = if (y == as.character(value)) NA, y)))
+  div(class = "year-range", id = id, role = "group", `aria-label` = "Years",
+      sel("_from", from, "From year"), span(class = "input-group-addon", "to"), sel("_to", to, "To year"))
+}
+
 # A chart with its plain-words reading beside it (stacked on narrow screens).
 chart_row <- function(note, chart) div(class = "chart-row", div(class = "chart-main", chart), note)
 
@@ -733,6 +751,7 @@ ui <- page(
       "&family=Inter:wght@300;400;600;700&display=swap")),
     tags$link(rel = "stylesheet", href = "styles.css"),
     tags$script(src = "plotly-basic.min.js"),
+    tags$script(src = "static.js", defer = NA),
     tags$script(src = "interactions.js", defer = NA)
   ),
   div(class = "canvas-glow", `aria-hidden` = "true"),
@@ -897,10 +916,8 @@ ui <- page(
                   seg("cmp_group", "Blood group", ABO_GROUPS, "O"),
                   div(class = "control",
                       span(class = "control-label", "Dates"),
-                      dateRangeInput("cmp_dates", NULL,
-                                     start = max(DATA_END - 30, min(dash$predictions$date)),
-                                     end = DATA_END,
-                                     min = min(dash$predictions$date), max = DATA_END))),
+                      date_range("cmp_dates", start = max(DATA_END - 30, min(dash$predictions$date)),
+                                 end = DATA_END, min = min(dash$predictions$date), max = DATA_END))),
                 class = "stage-3 chart-panel panel-ink",
                 chart_row(what_shows("daily_explain"),
                 chartOutput("cmp_daily_plot", height = "270px")),
@@ -953,7 +970,7 @@ ui <- page(
         nav_panel_hidden(
           "patterns",
           chapter_head("patterns",
-                       tagList("Guess the busiest day? It's ", BUSIEST_DAY, "."),
+                       paste0("Guess the busiest day? It's ", BUSIEST_DAY, "."),
                        sprintf(paste("On an average %s the Klang Valley records %s times as many donations",
                                      "as on a %s, and group O gives %s of them. Twenty years of recorded",
                                      "donations, 2006 to %s."),
@@ -963,8 +980,7 @@ ui <- page(
               chips("pattern_groups", "Blood groups", ABO_GROUPS, ABO_GROUPS),
               div(class = "control control-wide",
                   span(class = "control-label", "Years"),
-                  sliderInput("pattern_years", NULL, min = 2006, max = END_YEAR,
-                              value = c(2006, END_YEAR), sep = "", step = 1, ticks = FALSE))),
+                  year_range("pattern_years", 2006, END_YEAR, 2006, END_YEAR))),
           panel("Recorded donations, month by month", sub = "Stacked by blood group. Hover a month for exact counts.",
                 read = paste("The height of the whole shape is all donations that month; each colour band is",
                              "one blood group. Bumps show busy and quiet months."),
@@ -1160,8 +1176,8 @@ ui <- page(
                         seg("rep_group", "Blood group", c("All" = "all", setNames(ABO_GROUPS, ABO_GROUPS)), "all"),
                         div(class = "control",
                             span(class = "control-label", "Dates"),
-                            dateRangeInput("rep_dates", NULL, start = DATA_END - 30, end = DATA_END,
-                                           min = min(dash$panel$date), max = DATA_END)),
+                            date_range("rep_dates", start = DATA_END - 30, end = DATA_END,
+                                       min = min(dash$panel$date), max = DATA_END)),
                         chips("rep_extra", "Include", c("Forecasts from each method" = "forecasts"),
                               "forecasts")),
                       conditionalPanel("input.report_type == 'card'",

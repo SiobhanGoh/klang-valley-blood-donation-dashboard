@@ -1,10 +1,9 @@
 # Klang Valley Blood Donation Forecasts
 
 **[Open the live dashboard](https://siobhangoh.github.io/klang-valley-blood-donation-dashboard/)**,
-refreshed every morning with the latest official data. The first visit takes a little
-longer (around half a minute) while your browser starts R.
+refreshed every morning with the latest official data. It opens in a second or two.
 
-An R Shiny dashboard of daily blood-donation **collections** in the Klang Valley
+A dashboard of daily blood-donation **collections** in the Klang Valley
 (Selangor + W.P. Kuala Lumpur), by ABO blood group. It uses the Government of
 Malaysia's open daily data and refreshes every day.
 
@@ -25,19 +24,28 @@ data.gov.my updates the CSV. It:
 1. runs the tests;
 2. downloads the latest CSV;
 3. recomputes every result;
-4. publishes the dashboard to GitHub Pages.
+4. builds the dashboard as a static site and publishes it to GitHub Pages.
 
 Evaluation covers the last three complete years plus the current year to date,
 once it has four weeks of data. If the download fails, the run stops and the
 previous site stays up.
 
-The published site uses [Shinylive](https://posit-dev.github.io/r-shinylive/), which
-runs the R app in the visitor's browser. Hosting is therefore free, has no usage-hour
-limits and needs no server. The first visit downloads the R runtime, so it takes a
-little longer to open; a loading screen shows while it starts. To keep that download
-small, the published site ships only the code needed to display the precomputed
-results (`R/common.R`, `R/charts.R`, `R/content.R`, `R/reports.R`, `R/visuals.R`), not the data pipeline in
-`R/analysis.R`.
+### How the site is built
+
+All the analysis is R. The dashboard is written as a Shiny app (`app.R`), but
+visitors never wait for R: once a day, `scripts/build_static.R`
+
+- renders the page from the app's own UI code;
+- runs the app's server code for every choice with a fixed set of options (test
+  periods, method mixes, blood groups, regions, report types) and saves each
+  result as JSON;
+- saves a compact daily data file for the few views that take free dates or year
+  ranges (the day-by-day comparison, the Patterns charts and the data appendix),
+  which `www/static.js` draws in the browser.
+
+The published site is plain HTML, CSS, JavaScript and JSON, so hosting is free,
+there is no server to sleep, and the page opens in about a second. Each data file
+is fetched only when its page is used.
 
 ## What the dashboard shows
 
@@ -162,13 +170,13 @@ The tests also check:
 - that a failed download falls back safely;
 - that the claims written on the Overview tab hold;
 - the blood-type compatibility rule;
-- that every chart builds without warnings (R 4.6 in the browser treats some as errors);
+- that every chart builds without warnings;
 - that every app output renders. They run on each push via GitHub Actions.
 
 ## Repository layout
 
 ```
-app.R                    Shiny UI and server
+app.R                    Shiny UI and server (the source the static site is built from)
 R/common.R               Shared constants and the light helpers the app needs
 R/analysis.R             Data loading (live or snapshot), forecasting and scoring (ported from the Rmd)
 R/charts.R               Interactive charts: plotly.js figures built in R, one shared style
@@ -176,9 +184,9 @@ R/reports.R              The three printable reports and the CSV extract
 R/visuals.R              Mind-map and flow diagrams (eligibility, donation journey, aftercare, methods, limits)
 R/content.R              Blood 101 facts (with sources) and the compatibility rule
 scripts/build_data.R     Downloads the latest CSV and precomputes results for the site
-scripts/add_splash.R     Adds the loading screen (site/splash.html) to the published site
+scripts/build_static.R   Builds the static site: the page, every precomputed view, the daily data file
 .github/workflows/       Tests on every push; daily data refresh and Pages deployment
-www/                     Styles and interaction scripts
+www/                     Styles and scripts (static.js runs the published site in the browser)
 data/                    Frozen public data snapshot (gzip-compressed, MD5-checked)
 reference/               Outputs saved by the original R Markdown analysis (test oracle)
 tests/testthat/          Reproduction and app tests
