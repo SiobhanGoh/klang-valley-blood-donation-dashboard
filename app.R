@@ -1281,7 +1281,9 @@ ui <- page(
                       p(class = "panel-sub", uiOutput("report_blurb", inline = TRUE)))),
                   div(class = "panel-body",
                       conditionalPanel("input.report_type == 'summary'",
-                        seg("rep_period", "Year", PERIOD_CHOICES, as.character(LATEST))),
+                        seg("rep_period", "Year", PERIOD_CHOICES, as.character(LATEST)),
+                        seg("rep_focus", "Focus", c("All groups" = "all", setNames(ABO_GROUPS, ABO_GROUPS)), "all"),
+                        chips("rep_sections", "Sections", SUMMARY_SECTIONS, SUMMARY_SECTIONS)),
                       conditionalPanel("input.report_type == 'data'",
                         seg("rep_group", "Blood group", c("All" = "all", setNames(ABO_GROUPS, ABO_GROUPS)), "all"),
                         div(class = "control",
@@ -1293,6 +1295,38 @@ ui <- page(
                       conditionalPanel("input.report_type == 'card'",
                         seg("card_type", "My blood type", BLOOD_TYPES, "O+"),
                         seg("card_region", "My region", names(MALAYSIA_REGIONS), "Central"),
+                        div(class = "card-me",
+                            div(class = "card-me-head", span(class = "control-label", "Make it mine"),
+                                span(class = "card-me-note", icon("lock"), "Optional. Stays on this page; nothing is saved or sent.")),
+                            div(class = "card-me-grid",
+                                div(class = "control card-field card-field-wide",
+                                    tags$label(`for` = "card_name", class = "control-label", "Name on the card"),
+                                    tags$input(id = "card_name", type = "text", class = "form-control", maxlength = "40",
+                                               autocomplete = "off", placeholder = "Your name")),
+                                div(class = "control card-field",
+                                    tags$label(`for` = "card_state", class = "control-label", "My state"),
+                                    tags$select(id = "card_state", class = "form-select",
+                                                `data-regions` = jsonlite::toJSON(MALAYSIA_REGIONS, auto_unbox = FALSE),
+                                                tags$option(value = "", "Not set"),
+                                                lapply(MALAYSIA_REGIONS[["Central"]], function(x) tags$option(value = x, x)))),
+                                div(class = "control card-field card-centre",
+                                    tags$label(`for` = "card_centre", class = "control-label", "My usual centre"),
+                                    tags$select(id = "card_centre", class = "form-select",
+                                                tags$option(value = "", "No preference"),
+                                                lapply(seq_along(DONATION_CENTRES), function(i)
+                                                  tags$option(value = i, DONATION_CENTRES[[i]]$name)))),
+                                div(class = "control card-field",
+                                    tags$label(`for` = "card_first", class = "control-label", "Donated before?"),
+                                    tags$select(id = "card_first", class = "form-select",
+                                                lapply(seq_along(CARD_FIRST), function(i) tags$option(value = CARD_FIRST[[i]], names(CARD_FIRST)[i])))),
+                                div(class = "control card-field",
+                                    tags$label(`for` = "card_age", class = "control-label", "Age"),
+                                    tags$select(id = "card_age", class = "form-select",
+                                                lapply(seq_along(CARD_AGE), function(i) tags$option(value = CARD_AGE[[i]], names(CARD_AGE)[i])))),
+                                div(class = "control card-field",
+                                    tags$label(`for` = "card_weight", class = "control-label", "Body weight"),
+                                    tags$select(id = "card_weight", class = "form-select",
+                                                lapply(seq_along(CARD_WEIGHT), function(i) tags$option(value = CARD_WEIGHT[[i]], names(CARD_WEIGHT)[i])))))),
                         tags$details(class = "date-pick",
                             tags$summary(span(class = "control-label", "Last donation (optional)"),
                                          uiOutput("card_last_label", inline = TRUE)),
@@ -1312,7 +1346,13 @@ ui <- page(
                                       icon("file-pdf"), "Save as PDF"),
                           conditionalPanel("input.report_type == 'data'",
                             actionButton("csv_go", tagList(icon("table"), "Download CSV"),
-                                         class = "btn-pill btn-quiet"))))),
+                                         class = "btn-pill btn-quiet")),
+                          conditionalPanel("input.report_type == 'card'",
+                            tags$button(id = "card_ics", class = "btn-pill btn-quiet", type = "button", hidden = NA,
+                                        icon("calendar-plus"), "Add a reminder to my calendar"))),
+                      conditionalPanel("input.report_type == 'card'",
+                        p(class = "card-ics-hint", id = "card_ics_hint",
+                          "Add your last donation date to get a calendar reminder for your next one.")))),
               div(class = "paper-stage",
                   div(class = "paper-label", "Preview"),
                   uiOutput("report_preview"))),
@@ -1397,7 +1437,9 @@ server <- function(input, output, session) {
   })
   output$report_preview <- renderUI({
     switch(report_kind(),
-      summary = report_summary(if (is.null(input$rep_period)) LATEST else input$rep_period),
+      summary = report_summary(if (is.null(input$rep_period)) LATEST else input$rep_period,
+                               if (is.null(input$rep_focus)) "all" else input$rep_focus,
+                               if (is.null(input$rep_sections)) character() else input$rep_sections),
       data = report_data(if (is.null(input$rep_group)) "all" else input$rep_group,
                          rep_dates()[1], rep_dates()[2], "forecasts" %in% input$rep_extra),
       card = {
@@ -1405,7 +1447,9 @@ server <- function(input, output, session) {
         r <- if (is.null(input$card_region) || !input$card_region %in% names(MALAYSIA_REGIONS)) "Central"
              else input$card_region
         last <- card_last()
-        report_card(t, r, if (!is.null(last) && !is.na(last)) last else NULL)
+        me <- lapply(c(name = "card_name", state = "card_state", centre = "card_centre", first = "card_first",
+                       age = "card_age", weight = "card_weight"), function(id) if (is.null(input[[id]])) "" else input[[id]])
+        report_card(t, r, if (!is.null(last) && !is.na(last)) last else NULL, me)
       })
   })
   card_last <- reactive({

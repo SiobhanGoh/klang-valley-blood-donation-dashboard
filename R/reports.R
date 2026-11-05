@@ -52,53 +52,87 @@ svg_bars <- function(labels, values, highlight = NULL, digits = 1, width = 520) 
 
 # --- 1. Summary report: editorial ---------------------------------------------------
 
-report_summary <- function(year) {
+SUMMARY_SECTIONS <- c("The numbers" = "stats", "Scoreboard" = "scoreboard",
+                      "What stands out" = "findings", "The blind spot" = "blindspot")
+
+# Sums of one group's (or all groups') recorded donations between two dates.
+panel_sum <- function(groups, from, to) {
+  p <- dash$panel
+  sum(p$donations[p$blood_type %in% groups & p$date >= from & p$date <= to])
+}
+
+# group: "all" or one ABO group, which retells the report for that group.
+# sections: which optional sections to include; the headline and the "read with
+# care" note are always there.
+report_summary <- function(year, group = "all", sections = SUMMARY_SECTIONS) {
   y <- as.integer(year)
   lab <- PERIOD_LABEL[[as.character(y)]]
-  sc <- dash$scores_overall[dash$scores_overall$evaluation_year == y, ]
+  one <- !identical(group, "all")
+  groups <- if (one) group else ABO_GROUPS
+  sc <- if (one) dash$scores_by_group[dash$scores_by_group$evaluation_year == y &
+                                        dash$scores_by_group$blood_type == group, ]
+        else dash$scores_overall[dash$scores_overall$evaluation_year == y, ]
   sc <- sc[order(sc$MAE), ]
   best <- sc$method[1]
   lag <- sc$MAE[sc$method == "Seven-day baseline"]
   gain <- 100 * (lag - sc$MAE[1]) / lag
   low <- dash$low_errors[dash$low_errors$evaluation_year == y &
                            dash$low_errors$day_category == "Low collection" &
-                           dash$low_errors$method == best, ]
+                           dash$low_errors$method == best &
+                           dash$low_errors$blood_type %in% groups, ]
   over <- sum(low$days * low$overprediction_percent) / sum(low$days)
-  wk <- pct_change(dash$latest$last7, dash$latest$last7_prev_year)
+  end <- DATA_END
+  last7 <- panel_sum(groups, end - 6, end)
+  prev7 <- panel_sum(groups, seq(end, by = "-1 year", length.out = 2)[2] - 6, seq(end, by = "-1 year", length.out = 2)[2])
+  wk <- pct_change(last7, prev7)
+  latest <- panel_sum(groups, end, end)
+  ytd <- panel_sum(groups, as.Date(sprintf("%s-01-01", END_YEAR)), end)
+  share <- if (one) 100 * panel_sum(group, end - 29, end) / max(panel_sum(ABO_GROUPS, end - 29, end), 1) else NA
+  who <- if (one) sprintf("group %s donations", group) else "blood donations"
+  sec <- function(id, ...) if (id %in% sections) div(class = "rp-sec", `data-sec` = id, ...)
 
   report_paper(
     "summary",
     report_masthead(
-      paste("Summary report ·", lab),
-      sprintf("The %s is the one to beat.", method_phrase(best)),
-      sprintf(paste("Across %s, it forecast recorded blood donations in Selangor and W.P. Kuala",
-                    "Lumpur with an average error of %s donations per blood group per day, %s",
+      paste("Summary report ·", lab, if (one) paste("· Group", group)),
+      sprintf("The %s is the one to beat%s.", method_phrase(best), if (one) paste(" for group", group) else ""),
+      sprintf(paste("Across %s, it forecast recorded %s in Selangor and W.P. Kuala",
+                    "Lumpur with an average error of %s %s, %s",
                     "lower than simply repeating last week's count."),
-              lab, fmt(sc$MAE[1]), pct_text(gain))),
-    div(class = "rp-stats",
+              lab, who, fmt(sc$MAE[1]), if (one) "donations a day" else "donations per blood group per day",
+              pct_text(gain))),
+    sec("stats", div(class = "rp-stats",
         div(class = "rp-stat",
-            div(class = "rp-stat-num", fmt_int(dash$latest$latest_total)),
-            div(class = "rp-stat-lab", paste("donations on", fmt_date(DATA_END)))),
+            div(class = "rp-stat-num", fmt_int(latest)),
+            div(class = "rp-stat-lab", paste(if (one) paste("group", group, "donations on") else "donations on",
+                                             fmt_date(end)))),
         div(class = "rp-stat",
-            div(class = "rp-stat-num", fmt_int(dash$latest$last7)),
+            div(class = "rp-stat-num", fmt_int(last7)),
             div(class = "rp-stat-lab",
                 if (is.na(wk)) "in the last seven days"
                 else sprintf("in the last seven days, %s%% %s than a year earlier",
                              fmt(abs(wk), 1), if (wk >= 0) "more" else "fewer"))),
         div(class = "rp-stat",
-            div(class = "rp-stat-num", fmt_int(dash$latest$ytd)),
-            div(class = "rp-stat-lab", paste("so far in", END_YEAR)))),
-    h2(class = "rp-h2", "The scoreboard"),
-    p(class = "rp-p", "Average daily error of each method, in donations per blood group per day. Shorter is better."),
-    svg_bars(sc$method, sc$MAE, highlight = best, digits = 2),
-    h2(class = "rp-h2", "What stands out"),
-    tags$ol(class = "rp-list", lapply(dash$findings, function(f) tags$li(f))),
-    h2(class = "rp-h2", "The blind spot"),
-    p(class = "rp-p", sprintf(paste("Low-collection days are those at or below each group's lower",
-                                    "quartile from earlier years. On the %d such days in %s, the %s",
-                                    "forecast too high on %s of them. No method here gives an early warning",
-                                    "of a low day."),
-                              sum(low$days), lab, method_phrase(best), pct_text(over))),
+            div(class = "rp-stat-num", if (one) paste0(fmt(share, 0), "%") else fmt_int(ytd)),
+            div(class = "rp-stat-lab", if (one) sprintf("of all donations in the 30 days to %s", fmt_date(end))
+                                       else paste("so far in", END_YEAR))))),
+    sec("scoreboard",
+        h2(class = "rp-h2", "The scoreboard"),
+        p(class = "rp-p", if (one) sprintf("Average daily error of each method for group %s, in donations a day. Shorter is better.", group)
+                          else "Average daily error of each method, in donations per blood group per day. Shorter is better."),
+        svg_bars(sc$method, sc$MAE, highlight = best, digits = 2)),
+    sec("findings",
+        h2(class = "rp-h2", "What stands out"),
+        if (one) p(class = "rp-p", "Across all four blood groups:"),
+        tags$ol(class = "rp-list", lapply(dash$findings, function(f) tags$li(f)))),
+    sec("blindspot",
+        h2(class = "rp-h2", "The blind spot"),
+        p(class = "rp-p", sprintf(paste("Low-collection days are those at or below %s lower",
+                                        "quartile from earlier years. On the %d such days in %s, the %s",
+                                        "forecast too high on %s of them. No method here gives an early warning",
+                                        "of a low day."),
+                                  if (one) sprintf("group %s's", group) else "each group's",
+                                  sum(low$days), lab, method_phrase(best), pct_text(over)))),
     div(class = "rp-callout",
         strong("Read with care. "),
         "These are forecasts of donations collected, not of blood demand, stock or shortage. ",
@@ -176,27 +210,71 @@ report_data <- function(group, from, to, forecasts, max_rows = 62L) {
     report_footer(data_credit))
 }
 
-# --- 3. Donor card: personal --------------------------------------------------------
+# --- 3. Donor card: personal ---------------------------------------------------------
 
-report_card <- function(type, region, last_donation = NULL) {
+# Everything a visitor can add to their card is optional. Each tailored line is
+# drawn with the answers it belongs to (data-show) and hidden unless they match,
+# so the page can switch lines on as answers change without sending anything.
+CARD_AGE <- c("Not set" = "", "17" = "17", "18 to 60" = "18-60", "61 to 70" = "61-70", "Over 70" = "over70")
+CARD_WEIGHT <- c("Not set" = "", "Under 45 kg" = "under45", "45 to 55 kg" = "45-55", "Over 55 kg" = "over55")
+CARD_FIRST <- c("Not set" = "", "This is my first time" = "first", "I've donated before" = "returning")
+CENTRE_STATE <- c("W.P. Kuala Lumpur", "W.P. Kuala Lumpur", "Selangor", "W.P. Putrajaya")
+CARD_NOTES <- list(
+  list(show = "age=17", text = "At 17, you need written consent from a parent or guardian."),
+  list(show = "age=18-60", text = "Your age is within PDN's range for first-time and regular donors."),
+  list(show = "age=61-70;first=first", text = "PDN takes first-time donors up to age 60, so ask PDN before you go."),
+  list(show = "age=61-70;first=returning", text = "As a regular donor aged 61 to 70, you need a yearly health screening."),
+  list(show = "age=61-70;first=", text = "From 61 to 70, PDN takes regular donors, with a yearly health screening."),
+  list(show = "age=over70", text = "PDN lists 70 as the upper age for donors. Ask PDN if you are unsure."),
+  list(show = "weight=under45", text = "PDN's minimum body weight is 45 kg."),
+  list(show = "weight=45-55", text = "At 45 to 55 kg, you would give 350 ml."),
+  list(show = "weight=over55", text = "Above 55 kg, you would give 450 ml."),
+  list(show = "first=first", text = "First time? Bring your IC, driving licence or passport."),
+  list(show = "first=returning", text = "Bring your IC, driving licence or passport, or your donor book with a photo.")
+)
+# Does a data-show rule ("age=61-70;first=") match the answers in `me`?
+show_match <- function(rule, me) {
+  all(vapply(strsplit(rule, ";", fixed = TRUE)[[1]], function(p) {
+    kv <- strsplit(p, "=", fixed = TRUE)[[1]]
+    v <- me[[kv[1]]]; if (is.null(v)) v <- ""
+    identical(as.character(v), if (length(kv) > 1) kv[2] else "")
+  }, TRUE))
+}
+when <- function(rule, me, tag) {
+  tag <- tagAppendAttributes(tag, `data-show` = rule)
+  if (!show_match(rule, me)) tag <- tagAppendAttributes(tag, hidden = NA)
+  tag
+}
+
+report_card <- function(type, region, last_donation = NULL, me = list()) {
   cmp <- compatibility_for(type)
+  group <- sub("[+-]$", "", type)
   next_date <- if (!is.null(last_donation) && length(last_donation) && !is.na(last_donation))
     seq(as.Date(last_donation), by = "3 months", length.out = 2)[2] else NULL
   st <- dash$states[!is.na(dash$states$region) & dash$states$region == region, ]
+  st <- st[order(-st$last30), ]
+  share <- 100 * panel_sum(group, DATA_END - 29, DATA_END) / max(panel_sum(ABO_GROUPS, DATA_END - 29, DATA_END), 1)
   chips <- function(on) div(class = "rp-chips",
     lapply(BLOOD_TYPES, function(x) span(class = paste("rp-chip", if (x %in% on) "is-on"), x)))
   note <- if (type == "O-") "Your red cells can go to every type: you are a universal red-cell donor."
           else if (type == "AB+") "You can receive red cells from every type: a universal red-cell recipient."
           else if (endsWith(type, "-")) "As an RhD-negative type, you can only receive RhD-negative red cells."
           else sprintf("You can receive from %d types and give to %d.", length(cmp$receives_from), length(cmp$gives_to))
+  name <- if (is.null(me$name)) "" else trimws(me$name)
+  notes_on <- any(vapply(CARD_NOTES, function(n) show_match(n$show, me), TRUE))
+  centre <- if (is.null(me$centre)) "" else as.character(me$centre)
   report_paper(
     "card",
     div(class = "rp-card-hero",
         div(class = "rp-card-drop", span(type)),
         div(class = "rp-card-copy",
             div(class = "rp-kicker", "My donor card"),
+            div(class = "rp-card-owner", `data-slot` = "name", hidden = if (!nzchar(name)) NA, name),
             h1(class = "rp-title", sprintf("Blood type %s", type)),
             p(class = "rp-deck", note))),
+    p(class = "rp-group-line", icon("droplet"),
+      sprintf("Group %s gave %s of the Klang Valley's recorded donations in the 30 days to %s.",
+              group, paste0(fmt(share, 0), "%"), fmt_date(DATA_END))),
     div(class = "rp-card-grid",
         div(class = "rp-box",
             h3("I can give red cells to"), chips(cmp$gives_to)),
@@ -209,13 +287,25 @@ report_card <- function(type, region, last_donation = NULL) {
           div(class = "rp-next-note", sprintf(paste("At least three months after your last donation on %s.",
                                                     "Staff confirm eligibility on the day."),
                                               fmt_date(as.Date(last_donation))))),
+    div(class = "rp-me", `data-slot` = "notes", hidden = if (!notes_on) NA,
+        h2(class = "rp-h2", "For me"),
+        tags$ul(class = "rp-list", lapply(CARD_NOTES, function(n) when(n$show, me, tags$li(n$text))))),
     h2(class = "rp-h2", "Before I donate"),
     tags$ul(class = "rp-check", lapply(ELIGIBILITY, function(e)
       tags$li(HTML(sprintf("<strong>%s</strong>: %s", htmltools::htmlEscape(e$title), htmltools::htmlEscape(e$value)))))),
     h2(class = "rp-h2", sprintf("Where to donate: %s", region)),
+    lapply(seq_len(nrow(st)), function(i)
+      when(paste0("state=", st$state[i]), me,
+           p(class = "rp-p rp-state-line", sprintf("%s recorded %s donations in the 30 days to %s.",
+                                                    st$state[i], fmt_int(st$last30[i]), fmt_date(DATA_END))))),
     if (region == "Central")
-      tags$ul(class = "rp-list", lapply(DONATION_CENTRES, function(ct)
-        tags$li(strong(ct$name), sprintf(" (%s). %s", ct$area, ct$hours))))
+      tags$ul(class = "rp-list rp-centres", lapply(seq_along(DONATION_CENTRES), function(i) {
+        ct <- DONATION_CENTRES[[i]]
+        tags$li(class = if (identical(centre, as.character(i))) "is-mine", `data-centre` = i,
+                `data-state` = CENTRE_STATE[i],
+                span(class = "rp-mine-tag", "My centre"),
+                strong(ct$name), sprintf(" (%s). %s", ct$area, ct$hours))
+      }))
     else p(class = "rp-p", sprintf(paste("In %s, donations are collected at Ministry of Health blood",
                                          "collection sites and mobile campaigns. Check PDN or the",
                                          "nearest state hospital for times and locations."),

@@ -64,7 +64,7 @@ shiny::testServer(app, {
                     cmp_dates = default_dates, low_year = LATEST, month_year = LATEST,
                     month_methods = c("Seven-day baseline", "Linear regression", "Recent weekday average"),
                     pattern_groups = GROUPS, pattern_years = c(2006, END_YEAR),
-                    bt_pick = "O+", region_pick = "Central", report_type = "summary", rep_period = LATEST,
+                    bt_pick = "O+", region_pick = "Central", report_type = "summary", rep_period = LATEST, rep_focus = "all", rep_sections = unname(from_app("SUMMARY_SECTIONS")),
                     rep_group = "all", rep_dates = c(DATA_END - 30, DATA_END), rep_extra = "forecasts",
                     card_type = "O+", card_region = "Central")
 
@@ -109,7 +109,10 @@ shiny::testServer(app, {
     session$setInputs(report_type = k); store$reports$blurb[[k]] <- html_of(output$report_blurb)
   }
   session$setInputs(report_type = "summary")
-  for (y in YEARS) { session$setInputs(rep_period = y); store$reports$summary[[y]] <- html_of(output$report_preview) }
+  for (y in YEARS) for (g in c("all", ABO_GROUPS)) {
+    session$setInputs(rep_period = y, rep_focus = g)
+    store$reports$summary[[paste(y, g, sep = "|")]] <- html_of(output$report_preview)
+  }
   session$setInputs(report_type = "card")
   for (t in BLOOD_TYPES) for (r in REGIONS) {
     session$setInputs(card_type = t, card_region = r)

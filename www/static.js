@@ -372,7 +372,92 @@
     var block = '<div class="rp-next"><div class="rp-next-lab">Earliest next donation</div><div class="rp-next-date">' +
       n.getUTCDate() + " " + MONTH[n.getUTCMonth()] + " " + n.getUTCFullYear() + '</div><div class="rp-next-note">' +
       "At least three months after your last donation on " + fmtDate(last) + ". Staff confirm eligibility on the day.</div></div>";
-    return html.replace('<h2 class="rp-h2">Before I donate</h2>', block + '<h2 class="rp-h2">Before I donate</h2>');
+    return html.indexOf('<div class="rp-me"') > -1 ? html.replace('<div class="rp-me"', block + '<div class="rp-me"')
+      : html.replace('<h2 class="rp-h2">Before I donate</h2>', block + '<h2 class="rp-h2">Before I donate</h2>');
+  }
+
+  // ---------- Export: the donor card's optional personal details ----------
+  // Nothing here leaves the page: the answers only switch lines of the card on or off.
+  function cardAnswers() {
+    return { name: val("card_name").trim().slice(0, 40), state: val("card_state"), centre: val("card_centre"),
+             first: val("card_first"), age: val("card_age"), weight: val("card_weight") };
+  }
+  function showMatch(rule, me) {
+    return rule.split(";").every(function (p) {
+      var kv = p.split("="); return (me[kv[0]] || "") === (kv[1] || "");
+    });
+  }
+  function syncCardFields() {
+    var region = radio("card_region") || "Central";
+    var sel = document.getElementById("card_state");
+    if (sel) {
+      var map = {}; try { map = JSON.parse(sel.getAttribute("data-regions") || "{}"); } catch (e) {}
+      var states = map[region] || [];
+      var want = states.join("|");
+      if (sel.__region !== want) {
+        var keep = sel.value;
+        sel.innerHTML = '<option value="">Not set</option>' + states.map(function (x) {
+          var t = document.createElement("span"); t.textContent = x;
+          return '<option value="' + t.innerHTML.replace(/"/g, "&quot;") + '">' + t.innerHTML + "</option>";
+        }).join("");
+        sel.value = states.indexOf(keep) > -1 ? keep : "";
+        sel.__region = want;
+      }
+    }
+    var centre = document.querySelector(".card-centre");
+    if (centre) {
+      centre.hidden = region !== "Central";
+      if (centre.hidden) { var c = document.getElementById("card_centre"); if (c) c.value = ""; }
+    }
+  }
+  function personaliseCard(last) {
+    var paper = document.querySelector("#report_preview .paper-card");
+    var me = cardAnswers();
+    if (paper) {
+      var owner = paper.querySelector('[data-slot="name"]');
+      if (owner) { owner.textContent = me.name; owner.hidden = !me.name; }
+      paper.querySelectorAll("[data-show]").forEach(function (el) { el.hidden = !showMatch(el.getAttribute("data-show"), me); });
+      var notes = paper.querySelector('[data-slot="notes"]');
+      if (notes) notes.hidden = !notes.querySelector("li:not([hidden])");
+      var list = paper.querySelector(".rp-centres");
+      if (list) {
+        var items = Array.prototype.slice.call(list.children);
+        items.sort(function (a, b) {
+          var sa = (a.getAttribute("data-centre") === me.centre ? 0 : 2) + (me.state && a.getAttribute("data-state") === me.state ? 0 : 1);
+          var sb = (b.getAttribute("data-centre") === me.centre ? 0 : 2) + (me.state && b.getAttribute("data-state") === me.state ? 0 : 1);
+          return sa - sb || (+a.getAttribute("data-centre")) - (+b.getAttribute("data-centre"));
+        });
+        items.forEach(function (li) { li.classList.toggle("is-mine", li.getAttribute("data-centre") === me.centre); list.appendChild(li); });
+      }
+    }
+    var ok = last !== null && last !== undefined && !isNaN(last);
+    var btn = document.getElementById("card_ics"), hint = document.getElementById("card_ics_hint");
+    if (btn) btn.hidden = !ok;
+    if (hint) hint.hidden = ok;
+  }
+  // A calendar reminder for the earliest next donation, only when asked for.
+  function icsText(last) {
+    var x = d(last), next = Date.UTC(x.getUTCFullYear(), x.getUTCMonth() + 3, x.getUTCDate());
+    var p2 = function (n) { return (n < 10 ? "0" : "") + n; };
+    var day = function (t) { var y = d(t); return y.getUTCFullYear() + p2(y.getUTCMonth() + 1) + p2(y.getUTCDate()); };
+    var now = new Date();
+    var stamp = now.getUTCFullYear() + p2(now.getUTCMonth() + 1) + p2(now.getUTCDate()) + "T" + p2(now.getUTCHours()) + p2(now.getUTCMinutes()) + "00Z";
+    var type = radio("card_type") || "";
+    return ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Klang Valley Blood Donation Forecasts//Donor card//EN", "CALSCALE:GREGORIAN",
+      "BEGIN:VEVENT", "UID:kvbd-" + day(next) + "-" + stamp + "@siobhangoh.github.io", "DTSTAMP:" + stamp,
+      "DTSTART;VALUE=DATE:" + day(next), "DTEND;VALUE=DATE:" + day(next + 86400000),
+      "SUMMARY:You can give blood again" + (type ? " (" + type + ")" : ""),
+      "DESCRIPTION:Earliest date\\, three months after your last donation on " + fmtDate(last) +
+        ". Staff confirm eligibility on the day. Check centres and hours at pdn.gov.my.",
+      "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:You can give blood again", "TRIGGER:-PT15H", "END:VALARM",
+      "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  }
+  function downloadText(name, text, mime) {
+    var blob = new Blob([text], { type: mime });
+    var url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; a.rel = "noopener";
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
   }
 
   // ---------- Export: which report ----------
@@ -389,10 +474,16 @@
     var kind = radio("report_type") || "summary";
     load("reports").then(function (rep) {
       setHTML("report_blurb", rep.blurb[kind]);
-      if (kind === "summary") setHTML("report_preview", rep.summary[radio("rep_period")]);
-      else if (kind === "card") {
+      if (kind === "summary") {
+        setHTML("report_preview", rep.summary[radio("rep_period") + "|" + (radio("rep_focus") || "all")]);
+        var on = checks("rep_sections");
+        document.querySelectorAll("#report_preview .rp-sec").forEach(function (sec) {
+          sec.hidden = on.indexOf(sec.getAttribute("data-sec")) < 0;
+        });
+      } else if (kind === "card") {
         var last = updateCardDate();
         setHTML("report_preview", cardWithDate(rep.card[(radio("card_type") || "O+") + "|" + (radio("card_region") || "Central")], last));
+        personaliseCard(last);
       } else withDaily(function () { setHTML("report_preview", reportData()); });
     });
   }
@@ -455,11 +546,15 @@
     else if (name === "pattern_groups" || name === "pattern_years_from" || name === "pattern_years_to") withDaily(drawPatterns);
     else if (name === "region_pick") load("blood101").then(function (b) { setHTML("region_result", b.region[radio("region_pick")]); });
     else if (name === "report_type") { conditions(); updateReport(); }
-    else if (/^(rep_|card_)/.test(name)) updateReport();
+    else if (/^(rep_|card_)/.test(name)) { if (name === "card_region") syncCardFields(); updateReport(); }
   }
   document.addEventListener("change", function (e) {
     var t = e.target; if (!t) return;
     route(t.name || t.id);
+  });
+  // The name on the card updates as you type.
+  document.addEventListener("input", function (e) {
+    if (e.target && e.target.id === "card_name") personaliseCard(lastDonation());
   });
   document.addEventListener("click", function (e) {
     var c = e.target.closest && e.target.closest("#card_clear");
@@ -468,6 +563,8 @@
       ["card_day", "card_month", "card_year"].forEach(function (id) { var el = document.getElementById(id); if (el) el.value = ""; });
       updateReport();
     }
+    var ics = e.target.closest && e.target.closest("#card_ics");
+    if (ics) { var lt = lastDonation(); if (lt !== null && !isNaN(lt)) downloadText("next-blood-donation.ics", icsText(lt), "text/calendar;charset=utf-8"); }
     var g = e.target.closest && e.target.closest("#csv_go");
     if (g) withDaily(function () { if (handlers.download_csv) handlers.download_csv(csvText()); });
     if (e.target.closest && e.target.closest(".kv-tab, .fold > summary, .how-read > summary")) setTimeout(drawPending, 60);
@@ -482,6 +579,7 @@
   document.addEventListener("DOMContentLoaded", function () {
     var $ = window.jQuery;
     conditions();
+    syncCardFields();
     if ($) {
       $(document).on("shown.bs.tab shown", function () { setTimeout(drawPending, 40); });
       $(document).trigger("shiny:connected");

@@ -93,3 +93,30 @@ test_that("the CSV extract carries the credit and every requested row", {
     expect_match(txt, "CC BY 4.0", fixed = TRUE)
   })
 })
+
+test_that("reports take a group focus, chosen sections and personal card details", {
+  with_report_app({
+    app <- shiny::shinyAppFile(file.path(root, "app.R"))
+    shiny::testServer(app, {
+      session$setInputs(report_type = "summary", rep_period = "2025", rep_focus = "O",
+                        rep_sections = c("stats", "blindspot"))
+      html <- as.character(output$report_preview$html)
+      expect_match(html, "for group O", fixed = TRUE)
+      expect_match(html, 'data-sec="blindspot"', fixed = TRUE)
+      expect_false(grepl('data-sec="scoreboard"', html, fixed = TRUE))
+      expect_match(html, "Read with care", fixed = TRUE)
+
+      session$setInputs(report_type = "card", card_type = "A-", card_region = "Central",
+                        card_name = "Test Donor", card_state = "Selangor", card_centre = "3",
+                        card_first = "first", card_age = "61-70", card_weight = "45-55")
+      html <- as.character(output$report_preview$html)
+      expect_match(html, "Test Donor", fixed = TRUE)
+      expect_match(html, "Group A gave", fixed = TRUE)
+      expect_match(html, '<li class="is-mine" data-centre="3"', fixed = TRUE)
+      # The matching tailored lines are shown; the others are drawn but hidden.
+      expect_match(html, '<li data-show="age=61-70;first=first">', fixed = TRUE)
+      expect_match(html, '<li data-show="weight=45-55">', fixed = TRUE)
+      expect_match(html, '<li data-show="weight=over55" hidden>', fixed = TRUE)
+    })
+  })
+})
