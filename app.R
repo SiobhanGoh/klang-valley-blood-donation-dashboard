@@ -323,8 +323,9 @@ chips <- function(id, label, choices, selected) {
   values <- unname(choices)
   labels <- if (is.null(names(choices))) values else names(choices)
   keyed <- any(values %in% c(names(METHOD_COL), names(GROUP_COL)))
-  names_html <- lapply(seq_along(values), function(i)
-    tagList(chip_key(values[i]), span(class = "chip-text", labels[i])))
+  # Only chips with a chart colour get the legend key; the rest stay plain labels.
+  names_html <- if (keyed) lapply(seq_along(values), function(i)
+    tagList(chip_key(values[i]), span(class = "chip-text", labels[i]))) else as.list(labels)
   div(class = "control",
       span(class = "control-label", label),
       checkboxGroupInput(id, NULL, choiceNames = names_html, choiceValues = values,
