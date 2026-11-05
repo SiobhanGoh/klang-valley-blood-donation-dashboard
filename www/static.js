@@ -414,8 +414,25 @@
       window.jQuery(a).trigger(window.jQuery.Event("shown.bs.tab", { relatedTarget: null }));
       window.jQuery(document).trigger({ type: "shiny:inputchanged", name: "pages", value: target });
     }
+    // The address follows the page, so a link can point straight at a section.
+    if (("#" + target) !== location.hash) {
+      if (target === "overview") history.replaceState(null, "", location.pathname + location.search);
+      else history.replaceState(null, "", "#" + target);
+    }
     setTimeout(drawPending, 40);
   }
+  function pageFromHash() {
+    var h = (location.hash || "").replace(/^#/, "");
+    return document.querySelector('.tab-content > .tab-pane[data-value="' + h + '"]') ? h : null;
+  }
+  window.addEventListener("hashchange", function () {
+    var pg = pageFromHash() || "overview";
+    var active = document.querySelector(".tab-content > .tab-pane.active");
+    if (active && active.getAttribute("data-value") !== pg) {
+      var btn = document.querySelector('.rail-item[data-target="' + pg + '"]');
+      if (btn) btn.click(); else nav(pg);
+    }
+  });
 
   // ---------- What each control changes ----------
   function onInput(name, value) {
@@ -472,6 +489,11 @@
       document.querySelectorAll(".shiny-html-output").forEach(fire);
     }
     window.addEventListener("resize", function () { setTimeout(drawPending, 60); });
+    var start = pageFromHash();
+    if (start && start !== "overview") {
+      var btn = document.querySelector('.rail-item[data-target="' + start + '"]');
+      if (btn) setTimeout(function () { btn.click(); }, 50);
+    }
     load("init").then(function (x) {
       init = x;
       CHARTS.forEach(function (id) { if (x[id]) setChart(id, x[id]); });

@@ -23,19 +23,23 @@
   function placeIndicator(item) {
     var ind = $(".rail-indicator");
     if (!ind || !item) return;
-    var horizontal = window.matchMedia("(max-width: 760px)").matches;
-    ind.style.transform = horizontal
-      ? "translateX(" + item.offsetLeft + "px)"
-      : "translateY(" + item.offsetTop + "px)";
-    ind.style.width = horizontal ? item.offsetWidth + "px" : "";
+    ind.style.transform = "translateY(" + item.offsetTop + "px)";
+    ind.style.height = item.offsetHeight ? item.offsetHeight + "px" : "";
   }
   function setActive(target) {
-    $all(".rail-item").forEach(function (b) {
+    var shown = null;
+    $all(".rail-item[data-target]").forEach(function (b) {
       var on = b.getAttribute("data-target") === target;
       b.classList.toggle("is-active", on);
-      if (on) { b.setAttribute("aria-current", "page"); placeIndicator(b); }
-      else b.removeAttribute("aria-current");
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+      if (on) shown = b;
     });
+    if (shown) {
+      placeIndicator(shown);
+      // The phone's edge tab shows where you are.
+      var tabIcon = $(".rail-tab .rt-icon"), ic = shown.querySelector(".rail-icon");
+      if (tabIcon && ic) tabIcon.innerHTML = ic.innerHTML;
+    }
   }
   function refreshLayout() {
     placeIndicator($(".rail-item.is-active"));
@@ -107,6 +111,9 @@
     thumb.style.transform = "translate(" + label.offsetLeft + "px," + label.offsetTop + "px)";
   }
   document.addEventListener("change", function (e) {
+    var chip = e.target.closest && e.target.closest(".chips-keyed .checkbox-inline");
+    if (chip && !reduceMotion) { chip.classList.remove("is-pop"); void chip.offsetWidth; chip.classList.add("is-pop");
+      setTimeout(function () { chip.classList.remove("is-pop"); }, 600); }
     var seg = e.target.closest && e.target.closest(".seg");
     if (seg) placeThumb(seg);
     // Switching report type reveals other controls; place their thumbs once visible.
@@ -119,23 +126,58 @@
   }
   document.addEventListener("DOMContentLoaded", function () { setTimeout(refreshLayout, 50); });
 
-  // ---------- Quick actions ----------
-  function closeQuickActions() {
-    var qa = $(".quick-actions");
-    if (!qa) return;
-    qa.classList.remove("is-open");
-    var t = $(".qa-toggle");
-    if (t) t.setAttribute("aria-expanded", "false");
+  // ---------- Phone menu: tucked into an edge tab, slides out on tap ----------
+  var phoneQ = window.matchMedia("(max-width: 760px)");
+  function setDock(open) {
+    var tab = $(".rail-tab");
+    document.documentElement.classList.toggle("rail-open", !!open);
+    if (tab) { tab.setAttribute("aria-expanded", open ? "true" : "false"); tab.setAttribute("aria-label", open ? "Close the menu" : "Open the menu"); }
+    if (open) {
+      var act = $(".rail-item.is-active");
+      setTimeout(function () { placeIndicator(act); if (act) act.focus({ preventScroll: true }); }, 60);
+    }
   }
-  function toggleQuickActions() {
-    var qa = $(".quick-actions");
-    var open = !qa.classList.contains("is-open");
-    qa.classList.toggle("is-open", open);
-    $(".qa-toggle").setAttribute("aria-expanded", open ? "true" : "false");
-    if (open) { var first = $(".qa-item"); if (first) setTimeout(function () { first.focus(); }, 120); }
-  }
+  function closeQuickActions() { setDock(false); }
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeQuickActions();
+    if (e.key === "Escape" && document.documentElement.classList.contains("rail-open")) {
+      setDock(false); var t = $(".rail-tab"); if (t) t.focus();
+    }
+  });
+  // The tab can be dragged up or down the edge; where it was left is remembered.
+  (function () {
+    var tab = $(".rail-tab"); if (!tab) return;
+    var KEY = "kvbd-tab-y", startY = 0, startTop = 0, dragging = false, moved = false;
+    function clampTop(y) { var h = window.innerHeight; return Math.max(72, Math.min(h - 72, y)); }
+    function setTop(y) { tab.style.top = clampTop(y) + "px"; }
+    try { var saved = parseFloat(localStorage.getItem(KEY)); if (saved > 0 && saved < 1) setTop(saved * window.innerHeight); } catch (e) {}
+    tab.addEventListener("pointerdown", function (e) {
+      dragging = true; moved = false; startY = e.clientY;
+      startTop = tab.getBoundingClientRect().top + tab.offsetHeight / 2;
+      try { tab.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    tab.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      var dy = e.clientY - startY;
+      if (!moved && Math.abs(dy) < 8) return;
+      moved = true; tab.classList.add("is-dragging"); setTop(startTop + dy);
+    });
+    function end() {
+      if (!dragging) return; dragging = false; tab.classList.remove("is-dragging");
+      if (moved) {
+        var y = tab.getBoundingClientRect().top + tab.offsetHeight / 2;
+        try { localStorage.setItem(KEY, String(y / window.innerHeight)); } catch (e) {}
+      }
+    }
+    tab.addEventListener("pointerup", end); tab.addEventListener("pointercancel", end);
+    tab.addEventListener("click", function (e) {
+      e.stopPropagation();
+      if (moved) { moved = false; return; }
+      setDock(!document.documentElement.classList.contains("rail-open"));
+    });
+    window.addEventListener("resize", function () { if (tab.style.top) setTop(parseFloat(tab.style.top)); });
+  })();
+  document.addEventListener("click", function (e) {
+    if (e.target.closest && e.target.closest(".rail-scrim")) setDock(false);
   });
 
   // ---------- Click routing ----------
@@ -154,8 +196,6 @@
       if (window.Shiny) Shiny.setInputValue("bt_pick", pick.getAttribute("data-type"), { priority: "event" });
       return;
     }
-    var toggle = e.target.closest(".qa-toggle");
-    if (toggle) { toggleQuickActions(); return; }
 
     var nav = e.target.closest("[data-target]");
     if (nav) {
@@ -165,7 +205,6 @@
       go(nav.getAttribute("data-target"), origin);
       return;
     }
-    if (!e.target.closest(".quick-actions")) closeQuickActions();
   });
 
   // ---------- Flip cards ----------
@@ -759,6 +798,185 @@
   });
 
 
+  // ---------- Legend chips: hand each chip its chart colour ----------
+  function colourChips() {
+    $all(".chips-keyed .chip-key").forEach(function (k) {
+      var lab = k.closest(".checkbox-inline"); if (!lab) return;
+      lab.style.setProperty("--k", k.style.getPropertyValue("--k"));
+      lab.style.setProperty("--kd", k.style.getPropertyValue("--kd"));
+    });
+  }
+  document.addEventListener("DOMContentLoaded", colourChips);
+  if (document.readyState !== "loading") colourChips();
+
+  // ---------- Donation centres: open now?, from Malaysia time ----------
+  function myt() {
+    try {
+      var parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kuala_Lumpur", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false })
+        .formatToParts(new Date());
+      var get = function (t) { var p = parts.filter(function (x) { return x.type === t; })[0]; return p ? p.value : ""; };
+      return { day: get("weekday"), h: (+get("hour") % 24) + (+get("minute")) / 60 };
+    } catch (e) { return null; }
+  }
+  function fmtH(x) {
+    var hh = Math.floor(x), mm = Math.round((x - hh) * 60);
+    return (hh % 12 === 0 ? 12 : hh % 12) + (mm ? "." + (mm < 10 ? "0" : "") + mm : "") + (hh < 12 ? " am" : " pm");
+  }
+  function markCentres(root) {
+    var now = myt(); if (!now) return;
+    var weekend = now.day === "Sat" || now.day === "Sun";
+    var tomorrowWeekend = now.day === "Fri" || now.day === "Sat";
+    $all(".centre[data-wk]", root || document).forEach(function (c) {
+      var h = c.getAttribute(weekend ? "data-we" : "data-wk").split(",").map(Number);
+      var open = now.h >= h[0] && now.h < h[1];
+      var st = c.querySelector(".centre-status");
+      if (st) {
+        st.className = "centre-status " + (open ? "is-open" : "is-closed");
+        st.textContent = open ? (h[1] - now.h <= 1 ? "Closing soon · " + fmtH(h[1]) : "Open now · until " + fmtH(h[1]))
+                              : (now.h < h[0] ? "Closed · opens " + fmtH(h[0])
+                                 : "Closed · opens " + fmtH(+c.getAttribute(tomorrowWeekend ? "data-we" : "data-wk").split(",")[0]) + " tomorrow");
+      }
+      var rows = c.querySelectorAll(".ht-row");
+      rows.forEach(function (r, i) { r.classList.toggle("is-today", (i === 1) === weekend); });
+      var mark = c.querySelector(".ht-now");
+      if (mark) {
+        var pos = (now.h - 6) / 16;
+        mark.hidden = pos < 0 || pos > 1;
+        mark.style.setProperty("--xf", Math.max(0, Math.min(1, pos)).toFixed(4));
+      }
+    });
+  }
+  if (window.jQuery) jQuery(document).on("shiny:value", function (e) { if (e.target && e.target.id === "region_result") markCentres(e.target); });
+  document.addEventListener("DOMContentLoaded", function () { markCentres(); });
+  setInterval(function () { markCentres(); }, 60000);
+
+  // ---------- Live data badge: how long ago the last recorded day was ----------
+  function fillAgo() {
+    var now = new Date(); now.setHours(0, 0, 0, 0);
+    $all(".sp-ago[data-day]").forEach(function (el) {
+      var p = el.getAttribute("data-day").split("-");
+      var d = new Date(+p[0], +p[1] - 1, +p[2]);
+      var days = Math.round((now - d) / 86400000);
+      if (isNaN(days) || days < 0) return;
+      el.textContent = days === 0 ? "today" : days === 1 ? "yesterday" : days < 60 ? days + " days ago" : "";
+      el.classList.toggle("is-fresh", days <= 2);
+    });
+  }
+  document.addEventListener("DOMContentLoaded", fillAgo);
+  if (document.readyState !== "loading") fillAgo();
+
+  // ---------- Phones: open any chart full screen, then drag across it to zoom in ----------
+  // The chart itself moves into the full-screen layer (and back on close), so a
+  // pinned reading, call-outs and hover all keep working, in portrait or landscape.
+  var zoomQ = window.matchMedia("(max-width: 760px), (pointer: coarse) and (max-height: 500px)");
+  var zoomState = null;
+  function chartTitle(gd) {
+    var panel = gd.closest(".panel");
+    var t = panel && panel.querySelector(".panel-title");
+    return t ? t.textContent.trim() : "Chart";
+  }
+  function xAxes(gd) {
+    var fl = gd._fullLayout || {};
+    return Object.keys(fl).filter(function (k) { return /^xaxis\d*$/.test(k); });
+  }
+  function setZoomable(gd, on) {
+    if (!window.Plotly || !gd.layout) return;
+    var upd = { dragmode: on ? "zoom" : false };
+    // A short full-screen chart (a phone on its side) needs the legend clear of the dates.
+    if (on) {
+      gd.__legendY = gd.layout.legend ? gd.layout.legend.y : undefined;
+      if (gd.layout.legend && gd.offsetHeight < 380) upd["legend.y"] = -0.3;
+    } else if (gd.__legendY !== undefined) upd["legend.y"] = gd.__legendY;
+    xAxes(gd).forEach(function (a) {
+      upd[a + ".fixedrange"] = !on; upd[a + ".autorange"] = true;
+      if (gd.layout.xaxis4) upd[a + ".showticklabels"] = on ? true : !(window.innerWidth <= 600);
+    });
+    window.Plotly.relayout(gd, upd);
+  }
+  function openZoom(gd) {
+    if (zoomState || !window.Plotly) return;
+    var dark = !!gd.closest(".panel-ink");
+    var layer = document.createElement("div");
+    layer.className = "chart-zoom-layer" + (dark ? " panel panel-ink" : "");
+    layer.setAttribute("role", "dialog"); layer.setAttribute("aria-modal", "true");
+    layer.setAttribute("aria-label", chartTitle(gd) + ", full screen");
+    layer.innerHTML =
+      '<div class="cz-head"><div class="cz-title"></div>' +
+      '<button type="button" class="cz-btn cz-reset" hidden><i class="fas fa-arrows-left-right-to-line" aria-hidden="true"></i><span>Reset</span></button>' +
+      '<button type="button" class="cz-btn cz-close" aria-label="Close full screen"><i class="fas fa-xmark" aria-hidden="true"></i></button></div>' +
+      '<div class="cz-body"></div>' +
+      '<div class="cz-hint"><span><i class="fas fa-hand-pointer" aria-hidden="true"></i> Drag across to zoom in</span>' +
+      '<span><i class="fas fa-thumbtack" aria-hidden="true"></i> Tap to pin a reading</span>' +
+      '<span class="cz-rotate"><i class="fas fa-mobile-screen-button" aria-hidden="true"></i> Turn sideways for more room</span></div>';
+    layer.querySelector(".cz-title").textContent = chartTitle(gd);
+    var holder = document.createElement("div");
+    holder.className = "chart-zoom-holder";
+    holder.style.height = gd.offsetHeight + "px";
+    gd.parentNode.insertBefore(holder, gd);
+    layer.querySelector(".cz-body").appendChild(gd);
+    document.body.appendChild(layer);
+    document.documentElement.classList.add("zoom-open");
+    zoomState = { gd: gd, holder: holder, layer: layer, height: gd.style.height, focus: document.activeElement };
+    gd.style.height = "100%";
+    try { history.pushState({ kvbdZoom: 1 }, ""); zoomState.pushed = true; } catch (e) {}
+    requestAnimationFrame(function () {
+      layer.classList.add("is-in");
+      window.Plotly.Plots.resize(gd);
+      setZoomable(gd, true);
+      layer.querySelector(".cz-close").focus({ preventScroll: true });
+    });
+    gd.__zoomRelayout = function (ev) {
+      var zoomed = Object.keys(ev || {}).some(function (k) { return /^xaxis\d*\.range/.test(k); });
+      var reset = layer.querySelector(".cz-reset");
+      if (zoomed) reset.hidden = false;
+      else if (Object.keys(ev || {}).some(function (k) { return /autorange/.test(k); })) reset.hidden = true;
+    };
+    gd.on("plotly_relayout", gd.__zoomRelayout);
+  }
+  function closeZoom(fromHistory) {
+    if (!zoomState) return;
+    var z = zoomState; zoomState = null;
+    if (z.gd.removeListener && z.gd.__zoomRelayout) z.gd.removeListener("plotly_relayout", z.gd.__zoomRelayout);
+    z.gd.style.height = z.height;
+    z.holder.parentNode.insertBefore(z.gd, z.holder);
+    z.holder.remove(); z.layer.remove();
+    document.documentElement.classList.remove("zoom-open");
+    setZoomable(z.gd, false);
+    window.Plotly.Plots.resize(z.gd);
+    if (z.pushed && !fromHistory) { try { history.back(); } catch (e) {} }
+    var prev = z.gd.previousElementSibling, btn = prev && prev.querySelector(".chart-zoom");
+    if (btn) btn.focus({ preventScroll: true });
+  }
+  window.addEventListener("popstate", function () { if (zoomState) closeZoom(true); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && zoomState) closeZoom(); });
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest) return;
+    var open = e.target.closest(".chart-zoom");
+    if (open) {
+      var gd = open.parentNode.nextElementSibling;
+      if (gd && gd.classList.contains("kvbd-chart")) openZoom(gd);
+      return;
+    }
+    if (e.target.closest(".cz-close")) { closeZoom(); return; }
+    if (e.target.closest(".cz-reset") && zoomState) {
+      var upd = {}; xAxes(zoomState.gd).forEach(function (a) { upd[a + ".autorange"] = true; });
+      window.Plotly.relayout(zoomState.gd, upd);
+      e.target.closest(".cz-reset").hidden = true;
+    }
+  });
+  function addZoomButtons() {
+    $all(".kvbd-chart").forEach(function (gd) {
+      if (gd.__zoomBtn || !gd.parentNode) return;
+      gd.__zoomBtn = true;
+      var bar = document.createElement("div"); bar.className = "chart-tools";
+      bar.innerHTML = '<button type="button" class="chart-zoom" aria-label="Open this chart full screen">' +
+        '<i class="fas fa-expand" aria-hidden="true"></i><span>Full screen</span></button>';
+      gd.parentNode.insertBefore(bar, gd);
+    });
+  }
+  document.addEventListener("DOMContentLoaded", addZoomButtons);
+  if (document.readyState !== "loading") addZoomButtons();
+
   // ---------- Chart output binding ----------
   // R sends a plotly.js figure as JSON; draw or update it in place.
   if (window.Shiny && Shiny.OutputBinding) {
@@ -1054,9 +1272,9 @@
     layer.classList.remove("is-in"); layer.classList.add("is-out"); mark("kvbd-welcomed");
     setTimeout(function () { layer.hidden = true; layer.classList.remove("is-out"); }, 650);
   }
-  function showWelcome() {
-    if (!layer || seen("kvbd-welcomed")) return;
-    layer.hidden = false;
+  function showWelcome(force) {
+    if (!layer || (!force && seen("kvbd-welcomed"))) return;
+    layer.hidden = false; layer.classList.remove("is-out");
     requestAnimationFrame(function () {
       layer.classList.add("is-in");
       var b = layer.querySelector(".welcome-go"); if (b) setTimeout(function () { b.focus({ preventScroll: true }); }, 500);
@@ -1064,9 +1282,10 @@
   }
   document.addEventListener("click", function (e) {
     if (e.target.closest && e.target.closest("[data-welcome='close']")) closeWelcome();
+    if (e.target.closest && e.target.closest("[data-welcome='open']")) showWelcome(true);
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeWelcome(); });
-  window.addEventListener("load", function () { setTimeout(showWelcome, 3600); });
+  window.addEventListener("load", function () { setTimeout(function () { showWelcome(); }, 3600); });
 
   // "How to read this": the label slides out for a few seconds the first time a chart
   // is on screen, tucks back into its icon, and the icon gives a small bounce.

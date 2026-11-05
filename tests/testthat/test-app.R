@@ -77,7 +77,7 @@ test_that("the rendered page shows the report's headline numbers", {
                  c("overview", "live", "compare", "low", "patterns", "blood101", "about", "export"))
     html <- as.character(htmltools::renderTags(env$ui)$html)
     for (n in c("36.3", "38.8", "48.7")) expect_match(html, n, fixed = TRUE)
-    expect_match(html, "Blood 101: Malaysia", fixed = TRUE)
+    expect_match(html, "Donating blood", fixed = TRUE)
     expect_match(html, "pdn.gov.my", fixed = TRUE)
   })
 })

@@ -47,34 +47,37 @@ hub <- function(x, y, lines, r = 64, cls = "") {
 viz <- function(svg, fallback) div(class = "viz", svg, div(class = "viz-fallback", fallback))
 
 # A hub with branches on both sides. branches: list of list(title, sub, tip).
-mindmap <- function(centre, branches, label, key = NULL) {
+# width / arm / wrap make a narrow version (arm: distance of the nodes from the edges).
+mindmap <- function(centre, branches, label, key = NULL, width = 960, arm = 250, wrap = 30, hub_r = 64) {
   n <- length(branches)
   left <- seq(1, n, by = 2); right <- seq(2, n, by = 2)
   rows <- max(length(left), length(right))
-  W <- 960; H <- max(340, 112 * rows + 40)
+  W <- width; H <- max(340, 112 * rows + 40)
   cx <- W / 2; cy <- H / 2
   ys <- function(k) if (k == 1) cy else seq(70, H - 70, length.out = k)
   yl <- ys(length(left)); yr <- ys(length(right))
-  lx <- 250; rx <- W - 250
+  lx <- arm; rx <- W - arm
   node <- function(b, x, y, side, i) {
     on <- is.null(key) || i %in% key
     tags$g(class = paste("mm-node", side, if (on) "is-on" else "is-off"),
            style = sprintf("--d:%dms", 90 * i),
            if (!is.null(b$tip)) tags$title(b$tip),
-           if (is.null(b$art)) tags$path(transform = sprintf("translate(%.1f %.1f)", x, y), d = DROP_D)
+           # The drop sits in a translated group so its hover beat (a CSS transform on
+           # the path) does not replace the position.
+           if (is.null(b$art)) tags$g(class = "mm-drop", transform = sprintf("translate(%.1f %.1f)", x, y), tags$path(d = DROP_D))
            else tags$g(class = "art-badge", transform = sprintf("translate(%.1f %.1f)", x, y),
                        tags$circle(class = "art-bg", r = 28), art_icon(b$art)),
            svg_label(if (side == "left") x - (if (is.null(b$art)) 22 else 40) else x + (if (is.null(b$art)) 22 else 40),
-                     y - 2, b$title, b$sub, anchor = if (side == "left") "end" else "start"))
+                     y - 2, b$title, b$sub, anchor = if (side == "left") "end" else "start", width = wrap))
   }
   links <- c(
-    lapply(seq_along(left), function(k) flow_link(cx - 70, cy, lx + 14, yl[k], k, "in")),
-    lapply(seq_along(right), function(k) flow_link(cx + 70, cy, rx - 14, yr[k], k + length(left), "out")))
+    lapply(seq_along(left), function(k) flow_link(cx - hub_r - 6, cy, lx + 14, yl[k], k, "in")),
+    lapply(seq_along(right), function(k) flow_link(cx + hub_r + 6, cy, rx - 14, yr[k], k + length(left), "out")))
   tags$svg(class = "mm-svg", viewBox = sprintf("0 0 %d %d", W, H), role = "img", `aria-label` = label,
            links,
            lapply(seq_along(left), function(k) node(branches[[left[k]]], lx, yl[k], "left", left[k])),
            lapply(seq_along(right), function(k) node(branches[[right[k]]], rx, yr[k], "right", right[k])),
-           hub(cx, cy, centre))
+           hub(cx, cy, centre, r = hub_r))
 }
 
 n_sub <- function(sub) if (is.null(sub) || is.na(sub)) 0L else length(wrap_lines(sub, 24))

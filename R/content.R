@@ -29,33 +29,57 @@ ELIGIBILITY <- list(
        detail = paste("First-time donors can be 17 to 60. Regular donors may continue up to 70;",
                       "those aged 61 to 70 need a yearly health screening. At 17, written",
                       "consent from a parent or guardian is needed."),
-       source = "booklet"),
+       short = "First time 17 to 60. At 61 to 70, a yearly health check. At 17, a parent's consent.",
+       map = "Age", source = "booklet"),
   list(icon = "weight-scale", title = "Body weight",
        value = "45 kg or more",
        detail = paste("Donors of 45 to 55 kg give 350 ml; donors above 55 kg give 450 ml."),
-       source = "booklet"),
+       short = "45 to 55 kg give 350 ml. Above 55 kg give 450 ml.",
+       map = "Weight", source = "booklet"),
   list(icon = "calendar-days", title = "Time between donations",
        value = "At least 3 months",
        detail = "For whole blood, the last donation must be at least three months earlier.",
-       source = "booklet"),
+       short = "Since your last whole-blood donation.",
+       map = "Since last time", source = "booklet"),
   list(icon = "bed", title = "Sleep and food",
        value = "5 h sleep, a meal within 4 h",
        detail = paste("Sleep at least five hours the night before and eat within the four",
                       "hours before donating."),
-       source = "booklet"),
+       short = "Sleep the night before; eat in the 4 hours before.",
+       map = "Sleep & food", source = "booklet"),
   list(icon = "droplet", title = "Haemoglobin check",
        value = "Checked on the day",
        detail = paste("A quick test before donating: above 12.5 g/dL for women and",
                       "13.5 g/dL for men."),
-       source = "booklet")
+       short = "Above 12.5 g/dL for women, 13.5 g/dL for men.",
+       map = "Haemoglobin", source = "booklet")
 )
 
 DEFERRAL_EXAMPLES <- list(
-  list(what = "After antibiotics", wait = "2 weeks after the last dose"),
-  list(what = "After acupuncture", wait = "3 months"),
-  list(what = "After minor surgery", wait = "3 months"),
-  list(what = "After major surgery", wait = "6 months"),
-  list(what = "After dengue", wait = "6 months after full recovery")
+  list(what = "After antibiotics", wait = "2 weeks after the last dose", icon = "pills", tag = "2 wk", months = 0.5),
+  list(what = "After acupuncture", wait = "3 months", icon = "syringe", tag = "3 mo", months = 3),
+  list(what = "After minor surgery", wait = "3 months", icon = "bandage", tag = "3 mo", months = 3),
+  list(what = "After major surgery", wait = "6 months", icon = "hospital", tag = "6 mo", months = 6),
+  list(what = "After dengue", wait = "6 months after full recovery", icon = "mosquito", tag = "6 mo", months = 6)
+)
+
+# Getting ready, from PDN's donor booklet (Buku Informasi Pendermaan Darah).
+PREP_TIPS <- list(
+  list(icon = "bed", when = "The night before", title = "Sleep 5 hours or more",
+       text = NULL),
+  list(icon = "glass-water", when = "Before and on the day", title = "Drink enough water",
+       text = "Keep drinking on the day itself."),
+  list(icon = "utensils", when = "On the day", title = "Eat within 4 hours",
+       text = "A proper meal in the four hours before you donate."),
+  list(icon = "id-card", when = "Bring", title = "Your IC, driving licence or passport",
+       text = "Repeat donors can also show their donor book with a photo."),
+  list(icon = "shirt", when = "Wear", title = "Comfortable clothes",
+       text = "If you wear long sleeves, make sure they roll up.")
+)
+# Iron sources PDN lists in the booklet (its section on anaemia).
+IRON_FOODS <- list(
+  list(icon = "leaf", name = "Spinach"), list(icon = "drumstick-bite", name = "Red meat"),
+  list(icon = "fish", name = "Seafood"), list(icon = "seedling", name = "Beans and lentils")
 )
 
 DONATION_STEPS <- c(
@@ -88,14 +112,17 @@ AFTERCARE <- c(
 
 # Static (fixed) donation centres in the Klang Valley listed by PDN.
 DONATION_CENTRES <- list(
+  # wk / we: opening hours on weekdays and at weekends, as decimal hours (7.5 = 7.30 am).
   list(name = "Pusat Darah Negara", area = "Jalan Tun Razak, Kuala Lumpur",
-       hours = "Mon–Fri 7.30 am–5.30 pm; weekends and public holidays 8 am–4 pm"),
+       hours = "Mon–Fri 7.30 am–5.30 pm; weekends and public holidays 8 am–4 pm",
+       wk = c(7.5, 17.5), we = c(8, 16)),
   list(name = "PDN Donation Suite, Mid Valley Megamall", area = "Kuala Lumpur",
-       hours = "Daily 10 am–9 pm"),
+       hours = "Daily 10 am–9 pm", wk = c(10, 21), we = c(10, 21)),
   list(name = "St John Ambulance Blood Donation Suite, 1 Utama", area = "Petaling Jaya, Selangor",
-       hours = "Daily 11 am–7 pm"),
+       hours = "Daily 11 am–7 pm", wk = c(11, 19), we = c(11, 19)),
   list(name = "St John Ambulance Blood Donation Suite, IOI City Mall", area = "Putrajaya",
-       hours = "Mon–Fri 11 am–4 pm; weekends and public holidays 11 am–6 pm")
+       hours = "Mon–Fri 11 am–4 pm; weekends and public holidays 11 am–6 pm",
+       wk = c(11, 16), we = c(11, 18))
 )
 
 # --- Red-cell compatibility ---------------------------------------------------
