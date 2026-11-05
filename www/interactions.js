@@ -30,12 +30,20 @@
     ind.style.width = horizontal ? item.offsetWidth + "px" : "";
   }
   function setActive(target) {
-    $all(".rail-item").forEach(function (b) {
+    var shown = null;
+    $all(".rail-item, .sheet-item").forEach(function (b) {
       var on = b.getAttribute("data-target") === target;
       b.classList.toggle("is-active", on);
-      if (on) { b.setAttribute("aria-current", "page"); placeIndicator(b); }
-      else b.removeAttribute("aria-current");
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+      if (on && b.classList.contains("rail-item") && b.offsetParent) shown = b;
     });
+    var more = $(".rail-more");
+    if (more) {
+      var inSheet = !shown && !!$(".sheet-item.is-active");
+      more.classList.toggle("is-active", inSheet);
+      if (inSheet) shown = more;
+    }
+    if (shown) placeIndicator(shown);
   }
   function refreshLayout() {
     placeIndicator($(".rail-item.is-active"));
@@ -119,23 +127,18 @@
   }
   document.addEventListener("DOMContentLoaded", function () { setTimeout(refreshLayout, 50); });
 
-  // ---------- Quick actions ----------
-  function closeQuickActions() {
-    var qa = $(".quick-actions");
-    if (!qa) return;
-    qa.classList.remove("is-open");
-    var t = $(".qa-toggle");
-    if (t) t.setAttribute("aria-expanded", "false");
+  // ---------- "More" sheet (phones): the sections that do not fit the bottom bar ----------
+  function setMore(open) {
+    var sheet = $(".more-sheet"), btn = $(".rail-more");
+    if (!sheet) return;
+    if (open) { sheet.hidden = false; requestAnimationFrame(function () { sheet.classList.add("is-open"); }); }
+    else { sheet.classList.remove("is-open"); setTimeout(function () { sheet.hidden = true; }, 320); }
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+    document.documentElement.classList.toggle("more-open", open);
   }
-  function toggleQuickActions() {
-    var qa = $(".quick-actions");
-    var open = !qa.classList.contains("is-open");
-    qa.classList.toggle("is-open", open);
-    $(".qa-toggle").setAttribute("aria-expanded", open ? "true" : "false");
-    if (open) { var first = $(".qa-item"); if (first) setTimeout(function () { first.focus(); }, 120); }
-  }
+  function closeQuickActions() { setMore(false); }
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") closeQuickActions();
+    if (e.key === "Escape") setMore(false);
   });
 
   // ---------- Click routing ----------
@@ -154,8 +157,9 @@
       if (window.Shiny) Shiny.setInputValue("bt_pick", pick.getAttribute("data-type"), { priority: "event" });
       return;
     }
-    var toggle = e.target.closest(".qa-toggle");
-    if (toggle) { toggleQuickActions(); return; }
+    var more = e.target.closest(".rail-more");
+    if (more) { setMore(more.getAttribute("aria-expanded") !== "true"); return; }
+    if (e.target.closest("[data-more='close']") && !e.target.closest("[data-target]")) { setMore(false); return; }
 
     var nav = e.target.closest("[data-target]");
     if (nav) {
@@ -165,7 +169,6 @@
       go(nav.getAttribute("data-target"), origin);
       return;
     }
-    if (!e.target.closest(".quick-actions")) closeQuickActions();
   });
 
   // ---------- Flip cards ----------
@@ -1054,9 +1057,9 @@
     layer.classList.remove("is-in"); layer.classList.add("is-out"); mark("kvbd-welcomed");
     setTimeout(function () { layer.hidden = true; layer.classList.remove("is-out"); }, 650);
   }
-  function showWelcome() {
-    if (!layer || seen("kvbd-welcomed")) return;
-    layer.hidden = false;
+  function showWelcome(force) {
+    if (!layer || (!force && seen("kvbd-welcomed"))) return;
+    layer.hidden = false; layer.classList.remove("is-out");
     requestAnimationFrame(function () {
       layer.classList.add("is-in");
       var b = layer.querySelector(".welcome-go"); if (b) setTimeout(function () { b.focus({ preventScroll: true }); }, 500);
@@ -1064,9 +1067,23 @@
   }
   document.addEventListener("click", function (e) {
     if (e.target.closest && e.target.closest("[data-welcome='close']")) closeWelcome();
+    if (e.target.closest && e.target.closest("[data-welcome='open']")) showWelcome(true);
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeWelcome(); });
-  window.addEventListener("load", function () { setTimeout(showWelcome, 3600); });
+  // Only a visitor who has not started reading sees the tips uninvited: anyone who
+  // scrolls, clicks or types in the first seconds knows what they want. The tips
+  // stay one click away behind the "Quick tips" button.
+  window.addEventListener("load", function () {
+    if (seen("kvbd-welcomed")) return;
+    var engaged = false;
+    var note = function () { engaged = true; };
+    ["wheel", "touchstart", "pointerdown", "keydown"].forEach(function (ev) { window.addEventListener(ev, note, { passive: true, once: true }); });
+    setTimeout(function () { if (!engaged) showWelcome(); else mark("kvbd-welcomed"); }, 5000);
+  });
+
+  // Returning visitors get the same motion, quicker.
+  if (seen("kvbd-visited")) document.documentElement.classList.add("is-return");
+  mark("kvbd-visited");
 
   // "How to read this": the label slides out for a few seconds the first time a chart
   // is on screen, tucks back into its icon, and the icon gives a small bounce.

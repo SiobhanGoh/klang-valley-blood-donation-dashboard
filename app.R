@@ -346,8 +346,11 @@ story_card <- function(target, title, value, text) {
               span(class = "story-text", text),
               span(class = "story-go", icon("arrow-right")))
 }
-big_stat <- function(value, label) {
-  tagList(div(class = "big-stat-value", value), div(class = "big-stat-label", label))
+# A headline number with its label and, where there is one, the comparison that
+# says whether the number is good: a stakeholder reads the verdict, not just the figure.
+big_stat <- function(value, label, compare = NULL, icon_name = "arrow-down") {
+  tagList(div(class = "big-stat-value", value), div(class = "big-stat-label", label),
+          if (!is.null(compare)) div(class = "big-stat-compare", icon(icon_name), compare))
 }
 # A word with a dotted underline that explains itself on hover, focus or tap.
 term <- function(text, key) {
@@ -458,58 +461,62 @@ ascii_drop <- function(width = 30, height = 22) {
   tags$pre(class = "ascii-drop", `aria-hidden` = "true", paste(rows, collapse = "\n"))
 }
 
+# label: the full name (page headings, hover, screen readers). short: the word
+# under the icon in the menu. primary: shown in the phone's bottom bar; the
+# rest live behind "More".
 SECTIONS <- list(
-  list(id = "overview", label = "Overview", icon = "droplet"),
-  list(id = "live", label = "Live tracker", icon = "tower-broadcast"),
-  list(id = "compare", label = "Compare methods", icon = "scale-balanced"),
-  list(id = "low", label = "Low-collection days", icon = "arrow-trend-down"),
-  list(id = "patterns", label = "Patterns", icon = "chart-line"),
-  list(id = "blood101", label = "Blood 101: Malaysia", icon = "hand-holding-medical"),
-  list(id = "about", label = "About the data", icon = "circle-info"),
-  list(id = "export", label = "Export reports", icon = "file-export")
+  list(id = "overview", label = "Overview", short = "Overview", icon = "droplet", primary = TRUE),
+  list(id = "live", label = "Live tracker", short = "Live", icon = "tower-broadcast", primary = TRUE),
+  list(id = "compare", label = "Compare forecasts", short = "Compare", icon = "scale-balanced", primary = TRUE),
+  list(id = "low", label = "Quiet days", short = "Quiet days", icon = "arrow-trend-down", primary = FALSE),
+  list(id = "patterns", label = "Patterns", short = "Patterns", icon = "chart-line", primary = FALSE),
+  list(id = "blood101", label = "Donating blood", short = "Donate", icon = "hand-holding-medical", primary = TRUE),
+  list(id = "about", label = "About the data", short = "About", icon = "circle-info", primary = FALSE),
+  list(id = "export", label = "Reports", short = "Reports", icon = "file-lines", primary = FALSE)
 )
 
+theme_button <- function(class = "rail-item theme-toggle") {
+  tags$button(class = class, type = "button", `aria-label` = "Switch light or dark theme",
+              title = "Light or dark", `aria-pressed` = "false",
+              span(class = "rail-icon", span(class = "ti-sun", icon("circle-half-stroke")), span(class = "ti-moon", icon("circle-half-stroke"))),
+              span(class = "rail-label", span(class = "ti-text-light", "Dark theme"),
+                   span(class = "ti-text-dark", "Light theme")))
+}
 rail <- tags$nav(
   class = "rail", `aria-label` = "Sections",
   div(class = "rail-brand",
       span(class = "rail-logo", span(icon("droplet"))),
-      span(class = "rail-label rail-title", "Klang Valley", tags$br(), "Donations")),
+      span(class = "rail-title", "Klang Valley", tags$br(), "Donations")),
   div(class = "rail-items",
       div(class = "rail-indicator", `aria-hidden` = "true"),
       lapply(seq_along(SECTIONS), function(i) {
         sct <- SECTIONS[[i]]
         tags$button(
-          class = paste("rail-item", if (i == 1) "is-active"), type = "button",
+          class = paste("rail-item", if (i == 1) "is-active", if (isTRUE(sct$primary)) "is-primary"), type = "button",
           `data-target` = sct$id, `aria-label` = sct$label, title = sct$label,
           `aria-current` = if (i == 1) "page" else NULL,
           span(class = "rail-icon", icon(sct$icon)),
-          span(class = "rail-label", sct$label))
-      })),
-  tags$button(class = "rail-item theme-toggle", type = "button", `aria-label` = "Switch light or dark theme",
-              title = "Light or dark", `aria-pressed` = "false",
-              span(class = "rail-icon", span(class = "ti-sun", icon("circle-half-stroke")), span(class = "ti-moon", icon("circle-half-stroke"))),
-              span(class = "rail-label", span(class = "ti-text-light", "Dark theme"),
-                   span(class = "ti-text-dark", "Light theme")))
+          span(class = "rail-label", sct$short))
+      }),
+      tags$button(class = "rail-item rail-more", type = "button", `aria-label` = "More sections",
+                  `aria-expanded` = "false", `aria-controls` = "more-sheet",
+                  span(class = "rail-icon", icon("ellipsis")),
+                  span(class = "rail-label", "More"))),
+  theme_button()
 )
+# Phones: the sections that do not fit the bottom bar, plus the theme switch.
+more_sheet <- div(
+  class = "more-sheet", id = "more-sheet", role = "dialog", `aria-label` = "More sections", hidden = NA,
+  div(class = "more-scrim", `data-more` = "close"),
+  div(class = "more-panel",
+      div(class = "more-handle", `aria-hidden` = "true"),
+      div(class = "more-grid",
+          lapply(Filter(function(s) !isTRUE(s$primary), SECTIONS), function(sct)
+            tags$button(class = "sheet-item", type = "button", `data-target` = sct$id, `data-more` = "close",
+                        span(class = "sheet-icon", icon(sct$icon)),
+                        span(class = "sheet-label", sct$label))),
+          theme_button("sheet-item theme-toggle"))))
 
-quick_actions <- div(
-  class = "quick-actions",
-  tags$button(class = "qa-toggle", type = "button",
-              `aria-expanded` = "false", `aria-controls` = "qa-menu",
-              `aria-label` = "Quick actions", icon("bolt")),
-  div(class = "qa-menu", id = "qa-menu", role = "menu",
-      tags$button(class = "qa-item", type = "button", role = "menuitem",
-                  `data-target` = "live", icon("tower-broadcast"), span("Latest data")),
-      tags$button(class = "qa-item", type = "button", role = "menuitem",
-                  `data-target` = "compare", icon("scale-balanced"), span("Compare methods")),
-      tags$button(class = "qa-item", type = "button", role = "menuitem",
-                  `data-target` = "blood101", icon("hand-holding-medical"),
-                  span("Can I donate?")),
-      tags$button(class = "qa-item", type = "button", role = "menuitem",
-                  `data-open` = "sources", icon("book-open"), span("Sources & notes")),
-      tags$button(class = "qa-item", type = "button", role = "menuitem",
-                  `data-target` = "overview", icon("droplet"), span("Back to overview")))
-)
 
 status_pill <- div(
   class = "status-pill",
@@ -642,7 +649,8 @@ year_range <- function(id, from, to, min, max) {
 }
 
 # A chart with its plain-words reading beside it (stacked on narrow screens).
-chart_row <- function(note, chart) div(class = "chart-row", div(class = "chart-main", chart), note)
+chart_row <- function(note, chart, below = FALSE)
+  div(class = paste("chart-row", if (below) "chart-row-stack"), div(class = "chart-main", chart), note)
 
 what_shows <- function(id = NULL, text = NULL) {
   div(class = "what-shows",
@@ -673,7 +681,7 @@ welcome_card <- div(
                           span(strong("Dotted words"), " explain themselves when you hover or tap them."))),
           div(class = "welcome-foot",
               tags$button(class = "welcome-go", type = "button", `data-welcome` = "close",
-                          "Start exploring", icon("arrow-right")),
+                          "Got it, let me explore", icon("arrow-right")),
               tags$button(class = "welcome-alt", type = "button", `data-welcome` = "close",
                           `data-target` = "blood101", icon("hand-holding-droplet"), "I'm here to donate")))))
 
@@ -757,6 +765,7 @@ ui <- page(
   div(class = "canvas-glow", `aria-hidden` = "true"),
   div(
     class = "app-shell",
+    h1(class = "sr-only", "Klang Valley blood donation forecasts: daily donations in Selangor and Kuala Lumpur, and how well four methods predict them"),
     rail,
     tags$main(
       class = "stage",
@@ -894,7 +903,7 @@ ui <- page(
           chapter_head("compare", uiOutput("cmp_headline", inline = TRUE), uiOutput("cmp_sub", inline = TRUE),
                        stat = uiOutput("cmp_stat")),
           div(class = "control-bar stage-2",
-              seg("cmp_year", "Test period", PERIOD_CHOICES, as.character(LATEST)),
+              seg("cmp_year", "Year", PERIOD_CHOICES, as.character(LATEST)),
               chips("cmp_methods", "Methods", METHODS, METHODS)),
           panel("Error by blood group",
                 read = paste("One small chart per blood group. Each bar is a method's average error for that",
@@ -902,7 +911,7 @@ ui <- page(
                 sub = tagList("The same ", term("average error", "error"), ", split by ",
                               term("ABO group", "abo"), ".", span(class = "phone-only", " Left to right in each group: 7-day baseline, weekday average, regression, recent average.")),
                 class = "stage-3 chart-panel panel-ink", chart_row(what_shows("cmp_explain"),
-                chartOutput("cmp_group_plot", height = "380px"))),
+                chartOutput("cmp_group_plot", height = "380px"), below = TRUE)),
           panel("Scores", class = "stage-3",
                 sub = tagList("Every number behind the charts. ", term("Big-miss error", "rmse"), " and ",
                               term("average bias", "bias"), " are explained when you hover them."),
@@ -936,14 +945,14 @@ ui <- page(
                                uiOutput("low_sub", inline = TRUE)),
                        stat = uiOutput("low_stat")),
           div(class = "control-bar stage-2",
-              seg("low_year", "Test period", PERIOD_CHOICES, as.character(LATEST))),
+              seg("low_year", "Year", PERIOD_CHOICES, as.character(LATEST))),
           panel("Error on low-collection days and other days",
                 read = paste("For each method, the bright bar is its average error on the quietest days and the",
                              "muted bar is its error on all other days. A bright bar much taller than its muted",
                              "bar means the method struggles when donations drop."),
                 sub = tagList("Bright bars: ", term("low-collection days", "low_day"), ". Muted bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day baseline, weekday average, regression, recent average.")),
                 class = "stage-3 chart-panel panel-ink", chart_row(what_shows("low_explain"),
-                chartOutput("low_plot", height = "380px"))),
+                chartOutput("low_plot", height = "380px"), below = TRUE)),
           narrate(LOW_WHY),
           panel("The numbers behind it", class = "stage-3 tabs-in-head",
                 sub = "Three short tables. Pick one.",
@@ -1117,7 +1126,7 @@ ui <- page(
                             "donations per blood group per day the forecast was off by. Higher means",
                             "a harder month to predict. Hover a month to compare methods."),
                 controls = tagList(
-                  seg("month_year", "Test period", PERIOD_CHOICES, as.character(LATEST)),
+                  seg("month_year", "Year", PERIOD_CHOICES, as.character(LATEST)),
                   chips("month_methods", "Methods", METHODS,
                         c("Seven-day baseline", "Linear regression", "Recent weekday average"))),
                 class = "stage-3 chart-panel panel-ink",
@@ -1171,7 +1180,7 @@ ui <- page(
                       p(class = "panel-sub", uiOutput("report_blurb", inline = TRUE)))),
                   div(class = "panel-body",
                       conditionalPanel("input.report_type == 'summary'",
-                        seg("rep_period", "Test period", PERIOD_CHOICES, as.character(LATEST))),
+                        seg("rep_period", "Year", PERIOD_CHOICES, as.character(LATEST))),
                       conditionalPanel("input.report_type == 'data'",
                         seg("rep_group", "Blood group", c("All" = "all", setNames(ABO_GROUPS, ABO_GROUPS)), "all"),
                         div(class = "control",
@@ -1210,7 +1219,9 @@ ui <- page(
         )
       )
     ),
-    quick_actions,
+    more_sheet,
+    tags$button(class = "help-fab", type = "button", `data-welcome` = "open", `aria-label` = "Show the quick tips",
+                span(class = "fab-q", icon("question")), span(class = "fab-text", "Quick tips")),
     sources_drawer,
     welcome_card
   )
@@ -1389,7 +1400,9 @@ server <- function(input, output, session) {
   output$cmp_stat <- renderUI({
     st <- cmp_story()
     big_stat(count_span(st$mae, 1, burst = TRUE),
-             paste("average daily error, best method,", sub(" \\(.*", "", st$label)))
+             paste("donations a day off, on average,", sub(" \\(.*", "", st$label)),
+             compare = if (!is.na(st$ref)) sprintf("%s%% less error than %s", fmt(100 * (st$ref_mae - st$mae) / st$ref_mae, 0),
+                                                   if (st$ref == "Seven-day baseline") "repeating last week" else method_phrase(st$ref)))
   })
   output$cmp_explain <- renderUI({
     y <- cmp_year()
@@ -1416,7 +1429,8 @@ server <- function(input, output, session) {
     over_all <- vapply(split(rows, rows$method), function(r) sum(r$days * r$overprediction_percent) / sum(r$days), 0)
     list(best = best, days = sum(lo$days), label = PERIOD_LABEL[[as.character(y)]],
          over = sum(lo$days * lo$overprediction_percent) / sum(lo$days), over_all = over_all,
-         low_mae = sum(lo$days * lo$MAE) / sum(lo$days), other_mae = sum(ot$days * ot$MAE) / sum(ot$days))
+         low_mae = sum(lo$days * lo$MAE) / sum(lo$days), other_mae = sum(ot$days * ot$MAE) / sum(ot$days),
+         other_over = sum(ot$days * ot$overprediction_percent) / sum(ot$days))
   })
   output$low_headline <- renderUI({
     a <- low_story()$over_all
@@ -1433,7 +1447,8 @@ server <- function(input, output, session) {
   output$low_stat <- renderUI({
     st <- low_story()
     big_stat(count_span(st$over, 0, suffix = "%", burst = TRUE),
-             sprintf("of %d low days forecast too high, %s", st$days, sub(" \\(.*", "", st$label)))
+             sprintf("of %d quiet days forecast too high, %s", st$days, sub(" \\(.*", "", st$label)),
+             compare = sprintf("against %s%% of other days", fmt(st$other_over, 0)), icon_name = "arrow-up")
   })
   output$low_explain <- renderUI(explain_low(dash$low_errors[dash$low_errors$evaluation_year == low_y(), ],
                                              PERIOD_LABEL[[as.character(low_y())]]))
