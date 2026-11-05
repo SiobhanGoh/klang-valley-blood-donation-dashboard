@@ -261,7 +261,7 @@ flip_card <- function(label, value, unit, back_title, back_body, tone = "", badg
             div(class = "flip-value", value),
             div(class = "flip-foot",
                 span(class = "flip-unit", unit),
-                span(class = "flip-hint", icon("rotate"), "Details"))),
+                span(class = "flip-hint", `aria-hidden` = "true", title = "Turn over", icon("rotate")))),
         div(class = "flip-face flip-back", `aria-hidden` = "true",
             div(class = "flip-back-title", back_title),
             back_body,
@@ -301,11 +301,35 @@ seg <- function(id, label, choices, selected, class = "") {
       radioButtons(id, NULL, choices, selected = selected, inline = TRUE) |>
         tagAppendAttributes(class = "seg"))
 }
+# Chips for methods and blood groups wear the colour (and, for methods, the line
+# style) each one has in the charts, so the controls double as the legend.
+CHART_DARK_COL <- c("#F2C2CC" = "#6B3A48", "#E3909F" = "#9C4A60", "#C45A72" = "#CE5F7B", "#7D2440" = "#F48AA2",
+                    "#F2B3C0" = "#7A3F50", "#E07D93" = "#A84F66", "#B8445F" = "#D06580", "#6E1D37" = "#F4A3B6")
+DASH_ARRAY <- c(dot = "1.5 3.5", dash = "5 3", longdash = "9 3", solid = "none")
+chip_key <- function(value) {
+  col <- if (value %in% names(METHOD_COL)) METHOD_COL[[value]] else if (value %in% names(GROUP_COL)) GROUP_COL[[value]] else NULL
+  if (is.null(col)) return(NULL)
+  style <- sprintf("--k:%s;--kd:%s;", col, CHART_DARK_COL[[col]])
+  if (value %in% names(METHOD_DASH)) {
+    span(class = "chip-key key-line", style = style, `aria-hidden` = "true",
+         HTML(sprintf('<svg viewBox="0 0 24 10" width="24" height="10"><line x1="2" y1="5" x2="22" y2="5" stroke-dasharray="%s"/></svg>',
+                      DASH_ARRAY[[METHOD_DASH[[value]]]])))
+  } else {
+    span(class = "chip-key key-drop", style = style, `aria-hidden` = "true",
+         HTML('<svg viewBox="0 0 12 14" width="12" height="14"><path d="M6 1C6 1 1.5 6.4 1.5 9.1A4.5 4.5 0 0 0 10.5 9.1C10.5 6.4 6 1 6 1Z"/></svg>'))
+  }
+}
 chips <- function(id, label, choices, selected) {
+  values <- unname(choices)
+  labels <- if (is.null(names(choices))) values else names(choices)
+  keyed <- any(values %in% c(names(METHOD_COL), names(GROUP_COL)))
+  names_html <- lapply(seq_along(values), function(i)
+    tagList(chip_key(values[i]), span(class = "chip-text", labels[i])))
   div(class = "control",
       span(class = "control-label", label),
-      checkboxGroupInput(id, NULL, choices, selected = selected, inline = TRUE) |>
-        tagAppendAttributes(class = "chips"))
+      checkboxGroupInput(id, NULL, choiceNames = names_html, choiceValues = values,
+                         selected = selected, inline = TRUE) |>
+        tagAppendAttributes(class = paste("chips", if (keyed) "chips-keyed")))
 }
 
 # Each page opens like a chapter: its number and name, then the finding as
@@ -316,7 +340,8 @@ chapter_head <- function(id, headline, subtitle = NULL, stat = NULL) {
       div(class = "chapter-copy",
           div(class = "chapter-eyebrow",
               span(class = "chapter-badge", icon(sct$icon)),
-              span(class = "chapter-name", sct$label)),
+              span(class = "chapter-name", sct$label),
+              if (id %in% LIVE_PAGES) status_pill),
           h2(class = "chapter-title", headline),
           if (!is.null(subtitle)) p(class = "chapter-sub", subtitle)),
       chapter_art(id),
@@ -348,9 +373,20 @@ story_card <- function(target, title, value, text) {
 }
 # A headline number with its label and, where there is one, the comparison that
 # says whether the number is good: a stakeholder reads the verdict, not just the figure.
-big_stat <- function(value, label, compare = NULL, icon_name = "arrow-down") {
-  tagList(div(class = "big-stat-value", value), div(class = "big-stat-label", label),
-          if (!is.null(compare)) div(class = "big-stat-compare", icon(icon_name), compare))
+# A headline number with what it is measured against: two short bars (this
+# result and its reference) and a verdict coloured green when it is good news
+# and amber when it is not.
+big_stat <- function(value, label, bars = NULL, verdict = NULL, tone = "good") {
+  top <- if (length(bars)) max(vapply(bars, function(b) b$value, 0), 1e-9) else 1
+  tagList(
+    div(class = "big-stat-value", value), div(class = "big-stat-label", label),
+    if (length(bars)) div(class = "bs-bars", lapply(bars, function(b)
+      div(class = paste("bs-bar", b$kind),
+          span(class = "bs-name", b$name),
+          span(class = "bs-track", span(class = "bs-fill", style = sprintf("--w:%.1f%%;", 100 * b$value / top))),
+          span(class = "bs-val", b$text)))),
+    if (!is.null(verdict)) div(class = paste("big-stat-compare", paste0("tone-", tone)),
+                               icon(if (tone == "good") "circle-check" else "triangle-exclamation"), verdict))
 }
 # A word with a dotted underline that explains itself on hover, focus or tap.
 term <- function(text, key) {
@@ -462,17 +498,16 @@ ascii_drop <- function(width = 30, height = 22) {
 }
 
 # label: the full name (page headings, hover, screen readers). short: the word
-# under the icon in the menu. primary: shown in the phone's bottom bar; the
-# rest live behind "More".
+# under the icon in the menu.
 SECTIONS <- list(
-  list(id = "overview", label = "Overview", short = "Overview", icon = "droplet", primary = TRUE),
-  list(id = "live", label = "Live tracker", short = "Live", icon = "tower-broadcast", primary = TRUE),
-  list(id = "compare", label = "Compare forecasts", short = "Compare", icon = "scale-balanced", primary = TRUE),
-  list(id = "low", label = "Quiet days", short = "Quiet days", icon = "arrow-trend-down", primary = FALSE),
-  list(id = "patterns", label = "Patterns", short = "Patterns", icon = "chart-line", primary = FALSE),
-  list(id = "blood101", label = "Donating blood", short = "Donate", icon = "hand-holding-medical", primary = TRUE),
-  list(id = "about", label = "About the data", short = "About", icon = "circle-info", primary = FALSE),
-  list(id = "export", label = "Reports", short = "Reports", icon = "file-lines", primary = FALSE)
+  list(id = "overview", label = "Overview", short = "Overview", icon = "droplet"),
+  list(id = "live", label = "Live tracker", short = "Live", icon = "tower-broadcast"),
+  list(id = "compare", label = "Compare forecasts", short = "Compare", icon = "scale-balanced"),
+  list(id = "low", label = "Quiet days", short = "Quiet days", icon = "arrow-trend-down"),
+  list(id = "patterns", label = "Patterns", short = "Patterns", icon = "chart-line"),
+  list(id = "blood101", label = "Donating blood", short = "Donate", icon = "hand-holding-medical"),
+  list(id = "about", label = "About the data", short = "About", icon = "circle-info"),
+  list(id = "export", label = "Reports", short = "Reports", icon = "file-lines")
 )
 
 theme_button <- function(class = "rail-item theme-toggle") {
@@ -483,48 +518,50 @@ theme_button <- function(class = "rail-item theme-toggle") {
                    span(class = "ti-text-dark", "Light theme")))
 }
 rail <- tags$nav(
-  class = "rail", `aria-label` = "Sections",
-  div(class = "rail-brand",
-      span(class = "rail-logo", span(icon("droplet"))),
-      span(class = "rail-title", "Klang Valley", tags$br(), "Donations")),
+  class = "rail", id = "rail", `aria-label` = "Sections",
   div(class = "rail-items",
       div(class = "rail-indicator", `aria-hidden` = "true"),
       lapply(seq_along(SECTIONS), function(i) {
         sct <- SECTIONS[[i]]
         tags$button(
-          class = paste("rail-item", if (i == 1) "is-active", if (isTRUE(sct$primary)) "is-primary"), type = "button",
+          class = paste("rail-item", if (i == 1) "is-active"), type = "button",
           `data-target` = sct$id, `aria-label` = sct$label, title = sct$label,
           `aria-current` = if (i == 1) "page" else NULL,
           span(class = "rail-icon", icon(sct$icon)),
           span(class = "rail-label", sct$short))
-      }),
-      tags$button(class = "rail-item rail-more", type = "button", `aria-label` = "More sections",
-                  `aria-expanded` = "false", `aria-controls` = "more-sheet",
-                  span(class = "rail-icon", icon("ellipsis")),
-                  span(class = "rail-label", "More"))),
+      })),
   theme_button()
 )
-# Phones: the sections that do not fit the bottom bar, plus the theme switch.
-more_sheet <- div(
-  class = "more-sheet", id = "more-sheet", role = "dialog", `aria-label` = "More sections", hidden = NA,
-  div(class = "more-scrim", `data-more` = "close"),
-  div(class = "more-panel",
-      div(class = "more-handle", `aria-hidden` = "true"),
-      div(class = "more-grid",
-          lapply(Filter(function(s) !isTRUE(s$primary), SECTIONS), function(sct)
-            tags$button(class = "sheet-item", type = "button", `data-target` = sct$id, `data-more` = "close",
-                        span(class = "sheet-icon", icon(sct$icon)),
-                        span(class = "sheet-label", sct$label))),
-          theme_button("sheet-item theme-toggle"))))
+# Phones: the rail tucks into a tab on the screen edge and slides out when tapped.
+# The tab can be dragged up or down so it never sits over something you are reading.
+rail_tab <- tagList(
+  div(class = "rail-scrim", `aria-hidden` = "true"),
+  tags$button(class = "rail-tab", type = "button", `aria-label` = "Open the menu",
+              `aria-expanded` = "false", `aria-controls` = "rail",
+              span(class = "rt-icon", `aria-hidden` = "true", icon(SECTIONS[[1]]$icon)),
+              span(class = "rt-grip", `aria-hidden` = "true")))
 
 
+# Where the data stands: a heartbeat for "live", the last recorded day on a
+# little calendar tile, and when the site last refreshed. Shown on every page
+# that is drawn from the daily counts.
 status_pill <- div(
-  class = "status-pill",
-  span(class = "live-dot", `aria-hidden` = "true"),
-  span(strong("Live data"), paste0(" to ", fmt_date(DATA_END))),
-  span(class = "status-sep", `aria-hidden` = "true"),
-  span(class = "status-quiet", paste0("Updated ", format(dash$built, "%e %b") |> trimws()))
+  class = "status-pill", role = "status",
+  `aria-label` = paste0("Live data to ", fmt_date(DATA_END), ". Updated ",
+                        trimws(format(dash$built, "%e %b"))),
+  span(class = "sp-beat", `aria-hidden` = "true",
+       HTML('<svg viewBox="0 0 36 18" width="30" height="15"><path class="sp-ecg-bg" d="M1 10H9L11.5 5L14.5 15L18 2L21 13L23 10H35"/><path class="sp-ecg" d="M1 10H9L11.5 5L14.5 15L18 2L21 13L23 10H35"/></svg>')),
+  span(class = "sp-cal", `aria-hidden` = "true",
+       span(class = "sp-mon", toupper(format(DATA_END, "%b"))),
+       span(class = "sp-day", as.integer(format(DATA_END, "%d")))),
+  span(class = "sp-copy", `aria-hidden` = "true",
+       span(class = "sp-kicker", "Live data to"),
+       span(class = "sp-date", fmt_date(DATA_END),
+            span(class = "sp-ago", `data-day` = format(DATA_END, "%Y-%m-%d")))),
+  span(class = "sp-fresh", `aria-hidden` = "true", icon("rotate"),
+       paste0("Updated ", trimws(format(dash$built, "%e %b"))))
 )
+LIVE_PAGES <- c("overview", "live", "compare", "low", "patterns")
 
 
 # --- Blood 101 views ----------------------------------------------------------------
@@ -591,33 +628,65 @@ compat_flow <- function(t) {
       p(class = "cf-note", note))
 }
 
+# Hours as a bar across the day (6 am to 10 pm), for the centre cards.
+hours_track <- function(h, label) {
+  lo <- 6; hi <- 22
+  span(class = "ht-row",
+       span(class = "ht-label", label),
+       span(class = "ht-track",
+            span(class = "ht-open", style = sprintf("--a:%.2f%%;--b:%.2f%%;",
+                                                    100 * (h[1] - lo) / (hi - lo), 100 * (h[2] - lo) / (hi - lo)))))
+}
 region_view <- function(r) {
   st <- dash$states[!is.na(dash$states$region) & dash$states$region == r, ]
   st <- st[order(-st$last30), ]
-  mx <- max(dash$states$last30, 1)
+  tot <- max(sum(st$last30), 1)
+  share <- 100 * st$last30 / tot
+  ring <- function(p) HTML(sprintf(
+    '<svg viewBox="0 0 44 44" width="56" height="56" aria-hidden="true"><circle class="ring-bg" cx="22" cy="22" r="18"/><circle class="ring-fg" cx="22" cy="22" r="18" pathLength="100" style="--p:%.1f"/></svg>', p))
   tagList(
     what_shows(text = explain_region(st, r)),
+    div(class = "share-bar", role = "img",
+        `aria-label` = paste(sprintf("%s %s", st$state, fmt_pct(share)), collapse = ", "),
+        lapply(seq_len(nrow(st)), function(i)
+          span(class = "share-seg", style = sprintf("--w:%.2f%%;--i:%d;", share[i], i - 1),
+               if (share[i] >= 9) span(class = "share-lab", span(class = "share-pct", fmt_pct(share[i])),
+                                       span(class = "share-name", st$state[i]))))),
+    p(class = "share-cap", paste("Share of the region's donations in the 30 days to", fmt_date(DATA_END))),
     div(class = "state-grid",
         lapply(seq_len(nrow(st)), function(i)
           div(class = "state-card", style = sprintf("--i:%d", i - 1),
-              div(class = "state-name", st$state[i]),
-              div(class = "state-num", fmt_int(st$last30[i])),
-              div(class = "state-label", paste("donations in the 30 days to", fmt_date(DATA_END))),
-              div(class = "state-track",
-                  div(class = "state-fill", style = sprintf("--w:%.1f%%", 100 * st$last30[i] / mx))),
-              div(class = "state-ytd", sprintf("%s so far in %s", fmt_int(st$ytd[i]), END_YEAR))))),
+              div(class = "state-ring", ring(share[i]), span(class = "state-pct", fmt_pct(share[i]))),
+              div(class = "state-copy",
+                  div(class = "state-name", st$state[i]),
+                  div(class = "state-num", fmt_int(st$last30[i]), span(class = "state-unit", "in 30 days")),
+                  div(class = "state-ytd", sprintf("%s so far in %s", fmt_int(st$ytd[i]), END_YEAR)))))),
     if (r == "Central") tagList(
       p(class = "region-note", icon("circle-info"),
         paste("Counts are by the state where each donation was recorded, not where donors live.",
               "Kuala Lumpur is home to Pusat Darah Negara, which may explain part of its higher count.")),
-      h4(class = "centre-head", "PDN's fixed donation centres"),
+      div(class = "centre-headrow",
+          h4(class = "centre-head", "PDN's fixed donation centres"),
+          span(class = "centre-key", span(class = "ck-open"), "Opening hours, 6 am to 10 pm")),
       div(class = "centre-grid",
           lapply(DONATION_CENTRES, function(ct)
-            div(class = "centre",
-                span(class = "centre-icon", icon("location-dot")),
+            div(class = "centre", `data-wk` = paste(ct$wk, collapse = ","), `data-we` = paste(ct$we, collapse = ","),
+                div(class = "centre-top",
+                    span(class = "centre-icon", icon("location-dot")),
+                    span(class = "centre-status", `aria-live` = "polite")),
                 div(class = "centre-name", ct$name),
                 div(class = "centre-area", ct$area),
-                div(class = "centre-hours", ct$hours)))))
+                div(class = "centre-hours-vis",
+                    hours_track(ct$wk, "Mon–Fri"),
+                    hours_track(ct$we, "Sat–Sun"),
+                    span(class = "ht-now", `aria-hidden` = "true")),
+                div(class = "centre-hours", ct$hours),
+                tags$a(class = "centre-map", target = "_blank", rel = "noopener",
+                       href = paste0("https://www.google.com/maps/search/?api=1&query=",
+                                     utils::URLencode(paste(ct$name, ct$area), reserved = TRUE)),
+                       icon("map-location-dot"), "Open in Maps")))),
+      p(class = "viz-note centre-foot", "Open or closed is worked out from Malaysia time and the hours above.",
+        "Public holidays are not included, so check PDN before you go."))
     else p(class = "region-note", icon("circle-info"),
            paste("PDN's list of fixed donation centres covers the Klang Valley only. Elsewhere,",
                  "the donations above were collected at Ministry of Health blood collection sites",
@@ -649,8 +718,8 @@ year_range <- function(id, from, to, min, max) {
 }
 
 # A chart with its plain-words reading beside it (stacked on narrow screens).
-chart_row <- function(note, chart, below = FALSE)
-  div(class = paste("chart-row", if (below) "chart-row-stack"), div(class = "chart-main", chart), note)
+chart_row <- function(note, chart)
+  div(class = "chart-row", div(class = "chart-main", chart), note)
 
 what_shows <- function(id = NULL, text = NULL) {
   div(class = "what-shows",
@@ -681,7 +750,7 @@ welcome_card <- div(
                           span(strong("Dotted words"), " explain themselves when you hover or tap them."))),
           div(class = "welcome-foot",
               tags$button(class = "welcome-go", type = "button", `data-welcome` = "close",
-                          "Got it, let me explore", icon("arrow-right")),
+                          "Start exploring", icon("arrow-right")),
               tags$button(class = "welcome-alt", type = "button", `data-welcome` = "close",
                           `data-target` = "blood101", icon("hand-holding-droplet"), "I'm here to donate")))))
 
@@ -911,7 +980,7 @@ ui <- page(
                 sub = tagList("The same ", term("average error", "error"), ", split by ",
                               term("ABO group", "abo"), ".", span(class = "phone-only", " Left to right in each group: 7-day baseline, weekday average, regression, recent average.")),
                 class = "stage-3 chart-panel panel-ink", chart_row(what_shows("cmp_explain"),
-                chartOutput("cmp_group_plot", height = "380px"), below = TRUE)),
+                chartOutput("cmp_group_plot", height = "380px"))),
           panel("Scores", class = "stage-3",
                 sub = tagList("Every number behind the charts. ", term("Big-miss error", "rmse"), " and ",
                               term("average bias", "bias"), " are explained when you hover them."),
@@ -952,7 +1021,7 @@ ui <- page(
                              "bar means the method struggles when donations drop."),
                 sub = tagList("Bright bars: ", term("low-collection days", "low_day"), ". Muted bars: all other days.", span(class = "phone-only", " Left to right in each group: 7-day baseline, weekday average, regression, recent average.")),
                 class = "stage-3 chart-panel panel-ink", chart_row(what_shows("low_explain"),
-                chartOutput("low_plot", height = "380px"), below = TRUE)),
+                chartOutput("low_plot", height = "380px"))),
           narrate(LOW_WHY),
           panel("The numbers behind it", class = "stage-3 tabs-in-head",
                 sub = "Three short tables. Pick one.",
@@ -1026,29 +1095,59 @@ ui <- page(
           section(
             "Can I donate?",
             sub = "The basics PDN checks before every donation.",
-            viz(mindmap(c("Can I", "donate?"),
-                        lapply(ELIGIBILITY, function(e) list(title = e$title, sub = e$value, tip = e$detail)),
-                        label = paste(vapply(ELIGIBILITY, function(e) paste0(e$title, ": ", e$value), ""),
-                                      collapse = "; ")),
-                div(class = "fact-grid",
-                    lapply(ELIGIBILITY, function(e)
-                      div(class = "fact",
-                          span(class = "fact-icon", icon(e$icon)),
-                          div(class = "fact-title", e$title),
-                          div(class = "fact-value", e$value),
-                          p(class = "fact-detail", e$detail))))),
-            tags$details(class = "fact-details",
-                tags$summary("Details for each requirement"),
-                lapply(ELIGIBILITY, function(e)
-                  div(class = "fact-line", strong(e$title), span(e$detail)))),
-            div(class = "deferral",
-                h4("Some reasons to wait"),
-                tags$ul(lapply(DEFERRAL_EXAMPLES, function(d)
-                  tags$li(strong(d$what), span(d$wait)))),
-                p(class = "viz-note", "Examples only. ",
-                  tags$button(class = "link-btn", type = "button", `data-open` = "sources",
-                              "Sources & notes"))))),
+            div(class = "donate-grid",
+                div(class = "dg-side dg-need",
+                    h4(class = "dg-head", icon("clipboard-check"), "What you need"),
+                    tags$ul(class = "need-list", lapply(ELIGIBILITY, function(e)
+                      tags$li(class = "need", title = e$detail,
+                              span(class = "need-icon", icon(e$icon)),
+                              div(class = "need-copy",
+                                  div(class = "need-top", span(class = "need-title", e$title),
+                                      span(class = "need-value", e$value)),
+                                  p(class = "need-text", e$short)))))),
+                div(class = "dg-map",
+                    viz(mindmap(c("Can I", "donate?"),
+                                lapply(ELIGIBILITY, function(e) list(title = e$map, sub = e$value, tip = e$detail)),
+                                label = paste(vapply(ELIGIBILITY, function(e) paste0(e$title, ": ", e$value), ""),
+                                              collapse = "; "),
+                                width = 600, arm = 158, wrap = 17, hub_r = 58),
+                        NULL)),
+                div(class = "dg-side dg-wait",
+                    h4(class = "dg-head", icon("hourglass-half"), "Some reasons to wait"),
+                    tags$ul(class = "wait-list", lapply(DEFERRAL_EXAMPLES, function(d)
+                      tags$li(class = "wait", title = paste0(d$what, ": ", d$wait),
+                              span(class = "wait-icon", icon(d$icon)),
+                              div(class = "wait-copy",
+                                  div(class = "wait-top", span(class = "wait-title", sub("^After ", "", d$what)),
+                                      span(class = "wait-tag", d$tag)),
+                                  span(class = "wait-track", `aria-hidden` = "true",
+                                       span(class = "wait-fill", style = sprintf("--w:%.0f%%;", 100 * d$months / 6))),
+                                  if (nzchar(note <- sub("^[0-9]+ (weeks|months) ?", "", d$wait)))
+                                    span(class = "wait-text", note))))),
+                    p(class = "viz-note", "Examples only; staff decide on the day. ",
+                      tags$button(class = "link-btn", type = "button", `data-open` = "sources",
+                                  "Sources & notes")))))),
             tab("On the day", icon = "hand-holding-medical",
+          section("Before you go",
+                  sub = "Getting ready, from PDN's donor booklet.",
+                  div(class = "prep-grid",
+                      lapply(seq_along(PREP_TIPS), function(i) {
+                        t <- PREP_TIPS[[i]]
+                        div(class = "prep", style = sprintf("--i:%d;", i - 1),
+                            span(class = "prep-icon", icon(t$icon)),
+                            span(class = "prep-when", t$when),
+                            div(class = "prep-title", t$title),
+                            if (!is.null(t$text)) p(class = "prep-text", t$text))
+                      }),
+                      div(class = "prep prep-food", style = sprintf("--i:%d;", length(PREP_TIPS)),
+                          span(class = "prep-icon", icon("bowl-food")),
+                          span(class = "prep-when", "Food with iron"),
+                          div(class = "prep-title", "Keep your haemoglobin up"),
+                          p(class = "prep-text", "It is checked before you donate. PDN's examples of iron-rich food:"),
+                          div(class = "food-chips", lapply(IRON_FOODS, function(f)
+                            span(class = "food-chip", icon(f$icon), f$name))))),
+                  p(class = "viz-note", "After donating, eating and drinking the refreshments provided is a must. ",
+                    tags$button(class = "link-btn", type = "button", `data-open` = "sources", "Sources & notes"))),
           section("How a donation works",
                   viz(journey(Map(function(t, s) list(title = t, sub = s), DONATION_STEP_TITLES, DONATION_STEP_NOTES),
                               label = paste(DONATION_STEPS, collapse = " ")),
@@ -1064,9 +1163,10 @@ ui <- page(
             "Where blood is collected",
             sub = paste("Pick a region. Each state shows the donations recorded there in the official",
                         "data; the Central region also lists PDN's fixed donation centres."),
-            div(class = "region-bar",
-                seg("region_pick", "Region", names(MALAYSIA_REGIONS), "Central")),
-            uiOutput("region_result"))),
+            div(class = "region-wrap",
+                div(class = "region-bar",
+                    seg("region_pick", "Region", names(MALAYSIA_REGIONS), "Central")),
+                uiOutput("region_result")))),
             tab("Who can receive", icon = "people-arrows",
           section(
             "Blood type compatibility explorer",
@@ -1219,7 +1319,7 @@ ui <- page(
         )
       )
     ),
-    more_sheet,
+    rail_tab,
     tags$button(class = "help-fab", type = "button", `data-welcome` = "open", `aria-label` = "Show the quick tips",
                 span(class = "fab-q", icon("question")), span(class = "fab-text", "Quick tips")),
     sources_drawer,
@@ -1399,10 +1499,16 @@ server <- function(input, output, session) {
   })
   output$cmp_stat <- renderUI({
     st <- cmp_story()
+    name <- sub(" \\(.*", "", st$label)
+    if (is.na(st$ref)) return(big_stat(count_span(st$mae, 1, burst = TRUE),
+                                       paste("donations a day off, on average,", name)))
+    gain <- 100 * (st$ref_mae - st$mae) / st$ref_mae
     big_stat(count_span(st$mae, 1, burst = TRUE),
-             paste("donations a day off, on average,", sub(" \\(.*", "", st$label)),
-             compare = if (!is.na(st$ref)) sprintf("%s%% less error than %s", fmt(100 * (st$ref_mae - st$mae) / st$ref_mae, 0),
-                                                   if (st$ref == "Seven-day baseline") "repeating last week" else method_phrase(st$ref)))
+             paste("donations a day off, on average,", name),
+             bars = list(list(kind = "is-this", name = st$best, value = st$mae, text = fmt(st$mae, 1)),
+                         list(kind = "is-ref", name = if (st$ref == "Seven-day baseline") "Repeating last week" else st$ref,
+                              value = st$ref_mae, text = fmt(st$ref_mae, 1))),
+             verdict = sprintf("%s%% less error", fmt(gain, 0)), tone = if (gain > 0) "good" else "bad")
   })
   output$cmp_explain <- renderUI({
     y <- cmp_year()
@@ -1446,9 +1552,13 @@ server <- function(input, output, session) {
   })
   output$low_stat <- renderUI({
     st <- low_story()
+    worse <- st$over > st$other_over
     big_stat(count_span(st$over, 0, suffix = "%", burst = TRUE),
              sprintf("of %d quiet days forecast too high, %s", st$days, sub(" \\(.*", "", st$label)),
-             compare = sprintf("against %s%% of other days", fmt(st$other_over, 0)), icon_name = "arrow-up")
+             bars = list(list(kind = "is-this", name = "Quiet days", value = st$over, text = paste0(fmt(st$over, 0), "%")),
+                         list(kind = "is-ref", name = "Other days", value = st$other_over, text = paste0(fmt(st$other_over, 0), "%"))),
+             verdict = if (worse) "Aims too high on quiet days" else "No more than on other days",
+             tone = if (worse) "bad" else "good")
   })
   output$low_explain <- renderUI(explain_low(dash$low_errors[dash$low_errors$evaluation_year == low_y(), ],
                                              PERIOD_LABEL[[as.character(low_y())]]))
