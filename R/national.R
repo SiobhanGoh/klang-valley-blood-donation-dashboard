@@ -9,11 +9,25 @@
 
 DARAHWATCH_URL <- "https://github.com/SiobhanGoh/darahwatch"
 
+# A number from JSON, or NA when it is missing or null.
+num <- function(x) if (is.null(x) || !length(x)) NA_real_ else as.numeric(x)
+
+# A file that can't be read (half-downloaded, a format change) also gives NULL, with a warning,
+# so the rest of the site still builds.
 read_darahwatch <- function(dir = "app_data/darahwatch") {
+  tryCatch(read_darahwatch_files(dir), error = function(e) {
+    warning("Could not read DarahWatch's files: ", conditionMessage(e), call. = FALSE)
+    NULL
+  })
+}
+
+read_darahwatch_files <- function(dir) {
   f <- file.path(dir, "forecast.json")
   b <- file.path(dir, "backtest.json")
   if (!file.exists(f) || !file.exists(b)) return(NULL)
   fc <- jsonlite::fromJSON(f, simplifyVector = TRUE)
+  # The scorecard stays as plain lists (simplifying would turn its list of methods into a table).
+  fc$scorecard <- jsonlite::fromJSON(f, simplifyVector = FALSE)$scorecard
   bt <- jsonlite::fromJSON(b, simplifyVector = FALSE)
   years <- bt$years
   scored <- Filter(function(y) !is.null(y$by_state), years)
@@ -25,9 +39,10 @@ read_darahwatch <- function(dir = "app_data/darahwatch") {
   by_state <- do.call(rbind, lapply(check$by_state, function(r) data.frame(
     state = r$state, coverage = r$coverage, MAE = r$MAE, MAE_simple = r$MAE_simple,
     weeks = r$weeks, really_low = r$really_low_weeks, warnings = r$warnings,
-    hit_rate = r$warning_hit_rate %||% NA_real_, catch_rate = r$warning_catch_rate %||% NA_real_,
+    hit_rate = num(r$warning_hit_rate), catch_rate = num(r$warning_catch_rate),
     stringsAsFactors = FALSE)))
   rule <- check$low_week_rule[[method]]
+  regions <- length(unique(fc$weeks$state))
   mae <- function(m) pick(check$mae, m)
   list(
     issued = as.Date(fc$issued),
@@ -43,8 +58,9 @@ read_darahwatch <- function(dir = "app_data/darahwatch") {
                  mae = mae(method)$MAE, mae_simple = mae("Recent weekday average")$MAE,
                  holiday = mae(method)$by_day$`Public holiday`, holiday_simple = mae("Recent weekday average")$by_day$`Public holiday`,
                  ramadan = mae(method)$by_day$Ramadan, ramadan_simple = mae("Recent weekday average")$by_day$Ramadan,
-                 base_rate = rule$base_rate, warnings = rule$any_warning$flagged,
-                 hit_rate = rule$any_warning$hit_rate, catch_rate = rule$any_warning$catch_rate),
+                 base_rate = num(rule$base_rate), warnings = num(rule$any_warning$flagged),
+                 hit_rate = num(rule$any_warning$hit_rate), catch_rate = num(rule$any_warning$catch_rate)),
+    regions = regions,
     analysed_to = as.Date(bt$data$analysed_to),
     by_state = by_state[order(by_state$state), , drop = FALSE]
   )

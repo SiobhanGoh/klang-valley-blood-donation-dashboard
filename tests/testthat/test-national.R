@@ -18,8 +18,18 @@ test_that("DarahWatch's files are read into plain tables", {
   # The check is the latest complete year, never the year in progress.
   expect_equal(nat$check$year, 2025L)
   expect_false(nat$check$partial)
-  expect_equal(round(nat$check$coverage, 3), 0.795)
+  expect_equal(round(nat$check$coverage, 3), 0.796)
   expect_true(nzchar(nat$bulletin$en) && nzchar(nat$bulletin$ms))
+  # The fixture's scorecard has real scores: a forecast issued 14 Aug, scored on 15-28 Aug.
+  expect_equal(nat$scorecard$scored_days, 728L)
+  expect_true(is.list(nat$scorecard$methods[[1]]))
+})
+
+test_that("a broken file gives NULL with a warning, not a failed build", {
+  d <- tempfile(); dir.create(d)
+  writeLines("{ not json", file.path(d, "forecast.json"))
+  writeLines("{}", file.path(d, "backtest.json"))
+  expect_warning(expect_null(read_darahwatch(d)), "Could not read")
 })
 
 test_that("missing DarahWatch files give NULL, not an error", {
@@ -37,10 +47,11 @@ test_that("the page renders with and without a national forecast", {
   expect_match(soon, "coming soon", fixed = TRUE)
   nat <- read_darahwatch(fixture)
   html <- as.character(htmltools::renderTags(env$states_page(nat))$html)
-  expect_match(html, "No state and blood group expects a low week ahead.", fixed = TRUE)
+  expect_match(html, "No state or blood group expects a low week ahead.", fixed = TRUE)
   expect_match(html, "W.P. Kuala Lumpur", fixed = TRUE)
   expect_match(html, "Bahasa Malaysia", fixed = TRUE)
-  expect_match(html, "1,013", fixed = TRUE)  # KL group A, next 7 days
+  expect_match(html, "Forecast for four blood groups in 12 states and Kuala Lumpur", fixed = TRUE)
+  expect_match(html, "728 state-group-days scored", fixed = TRUE)
   nat$weeks$warning[1] <- "Likely low"
   html <- as.character(htmltools::renderTags(env$states_page(nat))$html)
   expect_match(html, "1 state and blood group pair could have a low week ahead.", fixed = TRUE)

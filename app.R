@@ -821,10 +821,16 @@ sources_drawer <- div(
 # --- Every state (DarahWatch) ----------------------------------------------------------
 
 NAT <- dash$national
+# The data has 12 states and W.P. Kuala Lumpur (no rows for Perlis, Labuan or Putrajaya).
+nat_where <- function(nat) {
+  kl <- "W.P. Kuala Lumpur" %in% nat$weeks$state
+  if (kl) sprintf("%d states and Kuala Lumpur", nat$regions - 1L) else sprintf("%d states", nat$regions)
+}
 NAT_LEVELS <- c("Likely low" = "nat-likely", "Watch" = "nat-watch")
 
 nat_week_table <- function(nat, week) {
   w <- nat$weeks[nat$weeks$week == week, ]
+  if (!nrow(w)) return(p(class = "tab-note", "No week totals in this forecast."))
   states <- sort(unique(w$state))
   cell <- function(st, g) {
     r <- w[w$state == st & w$blood_type == g, ]
@@ -864,7 +870,7 @@ nat_trust_table <- function(nat) {
 
 nat_scorecard <- function(nat) {
   sc <- nat$scorecard
-  m <- Filter(function(x) identical(x$method, nat$method), sc$methods %||% list())
+  m <- Filter(function(x) is.list(x) && identical(x$method, nat$method), sc$methods %||% list())
   if (!length(m) || !isTRUE(sc$scored_days > 0)) {
     return(p(class = "panel-sub", style = "margin-top: 8px;",
              "Scorecard: every forecast DarahWatch publishes is saved, unedited, and scored once its days have data. ",
@@ -883,7 +889,7 @@ states_page <- function(nat) {
       chapter_head("states", "Every state is coming soon.",
                    "DarahWatch's national forecasts appear here after its first daily run."),
       panel("Every state and blood group", class = "stage-3",
-            p("DarahWatch forecasts all 13 states and four blood groups 14 days ahead, with honest ranges and a ",
+            p("DarahWatch forecasts 12 states and Kuala Lumpur, four blood groups each, 14 days ahead, with honest ranges and a ",
               "low-week warning. ", a("See DarahWatch on GitHub", href = DARAHWATCH_URL, target = "_blank", rel = "noopener"), ".")),
       chapter_nav("states")))
   }
@@ -891,16 +897,15 @@ states_page <- function(nat) {
   n_likely <- sum(w1$warning == "Likely low")
   headline <- if (nrow(w1)) sprintf("%d state and blood group pair%s could have a low week ahead.", nrow(w1),
                                     if (nrow(w1) == 1) "" else "s")
-              else "No state and blood group expects a low week ahead."
+              else "No state or blood group expects a low week ahead."
   ck <- nat$check
   hol <- nat$holidays
   tagList(
     chapter_head("states", headline,
-                 sprintf("Forecast for all 13 states and four blood groups, issued with data to %s.%s",
-                         fmt_date(nat$issued),
-                         if (n_likely) sprintf(" %d of them %s even at the top of the range.", n_likely,
-                                               if (n_likely == 1) "stays low" else "stay low") else "")),
-    panel("This morning's bulletin", class = "stage-2 nat-bulletin",
+                 sprintf("Forecast for four blood groups in %s, issued with data to %s.%s",
+                         nat_where(nat), fmt_date(nat$issued),
+                         if (n_likely) sprintf(" In %d of them, even the top of the range is below a normal week.", n_likely) else "")),
+    panel(sprintf("The bulletin, with data to %s", fmt_date(nat$issued)), class = "stage-2 nat-bulletin",
           div(class = "nat-langs",
               div(lang = "en", span(class = "nat-lang", "English"), p(nat$bulletin$en)),
               div(lang = "ms", span(class = "nat-lang", "Bahasa Malaysia"), p(nat$bulletin$ms)))),
@@ -915,7 +920,7 @@ states_page <- function(nat) {
     if (nrow(hol)) panel("Public holidays in the next 14 days", class = "stage-3",
                          tags$ul(class = "nat-hols", lapply(seq_len(nrow(hol)), function(i)
                            tags$li(strong(format(as.Date(hol$date[i]), "%a %e %b")), " ", hol$name_en[i],
-                                   span(class = "nat-hol-where", if (hol$states[i] >= 13) "every state"
+                                   span(class = "nat-hol-where", if (hol$states[i] >= nat$regions) "everywhere covered"
                                         else sprintf("%d state%s", hol$states[i], if (hol$states[i] == 1) "" else "s")))))),
     panel("How far to trust it", class = "stage-3 next-panel",
           sub = sprintf(paste("Checked on %s%s, which the model and its ranges never saw. Across Malaysia, %s of days fell",
@@ -926,9 +931,10 @@ states_page <- function(nat) {
                         fmt(ck$ramadan, 1), fmt(ck$ramadan_simple, 1)),
           div(class = "st-wrap", nat_trust_table(nat)),
           p(class = "panel-sub", style = "margin-top: 14px;",
-            sprintf(paste("Low-week warning: %s of weeks were really low. Of %s warnings, %s were right, and they caught %s",
-                          "of the low weeks. Expect some false alarms and some misses."),
-                    pct_text(100 * ck$base_rate), fmt_int(ck$warnings), pct_text(100 * ck$hit_rate), pct_text(100 * ck$catch_rate))),
+            if (is.na(ck$hit_rate) || is.na(ck$catch_rate)) "Low-week warning: not scored yet."
+            else sprintf(paste("Low-week warning: %s of weeks were really low. Of %s warnings, %s were right, and they caught %s",
+                               "of the low weeks. Expect some false alarms and some misses."),
+                         pct_text(100 * ck$base_rate), fmt_int(ck$warnings), pct_text(100 * ck$hit_rate), pct_text(100 * ck$catch_rate))),
           nat_scorecard(nat),
           footer = tagList("Forecasts by ", a("DarahWatch", href = DARAHWATCH_URL, target = "_blank", rel = "noopener"),
                            ": gradient-boosted trees with public holidays and Ramadan, refreshed every morning. ",
