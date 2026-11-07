@@ -29,7 +29,12 @@ test_that("ranges built on one year hold about 80% of the next year's days", {
   expect_equal(r$calibrated_on, 2024L)
   expect_equal(r$days, 1460L)
   expect_equal(round(r$coverage, 4), 0.7890)
-  expect_true(all(rc$coverage > 0.75 & rc$coverage < 0.9))
+  # Every method and year, pinned to the numbers the README and the page report.
+  got <- rc[order(rc$tested_on, factor(rc$method, levels = METHODS)), ]
+  expect_equal(got$method, rep(METHODS, 2))
+  expect_equal(round(got$coverage, 4),
+               c(0.8374, 0.8484, 0.8490, 0.8176,   # calibrated on 2023, tested on 2024
+                 0.8055, 0.7938, 0.7890, 0.7890))  # calibrated on 2024, tested on 2025
 })
 
 test_that("the quiet-day watch is scored on a year its ranges never saw", {
@@ -37,7 +42,7 @@ test_that("the quiet-day watch is scored on a year its ranges never saw", {
   expect_equal(wb$low_days, 212L)
   expect_equal(wb$flagged_and_low, 182L)
   expect_equal(round(wb$recall, 4), 0.8585)
-  expect_true(wb$precision < 0.5)  # many false alarms, which the page says
+  expect_equal(round(wb$precision, 4), 0.3176)  # many false alarms, which the page says
   w <- live$next_watch
   expect_true(all(w$watch %in% c("", "Could be quiet", "Likely quiet")))
   expect_true(all(w$watch[w$low > w$low_cutoff] == ""))

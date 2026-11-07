@@ -10,10 +10,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Read-only by default; each job below asks only for what it needs.
 permissions:
-  contents: write   # to keep the forecast log on its own branch
-  pages: write
-  id-token: write
+  contents: read
 
 concurrency:
   group: pages
@@ -49,37 +48,25 @@ jobs:
       - name: Run tests (frozen snapshot reproduces the FIT5145 report)
         run: Rscript -e 'testthat::test_dir("tests/testthat", reporter = "summary", stop_on_failure = TRUE)'
 
+      # A missing branch (exit code 2) just means no forecasts have been logged yet. Any other
+      # failure stops the run, so a network error can never start the log over from empty.
       - name: Fetch the forecast log
         run: |
           mkdir -p app_data
-          if git ls-remote --exit-code --heads origin forecast-log >/dev/null; then
+          code=0
+          git ls-remote --exit-code --heads origin forecast-log >/dev/null || code=$?
+          if [ "$code" -eq 0 ]; then
             git fetch -q --depth 1 origin forecast-log
             git show FETCH_HEAD:forecast_log.csv > app_data/forecast_log.csv
+          elif [ "$code" -ne 2 ]; then
+            echo "::error::Could not check the forecast-log branch (git exit code $code)."
+            exit "$code"
+          else
+            echo "No forecast-log branch yet; starting a new log."
           fi
 
       - name: Download the latest official data and rebuild results
         run: Rscript scripts/build_data.R
-
-      # Every published forecast is kept on the forecast-log branch and never edited, so the
-      # site's track record can be checked against the history of that branch.
-      - name: Save the forecast log
-        run: |
-          log="$PWD/app_data/forecast_log.csv"
-          dir="$(mktemp -d)"
-          url="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
-          if git ls-remote --exit-code --heads "$url" forecast-log >/dev/null; then
-            git clone -q --depth 1 -b forecast-log "$url" "$dir"
-          else
-            git init -q -b forecast-log "$dir"
-            git -C "$dir" remote add origin "$url"
-          fi
-          cp "$log" "$dir/forecast_log.csv"
-          cd "$dir"
-          git config user.name "SiobhanGoh"
-          git config user.email "siobhangoh17@gmail.com"
-          git add forecast_log.csv
-          git commit -q -m "Forecasts issued with data to $(tail -n 1 forecast_log.csv | cut -d, -f1 | tr -d '\"')" || echo "No new forecasts."
-          git push -q origin forecast-log
 
       - name: Build the static site
         run: Rscript scripts/build_static.R _site
@@ -88,12 +75,68 @@ jobs:
         with:
           path: _site
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forecast-log
+          path: app_data/forecast_log.csv
+          if-no-files-found: error
+          retention-days: 7
+
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # Every published forecast is kept on the forecast-log branch and never edited, so the
+  # site's track record can be checked against the history of that branch. This runs only
+  # after the site deployed, so the log never records forecasts nobody could see.
+  save-log:
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: forecast-log
+          path: new-log
+
+      - name: Save the forecast log
+        env:
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # The token goes in a header, never in a URL that git could print or store.
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)"
+          url="https://github.com/$REPO.git"
+          dir="$(mktemp -d)"
+          code=0
+          git -c http.extraheader="$auth" ls-remote --exit-code --heads "$url" forecast-log >/dev/null || code=$?
+          if [ "$code" -eq 0 ]; then
+            git -c http.extraheader="$auth" clone -q --depth 1 -b forecast-log "$url" "$dir"
+          elif [ "$code" -eq 2 ]; then
+            git init -q -b forecast-log "$dir"
+            git -C "$dir" remote add origin "$url"
+          else
+            echo "::error::Could not check the forecast-log branch (git exit code $code)."
+            exit "$code"
+          fi
+          cp new-log/forecast_log.csv "$dir/forecast_log.csv"
+          cd "$dir"
+          git config user.name "SiobhanGoh"
+          git config user.email "siobhangoh17@gmail.com"
+          git add forecast_log.csv
+          if git diff --cached --quiet; then
+            echo "No new forecasts."
+            exit 0
+          fi
+          git commit -q -m "Forecasts issued with data to $(tail -n 1 forecast_log.csv | cut -d, -f1 | tr -d '\"')"
+          git -c http.extraheader="$auth" push -q origin forecast-log
