@@ -801,6 +801,9 @@ p { margin: 0; }
 .next-panel table { width: 100%; border-collapse: separate; border-spacing: 0; }
 .next-panel th, .next-panel td { padding: 12px 14px !important; font-variant-numeric: tabular-nums; }
 .next-panel td:first-child { font-weight: 600; }
+/* Forecasts with their ranges are wide: keep each cell on one line and let the table scroll sideways on phones. */
+.next-panel .panel-body { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.next-panel th, .next-panel td { white-space: nowrap; }
 .next-panel td:last-child { font-weight: 600; color: var(--wine); }
 
 /* ---------- Tables ---------- */

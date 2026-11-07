@@ -29,7 +29,7 @@ test_that("all app outputs render and headline values match the report", {
         live_group = "A", bt_pick = "A+", region_pick = "Central"
       )
 
-      for (id in c("overview_plot", "live_plot", "next_table", "live_change7",
+      for (id in c("overview_plot", "live_plot", "next_table", "range_table", "watch_note", "track_record", "live_change7",
                    "live_change_ytd", "audit_table", "panel_table", "weekly_plot",
                    "weekday_plot", "annual_plot", "mix_plot", "cmp_group_plot",
                    "cmp_table", "cmp_daily_plot", "cutoff_table", "low_plot",

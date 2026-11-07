@@ -234,6 +234,17 @@ chart_live <- function(panel, predictions, next_days, group, data_end) {
                  marker = list(color = METHOD_COL[[m]], size = 6), legendgroup = m,
                  showlegend = FALSE)))
   }
+  # The best method's 80% range over the next seven days, as a shaded band under the lines.
+  band <- ahead[ahead$method == "Recent weekday average", ]
+  band <- band[order(band$date), ]
+  if (!is.null(band$low) && nrow(band)) {
+    traces <- c(list(
+      line_trace(band$date, band$high, "80% range", list(color = "rgba(0,0,0,0)", width = 0),
+                 "80% range, high: <b>%{y:,.0f}</b><extra></extra>", legendgroup = "range", showlegend = FALSE),
+      line_trace(band$date, band$low, "80% range (recent weekday average)", list(color = "rgba(0,0,0,0)", width = 0),
+                 "80% range, low: <b>%{y:,.0f}</b><extra></extra>", legendgroup = "range",
+                 fill = "tonexty", fillcolor = "rgba(255,183,201,0.32)")), traces)
+  }
   traces <- c(traces, list(recorded_trace(actual$date, actual$donations)))
   figure(traces, ytitle = paste("Group", group, "donations per day"), hovermode = "x unified",
          xaxis = list(type = "date", tickformat = "%d %b", hoverformat = "%a %d %b %Y"),
@@ -241,7 +252,7 @@ chart_live <- function(panel, predictions, next_days, group, data_end) {
                             x0 = format(data_end + 0.5), x1 = format(max(ahead$date) + 0.5),
                             y0 = 0, y1 = 1, fillcolor = "rgba(232,110,140,0.16)",
                             line = list(width = 0), layer = "below")),
-         yaxis = list(range = arr(c(0, max(c(actual$donations, past$prediction, ahead$prediction)) * 1.3))),
+         yaxis = list(range = arr(c(0, max(c(actual$donations, past$prediction, ahead$prediction, ahead$high), na.rm = TRUE) * 1.3))),
          meta = list(callouts = list(callout(format(max(actual$date)), actual$donations[nrow(actual)],
                                              paste("Latest:", fmt0(actual$donations[nrow(actual)])),
                                              align = "end"))),

@@ -21,6 +21,7 @@
   d
 })
 source(file.path(.kvbd_dir, "common.R"), local = environment())
+source(file.path(.kvbd_dir, "ranges.R"), local = environment())
 
 # readr and janitor are only needed when reading the raw CSV, so they are
 # called with `::`.
@@ -503,6 +504,13 @@ build_dashboard_data <- function(raw, end_date = NULL, evaluation_years = NULL) 
   scores_overall <- score_forecasts(predictions)
   scores_by_group <- score_forecasts(predictions, c("evaluation_year", "blood_type", "method"))
 
+  # 80% ranges from the latest complete year's errors (see R/ranges.R), and the quiet-day watch.
+  calibration_year <- max(periods$evaluation_year[!periods$partial])
+  offsets <- range_offsets(predictions, calibration_year)
+  next_days <- add_ranges(next_days_forecast(model_data, 7L), offsets)
+  next_watch <- watch_flags(next_days[next_days$method == WATCH_METHOD, ],
+                            low_collection_cutoffs(model_data, year(min(next_days$date))))
+
   list(
     built = Sys.time(),
     audit = audit,
@@ -530,7 +538,11 @@ build_dashboard_data <- function(raw, end_date = NULL, evaluation_years = NULL) 
     blood_mix = blood_type_mix(panel),
     latest = latest_summary(panel),
     states = state_summary(clean, end_date),
-    next_days = next_days_forecast(model_data, 7L),
+    next_days = next_days,
+    range_offsets = offsets,
+    range_coverage = range_coverage(predictions, periods),
+    next_watch = next_watch,
+    watch_backtest = watch_backtest(predictions, model_data, periods),
     findings = summarise_findings(scores_overall, scores_by_group,
                                   filter(low_errors, evaluation_year == latest_year), periods)
   )

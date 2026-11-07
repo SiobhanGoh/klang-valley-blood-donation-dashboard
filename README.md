@@ -123,14 +123,43 @@ blood group per day, pooled over the four groups.
   on other days. The full-history average has the smallest low-day errors for A, B and O, but
   still overpredicts every one of those days.
 
+## Forecast ranges, the quiet-day watch and the track record
+
+Added after the report ([`R/ranges.R`](R/ranges.R), tests in
+[`tests/testthat/test-ranges.R`](tests/testthat/test-ranges.R)).
+
+**80% ranges.** Each method's forecast errors from one complete year give its range: the
+⌊(n+1)·0.1⌋-th and ⌈(n+1)·0.9⌉-th smallest of the n errors are added to the forecast
+(split-conformal). The site builds them from the latest complete year. To check them honestly,
+ranges built on one year are scored on the next year, which they never saw (frozen snapshot):
+
+| Days inside the 80% range | 2023 → 2024 | 2024 → 2025 |
+|---|---:|---:|
+| Seven-day baseline | 83.7% | 80.5% |
+| Weekday average | 84.8% | 79.4% |
+| Linear regression | 84.9% | 78.9% |
+| Recent weekday average | 81.8% | 78.9% |
+
+**Quiet-day watch.** A group-day is marked "could be quiet" when the low end of the recent
+weekday average's range is at or below that group's low-collection line (its lower quartile
+in earlier years), and "likely quiet" when even the high end is. Scored the same way on 2025,
+it flagged 182 of the 212 quiet group-days (86%), but only 32% of its flags were quiet days. It
+is a prompt to look closer, with false alarms, not a shortage alert. Quieter weekdays are
+flagged most, because the line ignores the weekday.
+
+**Track record.** Every forecast the site publishes is appended to `forecast_log.csv` on the
+[`forecast-log`](../../tree/forecast-log) branch by the daily workflow, and never edited: a
+forecast already logged for the same issue date is kept as first published. Once its day has
+data, it is scored, and the Live page shows the running error and range coverage.
+
 **Limitations.**
 - The evaluation years were inspected during the original exploration, so they are not
   untouched holdouts.
 - The three years share overlapping training data, and no significance testing was done.
 - The three-year window was not tuned or independently validated.
-- No forecast intervals, weather, holiday, campaign, inventory or demand data are used.
-- Low-collection days are identified from outcomes after the fact. This is an error audit,
-  not an alert system.
+- No weather, holiday, campaign, inventory or demand data are used. The ranges come from past
+  errors alone, so an unusual week can fall outside them.
+- The low-collection line ignores the weekday, so the quiet-day watch flags quieter weekdays most.
 
 ## Run it locally
 

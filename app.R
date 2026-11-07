@@ -162,7 +162,7 @@ LIMITS_MAP <- list(
   list(title = "Tested on the past", sub = "Scored on days that already happened; the methods were chosen using 2006–2025, so older years aren't a fresh test"),
   list(title = "Overlapping tests", sub = "Test years share their past data, so they aren't fully separate checks"),
   list(title = "3-year window untested", sub = "Three years for the recent weekday average was not compared with other window lengths"),
-  list(title = "No outside factors", sub = "No weather, holidays, campaigns, blood stock or hospital demand, and no ranges of uncertainty"),
+  list(title = "No outside factors", sub = "No weather, holidays, campaigns, blood stock or hospital demand; the 80% ranges come from past errors only"),
   list(title = "Zero days kept", sub = "Days with no donations may be closures or reporting gaps"),
   list(title = "Data can change", sub = "Official figures can be revised between daily refreshes"))
 
@@ -178,6 +178,17 @@ LAST7_BARS <- setNames(last7$total, format(last7$date, "%a"))
 NEXT_TOTALS <- group_stat(dash$next_days[dash$next_days$method == "Recent weekday average", ],
                           "date", "prediction", sum, "total")
 NEXT_TOTALS <- NEXT_TOTALS[order(NEXT_TOTALS$date), ]
+# How the 80% ranges and the quiet-day watch did on the newest complete year they never saw.
+RANGE_TEST <- local({
+  rc <- dash$range_coverage
+  rc <- rc[!rc$partial, , drop = FALSE]
+  rc[rc$tested_on == max(rc$tested_on), , drop = FALSE]
+})
+WATCH_TEST <- local({
+  wb <- dash$watch_backtest
+  wb <- wb[!wb$partial, , drop = FALSE]
+  wb[wb$tested_on == max(wb$tested_on), , drop = FALSE]
+})
 
 method_phrase <- function(m) c("Seven-day baseline" = "seven-day baseline",
                                "Weekday average" = "weekday average",
@@ -961,9 +972,20 @@ ui <- page(
                   "replaces one forecast with the real count."),
           panel("Forecasts for the next seven days",
                 sub = paste("Expected donations from the recent weekday average, the method with the",
-                            "lowest error so far. Like every method, it overestimates unusually low days."),
+                            "lowest error so far, with its 80% range in brackets. Like every method, it",
+                            "overestimates unusually low days."),
                 class = "stage-3 next-panel",
-                tableOutput("next_table")),
+                tableOutput("next_table"),
+                footer = paste("Quiet-day watch: the low end of the range is at or below a usual quiet day for",
+                               "that group (its lower quartile in earlier years). A prompt to look closer,",
+                               "not a shortage alert.")),
+          panel("How far to trust the ranges",
+                sub = paste("Each range is built from one year's forecast errors, then checked on the",
+                            "next year, which it never saw."),
+                class = "stage-3 next-panel",
+                tableOutput("range_table"),
+                uiOutput("watch_note"),
+                uiOutput("track_record")),
           chapter_nav("live")
         ),
 
@@ -1254,8 +1276,9 @@ ui <- page(
                           "independent experiments. No significance testing is done."),
                   tags$li("The three-year window for the recent weekday average was not tuned or ",
                           "independently validated."),
-                  tags$li("No forecast intervals, weather, holiday, campaign, inventory or ",
-                          "hospital-demand data are used."),
+                  tags$li("No weather, holiday, campaign, inventory or hospital-demand data are used. ",
+                          "The 80% ranges come from past forecast errors only, so an unusual week ",
+                          "can fall outside them."),
                   tags$li("Zero counts are kept; they may be closures or reporting gaps."),
                   tags$li("The official data can be revised, so past numbers may change slightly ",
                           "between daily refreshes."))))))),
@@ -1405,13 +1428,57 @@ server <- function(input, output, session) {
 
   output$next_table <- renderTable({
     d <- dash$next_days[dash$next_days$method == "Recent weekday average", ]
+    w <- dash$next_watch
     days <- sort(unique(d$date))
-    val <- function(g) vapply(days, function(x) d$prediction[d$date == x & d$blood_type == g], 0)
-    v <- lapply(setNames(ABO_GROUPS, ABO_GROUPS), val)
-    data.frame(Day = format(days, "%a %e %b"),
-               A = fmt_int(v$A), AB = fmt_int(v$AB), B = fmt_int(v$B), O = fmt_int(v$O),
-               Total = fmt_int(v$A + v$AB + v$B + v$O), check.names = FALSE)
-  }, align = "lrrrrr", striped = FALSE, width = "100%")
+    row_of <- function(i, g) d[d$date == days[i] & d$blood_type == g, ]
+    cell <- function(g) vapply(seq_along(days), function(i) {
+      r <- row_of(i, g)
+      sprintf("%s (%s\u2013%s)", fmt_int(r$prediction), fmt_int(r$low), fmt_int(r$high))
+    }, "")
+    total <- vapply(seq_along(days), function(i) sum(d$prediction[d$date == days[i]]), 0)
+    watch <- vapply(seq_along(days), function(i) {
+      f <- w[w$date == days[i] & w$watch != "", ]
+      if (!nrow(f)) return("")
+      f <- f[order(match(f$blood_type, ABO_GROUPS)), ]
+      likely <- f$blood_type[f$watch == "Likely quiet"]
+      could <- f$blood_type[f$watch == "Could be quiet"]
+      paste(c(if (length(likely)) paste(paste(likely, collapse = ", "), "likely quiet"),
+              if (length(could)) paste(paste(could, collapse = ", "), "could be quiet")), collapse = "; ")
+    }, "")
+    data.frame(Day = format(days, "%a %e %b"), A = cell("A"), AB = cell("AB"), B = cell("B"), O = cell("O"),
+               Total = fmt_int(total), `Quiet-day watch` = watch, check.names = FALSE)
+  }, align = "lrrrrrl", striped = FALSE, width = "100%")
+
+  output$range_table <- renderTable({
+    r <- RANGE_TEST[order(factor(RANGE_TEST$method, levels = METHODS)), ]
+    data.frame(Method = r$method,
+               `Built on` = as.character(r$calibrated_on), `Checked on` = as.character(r$tested_on),
+               `Days inside the 80% range` = pct_text(100 * r$coverage),
+               `Average width` = paste(fmt_int(r$mean_width), "donations"), check.names = FALSE)
+  }, align = "llllr", striped = FALSE, width = "100%")
+
+  output$watch_note <- renderUI({
+    wb <- WATCH_TEST
+    if (!nrow(wb)) return(NULL)
+    p(class = "panel-sub", style = "margin-top: 14px;",
+      sprintf(paste("Quiet-day watch, checked on %s: it flagged %s of the %s really quiet group-days",
+                    "(%s), but only %s of its flags were really quiet days, so expect false alarms."),
+              wb$tested_on, fmt_int(wb$flagged_and_low), fmt_int(wb$low_days), pct_text(100 * wb$recall),
+              pct_text(100 * wb$precision)))
+  })
+
+  output$track_record <- renderUI({
+    tr <- dash$track_record
+    if (is.null(tr) || !isTRUE(tr$scored > 0)) {
+      return(p(class = "panel-sub", style = "margin-top: 8px;",
+               "Track record: every forecast this site publishes is now saved, unedited, and scored once its day has data. The first scores appear about a day after the first daily refresh."))
+    }
+    b <- tr$by_method[tr$by_method$method == "Recent weekday average", ]
+    p(class = "panel-sub", style = "margin-top: 8px;",
+      sprintf(paste("Track record of published forecasts, %s to %s: %s forecasts scored so far. The recent",
+                    "weekday average was off by %s donations a day on average, and %s of days fell inside its 80%% range."),
+              fmt_date(tr$days_from), fmt_date(tr$days_to), fmt_int(tr$scored), fmt(b$MAE, 1), pct_text(100 * b$coverage)))
+  })
 
   # Compatibility explorer -------------------------------------------------------------
   output$compat_result <- renderUI({
@@ -1592,7 +1659,7 @@ server <- function(input, output, session) {
   output$low_sub <- renderUI({
     st <- low_story()
     sprintf(paste("In %s, the %s was off by %s donations a day on them, against %s on other days.",
-                  "This looks back at what happened; it is not an early warning."),
+                  "This looks back at what happened. The quiet-day watch on the Live page uses the ranges instead."),
             st$label, method_phrase(st$best), fmt(st$low_mae, 1), fmt(st$other_mae, 1))
   })
   output$low_stat <- renderUI({
