@@ -129,15 +129,16 @@ report_summary <- function(year, group = "all", sections = SUMMARY_SECTIONS) {
         h2(class = "rp-h2", "The blind spot"),
         p(class = "rp-p", sprintf(paste("Low-collection days are those at or below %s lower",
                                         "quartile from earlier years. On the %d such days in %s, the %s",
-                                        "forecast too high on %s of them. No method here gives an early warning",
-                                        "of a low day."),
+                                        "forecast too high on %s of them. No point forecast warns of a low day; the",
+                                        "range-based quiet-day watch on the Live page catches more of them, with false alarms."),
                                   if (one) sprintf("group %s's", group) else "each group's",
                                   sum(low$days), lab, method_phrase(best), pct_text(over)))),
     div(class = "rp-callout",
         strong("Read with care. "),
         "These are forecasts of donations collected, not of blood demand, stock or shortage. ",
-        "The evaluation is retrospective, the periods share training data, and there are no ",
-        "forecast intervals."),
+        "The evaluation is retrospective and the periods share training data. The 80% ranges on the ",
+        "Live page are built from one year's errors and checked on the next, and can still be missed ",
+        "in an unusual week."),
     report_footer(data_credit))
 }
 

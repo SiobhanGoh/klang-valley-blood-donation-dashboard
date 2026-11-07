@@ -69,7 +69,7 @@ shiny::testServer(app, {
                     card_type = "O+", card_region = "Central")
 
   # Everything at its default setting.
-  ids <- c(setdiff(chart_ids, "cmp_daily_plot"), "next_table", "live_change7", "live_change_ytd", "live_explain", "cmp_table",
+  ids <- c(setdiff(chart_ids, "cmp_daily_plot"), "next_table", "range_table", "watch_note", "track_record", "live_change7", "live_change_ytd", "live_explain", "cmp_table",
            "cmp_headline", "cmp_sub", "cmp_stat", "cmp_explain", "low_headline", "low_sub",
            "low_stat", "low_explain", "cutoff_table", "low_table", "min_pred_table", "weekday_explain",
            "annual_explain", "audit_table", "panel_table", "coef_table", "bias_table", "monthly_explain",
