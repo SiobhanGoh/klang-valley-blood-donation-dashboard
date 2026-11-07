@@ -3083,3 +3083,39 @@ html[data-theme=dark] .card-field .form-control, html[data-theme=dark] .card-fie
   .rp-card-hero .rp-title { font-size: 28px; }
   .rp-card-grid, .rp-check { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Every state (DarahWatch) ---------------------------------------------------------- */
+.nat-langs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.nat-langs p { margin: 6px 0 0; line-height: 1.6; color: var(--ink); }
+.nat-lang { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wine); }
+.nat-table { margin: 0; min-width: 560px; }
+.nat-table th[scope="row"] { font-weight: 600; white-space: nowrap; }
+.nat-table td.nat-cell { text-align: right; vertical-align: top; }
+.nat-num { display: block; font-weight: 700; font-size: 1.02rem; color: var(--ink); }
+.nat-range { display: block; font-size: 0.78rem; color: var(--muted); }
+.nat-flag { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: var(--r-pill); font-size: 0.7rem; font-weight: 700; }
+.nat-table td.nat-likely { --bs-table-bg: var(--blush); background-color: var(--blush) !important; }
+.nat-likely .nat-flag, .nat-key.nat-likely { background: var(--wine); color: var(--on-dark); }
+.nat-table td.nat-watch { --bs-table-bg: var(--blush-2); background-color: var(--blush-2) !important; }
+.nat-watch .nat-flag, .nat-key.nat-watch { background: var(--surface-3); color: var(--wine-deep); }
+.nat-key { padding: 1px 8px; border-radius: var(--r-pill); font-size: 0.75rem; font-weight: 700; }
+html[data-theme="dark"] .nat-watch .nat-flag, html[data-theme="dark"] .nat-key.nat-watch { color: var(--ink); }
+.nat-hols { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.nat-hols li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.nat-hol-where { font-size: 0.8rem; color: var(--muted); }
+.nat-trust { margin: 0; min-width: 640px; }
+.nat-trust td { text-align: right; font-variant-numeric: tabular-nums; }
+.nat-trust th[scope="row"] { white-space: nowrap; }
+.nat-table thead th:not(:first-child), .nat-trust thead th:not(:first-child) { text-align: right; }
+.nat-table thead th:first-child, .nat-trust thead th:first-child { width: 30%; }
+.nat-trust td:last-child, .nat-table td:last-child { color: inherit; font-weight: 400; }
+.nat-key, .nat-range { white-space: nowrap; }
+@media (max-width: 640px) {
+  .nat-table { min-width: 0; table-layout: fixed; }
+  .nat-table thead th:first-child { width: 22%; }
+  .next-panel .nat-table th, .next-panel .nat-table td { padding: 7px 4px !important; white-space: normal; }
+  .nat-table th[scope="row"] { white-space: normal; font-size: 0.68rem; line-height: 1.25; }
+  .nat-num { font-size: 0.9rem; }
+  .nat-range { font-size: 0.6rem; letter-spacing: -0.02em; }
+  .nat-flag { font-size: 0.6rem; padding: 1px 5px; }
+}

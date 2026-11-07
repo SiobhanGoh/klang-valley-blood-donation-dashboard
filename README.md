@@ -55,6 +55,7 @@ A left rail (a bottom tab bar on phones) switches between sections:
 |---|---|
 | Overview | The latest day as an oversized anchor number with four compact flip cards, the error of each method by test period, a five-part story index, and a "Today's story" panel on the right with the findings (generated from the results) and the next seven days |
 | Live tracker | Latest day, last 7 days and year to date against a year earlier; the last 60 days and a 7-day forecast |
+| Every state | [DarahWatch](https://github.com/SiobhanGoh/darahwatch)'s national forecast: week totals with 80% ranges for all 13 states and four blood groups, low-week warnings, upcoming public holidays, a bulletin in English and Bahasa Malaysia, and how well it did on a year it never saw |
 | Compare methods | MAE/RMSE by period and blood group; actual vs predicted daily counts |
 | Low-collection days | Errors on days at or below each group's lower quartile from earlier years |
 | Patterns | Weekly, weekday and annual patterns, and the blood-type mix of donations by year |
@@ -157,8 +158,9 @@ data, it is scored, and the Live page shows the running error and range coverage
   untouched holdouts.
 - The three years share overlapping training data, and no significance testing was done.
 - The three-year window was not tuned or independently validated.
-- No weather, holiday, campaign, inventory or demand data are used. The ranges come from past
-  errors alone, so an unusual week can fall outside them.
+- No weather, holiday, campaign, inventory or demand data are used on the Klang Valley pages. The
+  ranges come from past errors alone, so an unusual week can fall outside them. (The Every state
+  page's forecasts, from DarahWatch, do use public holidays and Ramadan.)
 - The low-collection line ignores the weekday, so the quiet-day watch flags quieter weekdays most.
 
 ## Run it locally
@@ -200,7 +202,9 @@ The tests also check:
 - that the claims written on the Overview tab hold;
 - the blood-type compatibility rule;
 - that every chart builds without warnings;
-- that every app output renders. They run on each push via GitHub Actions.
+- that every app output renders;
+- that the Every state page reads DarahWatch's files (a saved real run in `tests/testthat/fixtures/`)
+  and still renders when they are missing. They run on each push via GitHub Actions.
 
 ## Repository layout
 
@@ -212,6 +216,7 @@ R/charts.R               Interactive charts: plotly.js figures built in R, one s
 R/reports.R              The three printable reports and the CSV extract
 R/visuals.R              Mind-map and flow diagrams (eligibility, donation journey, aftercare, methods, limits)
 R/content.R              Blood 101 facts (with sources) and the compatibility rule
+R/national.R             Reads DarahWatch's published forecast for the Every state page
 scripts/build_data.R     Downloads the latest CSV and precomputes results for the site
 scripts/build_static.R   Builds the static site: the page, every precomputed view, the daily data file
 .github/workflows/       Tests on every push; daily data refresh and Pages deployment

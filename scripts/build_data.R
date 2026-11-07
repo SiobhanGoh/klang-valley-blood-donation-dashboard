@@ -25,6 +25,9 @@ log_path <- Sys.getenv("KVBD_FORECAST_LOG", "app_data/forecast_log.csv")
 forecast_log <- update_forecast_log(read_forecast_log(log_path), d$next_days, d$panel_summary$last_date)
 utils::write.csv(forecast_log, log_path, row.names = FALSE)
 d$track_record <- score_forecast_log(forecast_log, d$panel)
+# Every state: DarahWatch's latest national forecast, when the publish run could fetch it.
+source("R/national.R")
+d$national <- read_darahwatch(Sys.getenv("KVBD_DARAHWATCH", "app_data/darahwatch"))
 # Plain data frames only: the in-browser app reads them without dplyr or tibble.
 untibble <- function(x) {
   if (is.data.frame(x)) return(as.data.frame(x))
@@ -43,3 +46,5 @@ cat(sprintf(paste0("Source: %s\nRows: %s\nData to: %s\nPeriods: %s\n",
             file.size("app_data/dashboard.rds") / 1024))
 cat(sprintf("Forecast log: %s rows, %s scored\n", format(nrow(forecast_log), big.mark = ","),
             format(if (is.null(d$track_record)) 0 else d$track_record$scored, big.mark = ",")))
+cat(if (is.null(d$national)) "Every state: DarahWatch files not found, page shows 'coming soon'\n"
+    else sprintf("Every state: DarahWatch forecast issued with data to %s\n", d$national$issued))
