@@ -3089,44 +3089,108 @@ html[data-theme=dark] .card-field .form-control, html[data-theme=dark] .card-fie
 .nat-duo { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--space-5); margin-top: var(--space-5); }
 .nat-duo > .panel { margin-top: 0; }
 .nat-say { margin: 4px 0 0; font-size: 1.02rem; line-height: 1.65; color: var(--ink); }
-.nat-hols { display: grid; gap: 10px; margin-top: 4px; }
-.nat-hol { display: flex; gap: 14px; align-items: center; padding: 10px 12px; border-radius: var(--r-md, 14px);
-  background: var(--surface-2, rgba(255,255,255,0.5)); border: 1px solid var(--hairline); }
-.nat-hol-date { display: grid; place-items: center; min-width: 52px; height: 52px; border-radius: 14px;
-  background: linear-gradient(160deg, var(--blush), var(--blush-2)); color: var(--wine-deep); line-height: 1; }
-.nat-hol-day { font-size: 1.25rem; font-weight: 700; }
-.nat-hol-mon { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
-.nat-hol-text { display: grid; gap: 2px; }
-.nat-hol-where { font-size: 0.8rem; color: var(--muted); }
-html[data-theme="dark"] .nat-hol-date { color: var(--ink); }
+.nat-hols { display: grid; gap: 12px; margin-top: 6px; }
+/* A festive tile: the festival's own colours, a glowing symbol and a few drifting sparks */
+.nat-hol { --f1: #FCE3EA; --f2: #F7C9D5; --fa: var(--wine); --fi: var(--wine);
+  position: relative; overflow: hidden; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: var(--r-lg); color: var(--ink);
+  background: radial-gradient(120% 140% at 100% 0%, var(--f2), transparent 60%), linear-gradient(135deg, var(--f1), var(--surface) 85%);
+  border: 1px solid color-mix(in srgb, var(--fa) 22%, transparent); box-shadow: var(--shadow-1);
+  transition: transform 260ms var(--ease-out), box-shadow 260ms var(--ease-out); }
+.nat-hol:hover { transform: translateY(-2px) rotate(-0.3deg); box-shadow: var(--shadow-2); }
+.nat-fest-diwali  { --f1: #FFF1D6; --f2: #FFC978; --fa: #C2410C; --fi: #EA7A0C; }
+.nat-fest-raya    { --f1: #E4F6EA; --f2: #A8DDB9; --fa: #1F7A4D; --fi: #2E9461; }
+.nat-fest-cny     { --f1: #FFE3E0; --f2: #FF9C8F; --fa: #B91C1C; --fi: #D9342B; }
+.nat-fest-xmas    { --f1: #E6F4EA; --f2: #F6B8B8; --fa: #166534; --fi: #B91C1C; }
+.nat-fest-harvest { --f1: #FBF2DC; --f2: #E9CF8F; --fa: #8A5A12; --fi: #A86D12; }
+.nat-fest-vesak   { --f1: #FFF6D8; --f2: #F9DE85; --fa: #8A6A06; --fi: #C99A06; }
+.nat-fest-thaipusam { --f1: #FFF0DC; --f2: #FDBA74; --fa: #B45309; --fi: #D97706; }
+.nat-fest-merdeka { --f1: #E3ECFB; --f2: #F6C6CD; --fa: #1E3A8A; --fi: #C8102E; }
+.nat-hol-date { position: relative; z-index: 1; display: grid; place-items: center; min-width: 58px; padding: 7px 0 6px;
+  border-radius: 14px; background: var(--surface); color: var(--fa); line-height: 1.05;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--fa) 25%, transparent), 0 6px 16px color-mix(in srgb, var(--fa) 16%, transparent); }
+.nat-hol-wd, .nat-hol-mon { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; }
+.nat-hol-day { font-family: var(--font-display); font-size: 1.5rem; font-weight: 600; }
+.nat-hol-text { position: relative; z-index: 1; display: grid; gap: 2px; min-width: 0; }
+.nat-hol-kind { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--fa); }
+.nat-hol-name { font-family: var(--font-display); font-size: 1.08rem; font-weight: 600; color: var(--ink); }
+.nat-hol-where { display: inline-flex; align-items: center; gap: 5px; font-size: 0.76rem; color: var(--ink-soft); }
+.nat-hol-where svg { color: var(--fa); }
+.nat-hol-icon { position: relative; z-index: 1; display: grid; place-items: center; width: 50px; height: 50px; border-radius: 50%;
+  font-size: 1.35rem; color: var(--fi); background: radial-gradient(circle, color-mix(in srgb, var(--fi) 22%, transparent), transparent 70%);
+  animation: nat-glow 2.8s ease-in-out infinite; }
+@keyframes nat-glow { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 transparent); }
+  50% { transform: scale(1.08); filter: drop-shadow(0 0 8px color-mix(in srgb, var(--fi) 55%, transparent)); } }
+.nat-hol-sparks { position: absolute; inset: 0; pointer-events: none; }
+.nat-hol-sparks > span { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--fi); opacity: 0;
+  animation: nat-spark 4.5s ease-in-out infinite; }
+.nat-hol-sparks > span:nth-child(1) { right: 22%; top: 18%; animation-delay: 0s; }
+.nat-hol-sparks > span:nth-child(2) { right: 9%; top: 70%; width: 4px; height: 4px; animation-delay: 0.9s; }
+.nat-hol-sparks > span:nth-child(3) { right: 32%; top: 72%; width: 5px; height: 5px; animation-delay: 1.8s; }
+.nat-hol-sparks > span:nth-child(4) { right: 4%; top: 20%; width: 3px; height: 3px; animation-delay: 2.7s; }
+.nat-hol-sparks > span:nth-child(5) { right: 40%; top: 12%; width: 3px; height: 3px; animation-delay: 3.6s; }
+@keyframes nat-spark { 0% { opacity: 0; transform: translateY(6px) scale(0.6); } 25% { opacity: 0.75; }
+  60% { opacity: 0.35; transform: translateY(-10px) scale(1); } 100% { opacity: 0; transform: translateY(-18px) scale(0.6); } }
+.nat-fest-none { --f1: var(--surface-2); --f2: var(--surface-2); --fa: var(--muted); --fi: var(--muted); grid-template-columns: auto 1fr; }
+.nat-fest-none .nat-hol-icon { animation: none; }
+html[data-theme="dark"] .nat-hol { background: radial-gradient(120% 140% at 100% 0%, color-mix(in srgb, var(--f2) 22%, transparent), transparent 60%),
+  linear-gradient(135deg, color-mix(in srgb, var(--f1) 10%, var(--surface)), var(--surface) 85%); }
+html[data-theme="dark"] .nat-hol-date { background: color-mix(in srgb, var(--f2) 18%, var(--surface)); color: var(--f2); }
+html[data-theme="dark"] .nat-hol-kind, html[data-theme="dark"] .nat-hol-where svg { color: var(--f2); }
+html[data-theme="dark"] .nat-hol-icon { color: var(--f2); }
+@media (prefers-reduced-motion: reduce) { .nat-hol-icon, .nat-hol-sparks > span { animation: none; } .nat-hol:hover { transform: none; } }
 
-/* One card per place */
-.nat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: var(--space-5); }
-.nat-card { position: relative; display: grid; gap: 4px; padding: 16px 16px 14px; border-radius: var(--r-lg);
+/* One card per place: a status line, then one bar per blood group against a normal week's low line */
+.nat-legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin-top: var(--space-4); font-size: 0.8rem; color: var(--ink-soft); }
+.nat-legend-item { display: inline-flex; align-items: center; gap: 8px; }
+.nat-lg-bar { width: 26px; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--rose) 45%, transparent); }
+.nat-lg-bar.nat-watch { background: var(--wine); }
+.nat-lg-tick { width: 2px; height: 14px; border-radius: 1px; background: var(--ink); }
+.nat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
+.nat-card { display: grid; gap: 8px; padding: 14px 16px 12px; border-radius: var(--r-md);
   background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-1);
   transition: transform 240ms var(--ease-out), box-shadow 240ms var(--ease-out); }
-.nat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2, var(--shadow-1)); }
-.nat-card.nat-watch { border-color: var(--rose); }
-.nat-card.nat-likely { border-color: var(--wine); background: linear-gradient(170deg, var(--blush), var(--surface) 70%); }
-.nat-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.nat-card-name { font-weight: 700; font-size: 0.92rem; color: var(--ink); }
-.nat-card-flag { display: inline-flex; gap: 5px; align-items: center; font-size: 0.68rem; font-weight: 700; padding: 2px 8px;
-  border-radius: var(--r-pill); background: var(--wine); color: var(--on-dark); white-space: nowrap; }
-.nat-card.nat-watch .nat-card-flag { background: var(--surface-3); color: var(--wine-deep); }
-html[data-theme="dark"] .nat-card.nat-watch .nat-card-flag { color: var(--ink); }
-.nat-card-value { font-family: var(--font-display, inherit); font-size: 1.7rem; font-weight: 700; color: var(--wine); line-height: 1.1; }
-.nat-card-unit { font-size: 0.74rem; color: var(--muted); margin-bottom: 4px; }
-.nat-card .mini-cols { height: 64px; gap: 4px; }
-.nat-card .mc-bar { transform: none; background: color-mix(in srgb, var(--rose) 40%, transparent); }
-.nat-card .mc.is-top .mc-bar { background: linear-gradient(180deg, var(--rose), var(--wine)); }
-.nat-card .mc-val { color: var(--ink); font-size: 0.62rem; }
-.nat-card .mc-lab { color: var(--muted); font-size: 0.62rem; }
-.nat-chips { display: flex; gap: 6px; margin-top: 8px; }
-.nat-chip { flex: 1; text-align: center; font-size: 0.72rem; font-weight: 700; padding: 3px 0; border-radius: var(--r-pill);
-  background: var(--surface-2, rgba(0,0,0,0.04)); color: var(--muted); border: 1px solid var(--hairline); }
-.nat-chip.nat-watch { background: var(--blush-2); color: var(--wine-deep); border-color: var(--rose); }
-.nat-chip.nat-likely { background: var(--wine); color: var(--on-dark); border-color: var(--wine); }
-html[data-theme="dark"] .nat-chip.nat-watch { color: var(--ink); }
+.nat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+.nat-card.nat-watch, .nat-card.nat-likely { border-color: var(--wine); box-shadow: 0 0 0 1px var(--wine), var(--shadow-1); }
+.nat-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.nat-card-name { font-weight: 700; font-size: 0.95rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nat-card-total { display: inline-flex; align-items: baseline; gap: 5px; font-family: var(--font-display); font-weight: 600;
+  font-size: 1.2rem; color: var(--wine); white-space: nowrap; }
+.nat-card-unit { font-family: var(--font-text); font-size: 0.68rem; font-weight: 500; color: var(--muted); }
+.nat-status { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; padding: 4px 10px;
+  border-radius: var(--r-pill); width: fit-content; }
+.nat-status.nat-ok { background: var(--surface-2); color: var(--ink-soft); }
+.nat-status.nat-watch, .nat-status.nat-likely { background: var(--wine); color: var(--on-dark); }
+.nat-groups { display: grid; gap: 5px; }
+.nat-g { display: grid; grid-template-columns: 26px 1fr 44px; align-items: center; gap: 8px; font-size: 0.76rem; }
+.nat-g-name { font-weight: 700; color: var(--ink-soft); }
+.nat-g-track { position: relative; height: 9px; border-radius: 5px; background: var(--surface-2); }
+.nat-g-fill { position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: 5px; background: color-mix(in srgb, var(--rose) 45%, transparent); }
+.nat-g-tick { position: absolute; top: -3px; bottom: -3px; left: var(--t); width: 2px; border-radius: 1px; background: var(--ink); }
+.nat-g-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.nat-g.nat-watch .nat-g-fill, .nat-g.nat-likely .nat-g-fill { background: var(--wine); }
+.nat-g.nat-watch .nat-g-name, .nat-g.nat-likely .nat-g-name, .nat-g.nat-watch .nat-g-val, .nat-g.nat-likely .nat-g-val { color: var(--wine); font-weight: 700; }
+.nat-card-foot { font-size: 0.7rem; color: var(--muted); }
+html[data-theme="dark"] .nat-g.nat-watch .nat-g-fill, html[data-theme="dark"] .nat-g.nat-likely .nat-g-fill,
+html[data-theme="dark"] .nat-lg-bar.nat-watch { background: var(--rose); }
+html[data-theme="dark"] .nat-g.nat-watch .nat-g-name, html[data-theme="dark"] .nat-g.nat-watch .nat-g-val,
+html[data-theme="dark"] .nat-g.nat-likely .nat-g-name, html[data-theme="dark"] .nat-g.nat-likely .nat-g-val { color: var(--rose); }
+
+/* Stat cards: four in one row, as short as the Overview's */
+.stat-grid.nat-stats { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: 132px; gap: 12px; }
+.nat-stats .flip-face { padding: 16px 18px; }
+.nat-stats .flip-value { font-size: clamp(1.6rem, 2.2vw, 2.1rem); }
+.nat-stats .flip-unit { font-size: 0.74rem; line-height: 1.3; }
+.nat-stats .flip-label { font-size: 0.78rem; }
+.nat-stats .flip-back { padding: 14px 16px; gap: 6px; }
+.nat-stats .flip-back-title { font-size: 0.78rem; }
+.nat-stats .mini-bars { gap: 4px; margin-top: 0; }
+.nat-stats .mini-bar { grid-template-columns: 74px 1fr 38px; gap: 8px; font-size: 0.68rem; line-height: 1.15; }
+.nat-stats .mb-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nat-stats .mb-track { height: 5px; }
+.nat-stats .wave-card { height: 18px; opacity: 0.7; }
+.nat-stats .nat-back-list { font-size: 0.74rem; gap: 4px; }
+@media (max-width: 980px) { .stat-grid.nat-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 124px; } }
 
 /* Flip-card back: the warnings list */
 .nat-back-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 0.8rem; color: #fff; }
@@ -3136,18 +3200,26 @@ html[data-theme="dark"] .nat-chip.nat-watch { color: var(--ink); }
 
 /* The numbers table, folded away */
 .nat-details { margin-top: 14px; }
-.nat-details > summary { cursor: pointer; font-weight: 600; font-size: 0.88rem; color: var(--on-dark-soft, var(--muted)); }
+.nat-details > summary { cursor: pointer; font-weight: 600; font-size: 0.88rem; color: #FFD3DC; }
 .nat-details[open] > summary { margin-bottom: 10px; }
-.nat-trust { margin: 0; min-width: 600px; }
-.nat-trust td { text-align: right; font-variant-numeric: tabular-nums; }
-.nat-trust th[scope="row"] { white-space: nowrap; }
-.nat-trust thead th:not(:first-child) { text-align: right; }
+/* The by-place numbers. Written for the dark ink panel: light text, soft row lines. */
+.nat-trust { width: 100%; min-width: 640px; border-collapse: collapse; font-size: 0.86rem; color: #fff; }
+.nat-trust th, .nat-trust td { padding: 9px 12px; border-bottom: 1px solid rgba(255, 255, 255, 0.09); }
+.nat-trust thead th { font-size: 0.7rem; font-weight: 600; line-height: 1.3; letter-spacing: 0.02em;
+  color: rgba(247, 233, 236, 0.7); text-align: right; vertical-align: bottom; }
+.nat-trust thead th:first-child { text-align: left; }
+.nat-trust tbody th { text-align: left; font-weight: 600; color: #fff; white-space: nowrap; }
+.nat-trust td { text-align: right; font-variant-numeric: tabular-nums; color: rgba(255, 255, 255, 0.9); }
+.nat-trust td.is-better { color: #FFD3DC; font-weight: 700; }
+.nat-trust tbody tr:hover { background: rgba(255, 255, 255, 0.06); }
+.nat-trust tbody tr:last-child th, .nat-trust tbody tr:last-child td { border-bottom: 0; }
+.nat-cov { display: inline-block; min-width: 50px; padding: 2px 8px; border-radius: var(--r-pill); font-weight: 700; text-align: center; }
+.nat-cov.is-on { background: rgba(255, 211, 220, 0.18); color: #fff; }
+.nat-cov.is-off { background: rgba(255, 255, 255, 0.06); color: rgba(255, 255, 255, 0.75); }
+.nat-details-note { margin: 10px 0 0; font-size: 0.76rem; color: rgba(247, 233, 236, 0.66); }
 
 .kpi-row.nat-kpis { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 @media (max-width: 900px) { .nat-duo { grid-template-columns: 1fr; } }
 @media (max-width: 560px) {
-  .nat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .nat-card { padding: 12px 12px 10px; }
-  .nat-card-value { font-size: 1.35rem; }
-  .nat-card .mc-val { display: none; }
+  .nat-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
 }

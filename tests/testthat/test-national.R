@@ -53,10 +53,17 @@ test_that("the page renders with and without a national forecast", {
   expect_match(html, "Every state and blood group is above its normal-week line.", fixed = TRUE)
   expect_equal(lengths(regmatches(html, gregexpr('class="nat-card[ "]', html))), 13L)  # one card per place
   expect_match(html, "forecasts scored, 15 Aug 2026 to 28 Aug 2026", fixed = TRUE)
+  expect_match(html, "Festive days ahead", fixed = TRUE)
+  expect_match(html, "nat-hol nat-fest-merdeka", fixed = TRUE)   # the fixture window has National Day
+  expect_match(html, "Every group on track", fixed = TRUE)
+  expect_equal(env$nat_festival("Eid al-Fitr")$key, "raya")
+  expect_equal(env$nat_festival("Chinese New Year (Second Day)")$key, "cny")
+  expect_equal(env$nat_festival("Sultan's Birthday")$key, "other")
   nat$weeks$warning[1] <- "Likely low"
   html <- as.character(htmltools::renderTags(env$states_page(nat))$html)
   expect_match(html, "state and blood group to watch", fixed = TRUE)
   expect_match(html, "nat-card nat-likely", fixed = TRUE)
+  expect_match(html, " may run low", fixed = TRUE)
 })
 
 test_that("the state chart and its reading follow the chosen group and week", {
