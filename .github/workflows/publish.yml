@@ -65,6 +65,20 @@ jobs:
             echo "No forecast-log branch yet; starting a new log."
           fi
 
+      # DarahWatch publishes its national forecast at 05:37 Malaysia time, before this run. If its
+      # files are not there yet, the "Every state" page says so and the rest of the site is unchanged.
+      - name: Fetch DarahWatch's national forecast
+        run: |
+          mkdir -p app_data/darahwatch
+          base="https://raw.githubusercontent.com/SiobhanGoh/darahwatch/main"
+          for f in latest/forecast.json evaluation/backtest.json; do
+            if ! curl -fsSL --retry 3 "$base/$f" -o "app_data/darahwatch/$(basename "$f")"; then
+              echo "::warning::DarahWatch's $f is not available yet; the Every state page will say so."
+              rm -f app_data/darahwatch/*.json
+              break
+            fi
+          done
+
       - name: Download the latest official data and rebuild results
         run: Rscript scripts/build_data.R
 

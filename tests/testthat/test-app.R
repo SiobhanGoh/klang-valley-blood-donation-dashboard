@@ -74,7 +74,7 @@ test_that("the rendered page shows the report's headline numbers", {
     sys.source(file.path(root, "app.R"), envir = env)
     expect_equal(env$LATEST, 2025L)
     expect_equal(vapply(env$SECTIONS, `[[`, "", "id"),
-                 c("overview", "live", "compare", "low", "patterns", "blood101", "about", "export"))
+                 c("overview", "live", "states", "compare", "low", "patterns", "blood101", "about", "export"))
     html <- as.character(htmltools::renderTags(env$ui)$html)
     for (n in c("36.3", "38.8", "48.7")) expect_match(html, n, fixed = TRUE)
     expect_match(html, "Donating blood", fixed = TRUE)
