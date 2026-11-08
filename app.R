@@ -821,66 +821,53 @@ sources_drawer <- div(
 # --- Every state (DarahWatch) ----------------------------------------------------------
 
 NAT <- dash$national
+
 # The data has 12 states and W.P. Kuala Lumpur (no rows for Perlis, Labuan or Putrajaya).
 nat_where <- function(nat) {
   kl <- "W.P. Kuala Lumpur" %in% nat$weeks$state
   if (kl) sprintf("%d states and Kuala Lumpur", nat$regions - 1L) else sprintf("%d states", nat$regions)
 }
-NAT_LEVELS <- c("Likely low" = "nat-likely", "Watch" = "nat-watch")
-
-nat_week_table <- function(nat, week) {
-  w <- nat$weeks[nat$weeks$week == week, ]
-  if (!nrow(w)) return(p(class = "tab-note", "No week totals in this forecast."))
-  states <- sort(unique(w$state))
-  cell <- function(st, g) {
-    r <- w[w$state == st & w$blood_type == g, ]
-    if (!nrow(r)) return(tags$td("\u2013"))
-    lvl <- r$warning
-    tags$td(class = paste("nat-cell", if (nzchar(lvl)) NAT_LEVELS[[lvl]]),
-            title = sprintf("%s %s, %s to %s: about %s donations (80%% range %s to %s). Low line: %s.",
-                            st, g, fmt_date(r$first), fmt_date(r$last), fmt_int(r$forecast), fmt_int(r$low),
-                            fmt_int(r$high), fmt_int(r$low_line)),
-            span(class = "nat-num", fmt_int(r$forecast)),
-            span(class = "nat-range", sprintf("%s\u2013%s", fmt_int(r$low), fmt_int(r$high))),
-            if (nzchar(lvl)) span(class = "nat-flag", lvl))
-  }
-  first <- min(w$first); last <- max(w$last)
-  tagList(
-    p(class = "tab-note", sprintf("Expected donations for %s to %s, with the 80%% range below each number.",
-                                  fmt_date(first), fmt_date(last))),
-    div(class = "st-wrap nat-wrap",
-        tags$table(class = "table nat-table",
-                   tags$thead(tags$tr(tags$th("State"), lapply(ABO_GROUPS, tags$th))),
-                   tags$tbody(lapply(states, function(st) tags$tr(tags$th(scope = "row", st),
-                                                                   lapply(ABO_GROUPS, function(g) cell(st, g))))))))
-}
-
-nat_trust_table <- function(nat) {
-  b <- nat$by_state
-  tags$table(class = "table nat-trust",
-             tags$thead(tags$tr(tags$th("State"), tags$th("Days inside the 80% range"),
-                                tags$th("Average miss"), tags$th("Recent weekday average"),
-                                tags$th("Warnings that were right"), tags$th("Low weeks warned about"))),
-             tags$tbody(lapply(seq_len(nrow(b)), function(i) tags$tr(
-               tags$th(scope = "row", b$state[i]), tags$td(pct_text(100 * b$coverage[i])),
-               tags$td(fmt(b$MAE[i], 1)), tags$td(fmt(b$MAE_simple[i], 1)),
-               tags$td(if (is.na(b$hit_rate[i])) "\u2013" else pct_text(100 * b$hit_rate[i])),
-               tags$td(if (is.na(b$catch_rate[i])) "\u2013" else pct_text(100 * b$catch_rate[i]))))))
-}
 
 nat_scorecard <- function(nat) {
   sc <- nat$scorecard
   m <- Filter(function(x) is.list(x) && identical(x$method, nat$method), sc$methods %||% list())
-  if (!length(m) || !isTRUE(sc$scored_days > 0)) {
-    return(p(class = "panel-sub", style = "margin-top: 8px;",
-             "Scorecard: every forecast DarahWatch publishes is saved, unedited, and scored once its days have data. ",
-             "The first scores appear the day after its first forecast."))
-  }
-  m <- m[[1]]
-  p(class = "panel-sub", style = "margin-top: 8px;",
-    sprintf(paste("Scorecard of published forecasts, %s to %s: %s state-group-days scored. The average miss was %s donations,",
-                  "and %s fell inside the 80%% range."),
-            fmt_date(as.Date(m$from)), fmt_date(as.Date(m$to)), fmt_int(m$scored), fmt(m$MAE, 1), pct_text(100 * m$coverage)))
+  if (!length(m) || !isTRUE(sc$scored_days > 0)) return(NULL)
+  m[[1]]
+}
+
+# One small card per state: the week's total, its seven days as columns, and a chip per blood group.
+nat_state_card <- function(nat, st) {
+  d <- nat$days[nat$days$state == st & nat$days$h <= 7, ]
+  daily <- tapply(d$forecast, d$date, sum)
+  names(daily) <- format(as.Date(names(daily)), "%A")
+  w <- nat$weeks[nat$weeks$state == st & nat$weeks$week == 1, ]
+  flags <- setNames(w$warning, w$blood_type)
+  worst <- if (any(flags == "Likely low")) "Likely low" else if (any(flags == "Watch")) "Watch" else ""
+  div(class = paste("nat-card", if (nzchar(worst)) NAT_LEVELS[[worst]]), role = "listitem",
+      div(class = "nat-card-top",
+          span(class = "nat-card-name", nat_short(st)),
+          if (nzchar(worst)) span(class = "nat-card-flag", icon("triangle-exclamation"), worst)),
+      div(class = "nat-card-value", count_span(sum(w$forecast))),
+      div(class = "nat-card-unit", "expected in the next 7 days"),
+      mini_cols(daily),
+      div(class = "nat-chips", lapply(ABO_GROUPS, function(g) {
+        f <- flags[[g]] %||% ""
+        span(class = paste("nat-chip", if (nzchar(f)) NAT_LEVELS[[f]]),
+             title = if (nzchar(f)) paste0(g, ": ", f) else paste0(g, ": no warning"), g)
+      })))
+}
+NAT_LEVELS <- c("Likely low" = "nat-likely", "Watch" = "nat-watch")
+
+nat_table <- function(nat) {
+  b <- nat$by_state
+  tags$table(class = "table nat-trust",
+             tags$thead(tags$tr(tags$th("State"), tags$th("Inside the range"), tags$th("Average miss"),
+                                tags$th("Simple method"), tags$th("Warnings right"), tags$th("Low weeks caught"))),
+             tags$tbody(lapply(seq_len(nrow(b)), function(i) tags$tr(
+               tags$th(scope = "row", nat_short(b$state[i])), tags$td(pct_text(100 * b$coverage[i])),
+               tags$td(fmt(b$MAE[i], 1)), tags$td(fmt(b$MAE_simple[i], 1)),
+               tags$td(if (is.na(b$hit_rate[i])) "–" else pct_text(100 * b$hit_rate[i])),
+               tags$td(if (is.na(b$catch_rate[i])) "–" else pct_text(100 * b$catch_rate[i]))))))
 }
 
 states_page <- function(nat) {
@@ -889,56 +876,105 @@ states_page <- function(nat) {
       chapter_head("states", "Every state is coming soon.",
                    "DarahWatch's national forecasts appear here after its first daily run."),
       panel("Every state and blood group", class = "stage-3",
-            p("DarahWatch forecasts 12 states and Kuala Lumpur, four blood groups each, 14 days ahead, with honest ranges and a ",
-              "low-week warning. ", a("See DarahWatch on GitHub", href = DARAHWATCH_URL, target = "_blank", rel = "noopener"), ".")),
+            p("DarahWatch forecasts 12 states and Kuala Lumpur, four blood groups each, 14 days ahead. ",
+              a("See DarahWatch on GitHub", href = DARAHWATCH_URL, target = "_blank", rel = "noopener"), ".")),
       chapter_nav("states")))
   }
-  w1 <- nat$weeks[nat$weeks$week == 1 & nzchar(nat$weeks$warning), ]
-  n_likely <- sum(w1$warning == "Likely low")
-  headline <- if (nrow(w1)) sprintf("%d state and blood group pair%s could have a low week ahead.", nrow(w1),
-                                    if (nrow(w1) == 1) "" else "s")
-              else "No state or blood group expects a low week ahead."
+  w1 <- nat$weeks[nat$weeks$week == 1, ]
+  flagged <- w1[nzchar(w1$warning), ]
+  total <- sum(w1$forecast)
+  by_state <- sort(tapply(w1$forecast, nat_short(w1$state), sum), decreasing = TRUE)
   ck <- nat$check
   hol <- nat$holidays
+  sc <- nat_scorecard(nat)
+  states <- names(sort(tapply(w1$forecast, w1$state, sum), decreasing = TRUE))
+  day_err <- c("Public holidays" = ck$holiday, "Ramadan" = ck$ramadan)
+  gain <- 100 * (1 - ck$holiday / ck$holiday_simple)
+  cov_bars <- setNames(100 * nat$by_state$coverage, nat_short(nat$by_state$state))
+  cov_bars <- sort(cov_bars)[1:min(5, length(cov_bars))]
+  warn_back <- if (nrow(flagged)) {
+    tags$ul(class = "nat-back-list", lapply(seq_len(nrow(flagged)), function(i)
+      tags$li(span(class = paste("nat-dot", NAT_LEVELS[[flagged$warning[i]]])),
+              sprintf("%s %s: %s", nat_short(flagged$state[i]), flagged$blood_type[i], flagged$warning[i]))))
+  } else p(class = "flip-back-text", "Every state and blood group is above its normal-week line.")
+
   tagList(
-    chapter_head("states", headline,
-                 sprintf("Forecast for four blood groups in %s, issued with data to %s.%s",
-                         nat_where(nat), fmt_date(nat$issued),
-                         if (n_likely) sprintf(" In %d of them, even the top of the range is below a normal week.", n_likely) else "")),
-    panel(sprintf("The bulletin, with data to %s", fmt_date(nat$issued)), class = "stage-2 nat-bulletin",
-          div(class = "nat-langs",
-              div(lang = "en", span(class = "nat-lang", "English"), p(nat$bulletin$en)),
-              div(lang = "ms", span(class = "nat-lang", "Bahasa Malaysia"), p(nat$bulletin$ms)))),
-    panel("Week totals by state", class = "stage-3 tabs-in-head next-panel",
-          sub = tagList("Shaded cells have a low-week warning. ",
-                        span(class = "nat-key nat-likely", "Likely low"), " even the top of the range is below a normal week. ",
-                        span(class = "nat-key nat-watch", "Watch"), " the forecast is below it."),
-          tab_set("nat_tabs", list(tab("Next 7 days", icon = "calendar-week", nat_week_table(nat, 1)),
-                                   tab("The 7 days after", icon = "calendar-days", nat_week_table(nat, 2)))),
-          footer = paste("A normal week's line is the 30th percentile of every 7-day total in the three years before.",
-                         "This is donations collected, not blood stock or demand.")),
-    if (nrow(hol)) panel("Public holidays in the next 14 days", class = "stage-3",
-                         tags$ul(class = "nat-hols", lapply(seq_len(nrow(hol)), function(i)
-                           tags$li(strong(format(as.Date(hol$date[i]), "%a %e %b")), " ", hol$name_en[i],
-                                   span(class = "nat-hol-where", if (hol$states[i] >= nat$regions) "everywhere covered"
-                                        else sprintf("%d state%s", hol$states[i], if (hol$states[i] == 1) "" else "s")))))),
-    panel("How far to trust it", class = "stage-3 next-panel",
-          sub = sprintf(paste("Checked on %s%s, which the model and its ranges never saw. Across Malaysia, %s of days fell",
-                              "inside the 80%% range. The average miss was %s donations, against %s for the recent weekday",
-                              "average: %s on public holidays (vs %s) and %s in Ramadan (vs %s)."),
-                        ck$year, if (ck$partial) " so far" else "", pct_text(100 * ck$coverage), fmt(ck$mae, 1),
-                        fmt(ck$mae_simple, 1), fmt(ck$holiday, 1), fmt(ck$holiday_simple, 1),
-                        fmt(ck$ramadan, 1), fmt(ck$ramadan_simple, 1)),
-          div(class = "st-wrap", nat_trust_table(nat)),
-          p(class = "panel-sub", style = "margin-top: 14px;",
-            if (is.na(ck$hit_rate) || is.na(ck$catch_rate)) "Low-week warning: not scored yet."
-            else sprintf(paste("Low-week warning: %s of weeks were really low. Of %s warnings, %s were right, and they caught %s",
-                               "of the low weeks. Expect some false alarms and some misses."),
-                         pct_text(100 * ck$base_rate), fmt_int(ck$warnings), pct_text(100 * ck$hit_rate), pct_text(100 * ck$catch_rate))),
-          nat_scorecard(nat),
-          footer = tagList("Forecasts by ", a("DarahWatch", href = DARAHWATCH_URL, target = "_blank", rel = "noopener"),
-                           ": gradient-boosted trees with public holidays and Ramadan, refreshed every morning. ",
-                           "Every forecast it publishes is kept unedited in its repository.")),
+    chapter_head("states",
+                 tagList("Next week, about ", count_span(total, burst = TRUE), " donations"),
+                 sprintf("Across %s, from DarahWatch's forecast with data to %s.", nat_where(nat), fmt_date(nat$issued))),
+
+    div(class = "stat-grid stage-2",
+        flip_card("Next 7 days", count_span(total, delay = 150), "donations expected",
+                  "Busiest places", mini_bars(head(by_state, 5), highlight = names(by_state)[1]), "tone-hero"),
+        flip_card("Low-week warnings", count_span(nrow(flagged), delay = 250),
+                  if (nrow(flagged) == 1) "state and blood group to watch" else "state and blood groups to watch",
+                  "Which ones", warn_back, badge = if (nrow(flagged)) "Look closer" else NULL),
+        flip_card("Ranges that held", count_span(100 * ck$coverage, 1, suffix = "%", delay = 350),
+                  sprintf("of days inside the 80%% range in %s", ck$year),
+                  "Lowest five states, %", mini_bars(cov_bars, digits = 1)),
+        flip_card("Holidays, called better", count_span(gain, 0, prefix = "−", suffix = "%", delay = 450),
+                  "smaller miss on public holidays than a simple average",
+                  "Average miss on hard days", mini_bars(day_err, digits = 1))),
+
+    narrate("Here's where this week's donations should come from. Pick a blood group to see its ranges and warnings."),
+
+    panel("Week totals, state by state",
+          sub = tagList("Bars: expected donations. Whiskers: the ", term("80% range", "range80"),
+                        ". Dark tick: a normal week's low line."),
+          read = paste("Each bar is one place's expected donations for the week. The thin whisker is the 80% range:",
+                       "the real total landed inside it about 8 times in 10 on years the model never saw. The dark tick",
+                       "is a normal week's low line (the 30th percentile of the last three years). A shaded bar is",
+                       "below it. Hover a bar for the exact numbers."),
+          controls = tagList(seg("nat_group", "Blood group", NAT_GROUPS, "O"),
+                             seg("nat_week", "Week", c("Next 7 days" = "1", "The 7 days after" = "2"), "1")),
+          class = "stage-3 chart-panel",
+          chart_row(what_shows("nat_explain"), chartOutput("nat_plot", height = "430px")),
+          footer = "Donations collected, not blood stock or hospital demand."),
+
+    div(class = "nat-duo stage-3",
+        panel("The bulletin", class = "nat-bulletin",
+              sub = sprintf("Written from the numbers, with data to %s.", fmt_date(nat$issued)),
+              tab_set("nat_lang", list(tab("English", icon = "language", p(class = "nat-say", nat$bulletin$en)),
+                                       tab("Bahasa Malaysia", icon = "language", p(class = "nat-say", lang = "ms", nat$bulletin$ms))))),
+        panel("Coming up", class = "nat-hol-panel",
+              sub = "Public holidays in the next 14 days. Collections usually dip around them.",
+              if (nrow(hol)) div(class = "nat-hols", lapply(seq_len(nrow(hol)), function(i) {
+                d <- as.Date(hol$date[i])
+                div(class = "nat-hol",
+                    div(class = "nat-hol-date", span(class = "nat-hol-day", format(d, "%e")), span(class = "nat-hol-mon", format(d, "%b"))),
+                    div(class = "nat-hol-text", strong(hol$name_en[i]),
+                        span(class = "nat-hol-where", if (hol$states[i] >= nat$regions) "Everywhere covered"
+                             else sprintf("%d of %d places", hol$states[i], nat$regions))))
+              })) else p(class = "panel-sub", "No public holidays in the next 14 days."))),
+
+    narrate("Every place at a glance. A shaded chip is a blood group with a low-week warning."),
+    div(class = "nat-grid stage-3", role = "list", lapply(states, function(st) nat_state_card(nat, st))),
+
+    narrate(sprintf("Can you trust it? Here's how it did on %s, a year it never saw.", ck$year)),
+    panel("How often the real count landed inside the range",
+          sub = "One dot per place. Dots near the dashed 80% line mean the ranges are honest.",
+          read = paste("Each range was built from one year's errors and checked on the next. A dot right of the",
+                       "dashed line means that place's ranges were a little wide, left means a little narrow."),
+          class = "stage-3 chart-panel panel-ink",
+          chart_row(what_shows(text = sprintf(paste("Across Malaysia, %s of days landed inside the range. On public",
+                                                    "holidays the model missed by %s on average, against %s for a simple",
+                                                    "weekday average."),
+                                              pct_text(100 * ck$coverage), fmt(ck$holiday, 1), fmt(ck$holiday_simple, 1))),
+                    chartOutput("nat_cov_plot", height = "380px")),
+          tags$details(class = "nat-details", tags$summary("See the numbers by state"), div(class = "st-wrap", nat_table(nat))),
+          footer = if (is.na(ck$hit_rate)) "Low-week warning: not scored yet."
+                   else sprintf("Low-week warning: %s of its warnings were right, and it caught %s of low weeks.",
+                                pct_text(100 * ck$hit_rate), pct_text(100 * ck$catch_rate))),
+
+    div(class = "kpi-row nat-kpis stage-3",
+        if (is.null(sc)) kpi("Published so far", count_span(nat$scorecard$forecast_files %||% 1),
+                             "daily forecasts, each saved unedited. Scores appear once their days have real counts.", "kpi-hero")
+        else kpi("Live scorecard", count_span(sc$scored),
+                 sprintf("forecasts scored, %s to %s", fmt_date(as.Date(sc$from)), fmt_date(as.Date(sc$to))), "kpi-hero"),
+        if (!is.null(sc)) kpi("Average miss", count_span(sc$MAE, 1), "donations, per place, group and day"),
+        if (!is.null(sc)) kpi("Inside the range", count_span(100 * sc$coverage, 1, suffix = "%"), "of scored days, against an 80% aim"),
+        kpi("Where it comes from", a("DarahWatch", href = DARAHWATCH_URL, target = "_blank", rel = "noopener"),
+            "Gradient-boosted trees with public holidays and Ramadan, refreshed every morning")),
     chapter_nav("states"))
 }
 
@@ -1608,6 +1644,13 @@ server <- function(input, output, session) {
                     "weekday average was off by %s donations a day on average, and %s of days fell inside its 80%% range."),
               fmt_date(tr$days_from), fmt_date(tr$days_to), fmt_int(tr$scored), fmt(b$MAE, 1), pct_text(100 * b$coverage)))
   })
+
+  # Every state ----------------------------------------------------------------------------
+  nat_in <- function() list(g = if (is.null(input$nat_group)) "O" else input$nat_group,
+                            w = if (is.null(input$nat_week)) 1L else as.integer(input$nat_week))
+  output$nat_plot <- renderChart({ if (is.null(NAT)) return(NULL); x <- nat_in(); chart_nat_states(NAT, x$g, x$w) })
+  output$nat_explain <- renderUI({ if (is.null(NAT)) return(NULL); x <- nat_in(); explain_nat(NAT, x$g, x$w) })
+  output$nat_cov_plot <- renderChart({ if (is.null(NAT)) return(NULL); chart_nat_coverage(NAT) })
 
   # Compatibility explorer -------------------------------------------------------------
   output$compat_result <- renderUI({

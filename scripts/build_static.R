@@ -54,7 +54,7 @@ grab <- function(output, ids) {
   out
 }
 chart_ids <- c("overview_plot", "live_plot", "cmp_group_plot", "cmp_daily_plot", "low_plot", "weekly_plot",
-               "weekday_plot", "annual_plot", "mix_plot", "monthly_plot")
+               "weekday_plot", "annual_plot", "mix_plot", "monthly_plot", "nat_plot", "nat_cov_plot")
 
 store <- new.env()
 app <- shiny::shinyAppFile("app.R")
@@ -66,15 +66,24 @@ shiny::testServer(app, {
                     pattern_groups = GROUPS, pattern_years = c(2006, END_YEAR),
                     bt_pick = "O+", region_pick = "Central", report_type = "summary", rep_period = LATEST, rep_focus = "all", rep_sections = unname(from_app("SUMMARY_SECTIONS")),
                     rep_group = "all", rep_dates = c(DATA_END - 30, DATA_END), rep_extra = "forecasts",
-                    card_type = "O+", card_region = "Central")
+                    card_type = "O+", card_region = "Central", nat_group = "O", nat_week = "1")
 
   # Everything at its default setting.
   ids <- c(setdiff(chart_ids, "cmp_daily_plot"), "next_table", "range_table", "watch_note", "track_record", "live_change7", "live_change_ytd", "live_explain", "cmp_table",
            "cmp_headline", "cmp_sub", "cmp_stat", "cmp_explain", "low_headline", "low_sub",
            "low_stat", "low_explain", "cutoff_table", "low_table", "min_pred_table", "weekday_explain",
            "annual_explain", "audit_table", "panel_table", "coef_table", "bias_table", "monthly_explain",
-           "compat_result", "region_result", "report_blurb", "report_preview", "card_last_label")
+           "compat_result", "region_result", "report_blurb", "report_preview", "card_last_label",
+           "nat_explain")
   store$init <- grab(output, ids)
+
+  # Every state: each blood group (or all four) for each of the two weeks.
+  store$national <- list()
+  for (g in unname(from_app("NAT_GROUPS"))) for (w in c("1", "2")) {
+    session$setInputs(nat_group = g, nat_week = w)
+    store$national[[paste(g, w, sep = "|")]] <- grab(output, c("nat_plot", "nat_explain"))
+  }
+  session$setInputs(nat_group = "O", nat_week = "1")
 
   store$live <- list()
   for (g in GROUPS) { session$setInputs(live_group = g); store$live[[g]] <- grab(output, c("live_plot", "live_explain")) }
@@ -156,6 +165,7 @@ parse_charts <- function(x) {
 cat("Data files:\n")
 write_json_file(parse_charts(store$init), "init.json")
 write_json_file(lapply(store$live, parse_charts), "live.json")
+write_json_file(lapply(store$national, parse_charts), "national.json")
 write_json_file(lapply(store$compare, parse_charts), "compare.json")
 write_json_file(lapply(store$low, parse_charts), "low.json")
 write_json_file(lapply(store$monthly, parse_charts), "monthly.json")

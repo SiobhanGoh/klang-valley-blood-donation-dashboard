@@ -3085,37 +3085,69 @@ html[data-theme=dark] .card-field .form-control, html[data-theme=dark] .card-fie
 }
 
 /* Every state (DarahWatch) ---------------------------------------------------------- */
-.nat-langs { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
-.nat-langs p { margin: 6px 0 0; line-height: 1.6; color: var(--ink); }
-.nat-lang { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wine); }
-.nat-table { margin: 0; min-width: 560px; }
-.nat-table th[scope="row"] { font-weight: 600; white-space: nowrap; }
-.nat-table td.nat-cell { text-align: right; vertical-align: top; }
-.nat-num { display: block; font-weight: 700; font-size: 1.02rem; color: var(--ink); }
-.nat-range { display: block; font-size: 0.78rem; color: var(--muted); }
-.nat-flag { display: inline-block; margin-top: 4px; padding: 1px 8px; border-radius: var(--r-pill); font-size: 0.7rem; font-weight: 700; }
-.nat-table td.nat-likely { --bs-table-bg: var(--blush); background-color: var(--blush) !important; }
-.nat-likely .nat-flag, .nat-key.nat-likely { background: var(--wine); color: var(--on-dark); }
-.nat-table td.nat-watch { --bs-table-bg: var(--blush-2); background-color: var(--blush-2) !important; }
-.nat-watch .nat-flag, .nat-key.nat-watch { background: var(--surface-3); color: var(--wine-deep); }
-.nat-key { padding: 1px 8px; border-radius: var(--r-pill); font-size: 0.75rem; font-weight: 700; }
-html[data-theme="dark"] .nat-watch .nat-flag, html[data-theme="dark"] .nat-key.nat-watch { color: var(--ink); }
-.nat-hols { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
-.nat-hols li { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+/* Bulletin and holidays side by side */
+.nat-duo { display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--space-5); margin-top: var(--space-5); }
+.nat-duo > .panel { margin-top: 0; }
+.nat-say { margin: 4px 0 0; font-size: 1.02rem; line-height: 1.65; color: var(--ink); }
+.nat-hols { display: grid; gap: 10px; margin-top: 4px; }
+.nat-hol { display: flex; gap: 14px; align-items: center; padding: 10px 12px; border-radius: var(--r-md, 14px);
+  background: var(--surface-2, rgba(255,255,255,0.5)); border: 1px solid var(--hairline); }
+.nat-hol-date { display: grid; place-items: center; min-width: 52px; height: 52px; border-radius: 14px;
+  background: linear-gradient(160deg, var(--blush), var(--blush-2)); color: var(--wine-deep); line-height: 1; }
+.nat-hol-day { font-size: 1.25rem; font-weight: 700; }
+.nat-hol-mon { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.nat-hol-text { display: grid; gap: 2px; }
 .nat-hol-where { font-size: 0.8rem; color: var(--muted); }
-.nat-trust { margin: 0; min-width: 640px; }
+html[data-theme="dark"] .nat-hol-date { color: var(--ink); }
+
+/* One card per place */
+.nat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 14px; margin-top: var(--space-5); }
+.nat-card { position: relative; display: grid; gap: 4px; padding: 16px 16px 14px; border-radius: var(--r-lg);
+  background: var(--surface); border: 1px solid var(--hairline); box-shadow: var(--shadow-1);
+  transition: transform 240ms var(--ease-out), box-shadow 240ms var(--ease-out); }
+.nat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-2, var(--shadow-1)); }
+.nat-card.nat-watch { border-color: var(--rose); }
+.nat-card.nat-likely { border-color: var(--wine); background: linear-gradient(170deg, var(--blush), var(--surface) 70%); }
+.nat-card-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.nat-card-name { font-weight: 700; font-size: 0.92rem; color: var(--ink); }
+.nat-card-flag { display: inline-flex; gap: 5px; align-items: center; font-size: 0.68rem; font-weight: 700; padding: 2px 8px;
+  border-radius: var(--r-pill); background: var(--wine); color: var(--on-dark); white-space: nowrap; }
+.nat-card.nat-watch .nat-card-flag { background: var(--surface-3); color: var(--wine-deep); }
+html[data-theme="dark"] .nat-card.nat-watch .nat-card-flag { color: var(--ink); }
+.nat-card-value { font-family: var(--font-display, inherit); font-size: 1.7rem; font-weight: 700; color: var(--wine); line-height: 1.1; }
+.nat-card-unit { font-size: 0.74rem; color: var(--muted); margin-bottom: 4px; }
+.nat-card .mini-cols { height: 64px; gap: 4px; }
+.nat-card .mc-bar { transform: none; background: color-mix(in srgb, var(--rose) 40%, transparent); }
+.nat-card .mc.is-top .mc-bar { background: linear-gradient(180deg, var(--rose), var(--wine)); }
+.nat-card .mc-val { color: var(--ink); font-size: 0.62rem; }
+.nat-card .mc-lab { color: var(--muted); font-size: 0.62rem; }
+.nat-chips { display: flex; gap: 6px; margin-top: 8px; }
+.nat-chip { flex: 1; text-align: center; font-size: 0.72rem; font-weight: 700; padding: 3px 0; border-radius: var(--r-pill);
+  background: var(--surface-2, rgba(0,0,0,0.04)); color: var(--muted); border: 1px solid var(--hairline); }
+.nat-chip.nat-watch { background: var(--blush-2); color: var(--wine-deep); border-color: var(--rose); }
+.nat-chip.nat-likely { background: var(--wine); color: var(--on-dark); border-color: var(--wine); }
+html[data-theme="dark"] .nat-chip.nat-watch { color: var(--ink); }
+
+/* Flip-card back: the warnings list */
+.nat-back-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 0.8rem; color: #fff; }
+.nat-back-list li { display: flex; align-items: center; gap: 8px; }
+.nat-dot { width: 9px; height: 9px; border-radius: 50%; background: #FFD3DC; flex: none; }
+.nat-dot.nat-likely { background: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.25); }
+
+/* The numbers table, folded away */
+.nat-details { margin-top: 14px; }
+.nat-details > summary { cursor: pointer; font-weight: 600; font-size: 0.88rem; color: var(--on-dark-soft, var(--muted)); }
+.nat-details[open] > summary { margin-bottom: 10px; }
+.nat-trust { margin: 0; min-width: 600px; }
 .nat-trust td { text-align: right; font-variant-numeric: tabular-nums; }
 .nat-trust th[scope="row"] { white-space: nowrap; }
-.nat-table thead th:not(:first-child), .nat-trust thead th:not(:first-child) { text-align: right; }
-.nat-table thead th:first-child, .nat-trust thead th:first-child { width: 30%; }
-.nat-trust td:last-child, .nat-table td:last-child { color: inherit; font-weight: 400; }
-.nat-key, .nat-range { white-space: nowrap; }
-@media (max-width: 640px) {
-  .nat-table { min-width: 0; table-layout: fixed; }
-  .nat-table thead th:first-child { width: 22%; }
-  .next-panel .nat-table th, .next-panel .nat-table td { padding: 7px 4px !important; white-space: normal; }
-  .nat-table th[scope="row"] { white-space: normal; font-size: 0.68rem; line-height: 1.25; }
-  .nat-num { font-size: 0.9rem; }
-  .nat-range { font-size: 0.6rem; letter-spacing: -0.02em; }
-  .nat-flag { font-size: 0.6rem; padding: 1px 5px; }
+.nat-trust thead th:not(:first-child) { text-align: right; }
+
+.kpi-row.nat-kpis { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+@media (max-width: 900px) { .nat-duo { grid-template-columns: 1fr; } }
+@media (max-width: 560px) {
+  .nat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .nat-card { padding: 12px 12px 10px; }
+  .nat-card-value { font-size: 1.35rem; }
+  .nat-card .mc-val { display: none; }
 }

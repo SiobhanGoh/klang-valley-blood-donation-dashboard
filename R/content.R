@@ -166,6 +166,7 @@ GLOSSARY <- list(
   weekday_mean = c("Weekday average", "The average number of donations on that weekday (Mondays, Tuesdays...) in past years."),
   regression = c("Linear regression", "A model that learns the usual weekday pattern plus a steady long-term trend from past years."),
   low_day = c("Low-collection day", "A day at or below the lower quartile from earlier years: one of the quietest quarter of days for that blood group. It is not a clinical shortage level."),
+  range80 = c("80% range", "Where the real count should land 8 times in 10. It is built from the forecast's own past misses, and checked on a year it never saw."),
   quartile = c("Lower quartile", "The value with a quarter of past days below it. A quarter of days are this quiet or quieter."),
   overpredict = c("Forecast too high", "When the forecast was more than the real count. On quiet days the methods tend to expect more donations than arrive."),
   coefficient = c("Coefficient", "A number the regression learned, such as how many more donations a Sunday brings than a Monday."),

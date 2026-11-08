@@ -13,7 +13,7 @@
   var GROUPS = ["A", "AB", "B", "O"];
   var WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   var CHARTS = ["overview_plot", "live_plot", "cmp_group_plot", "cmp_daily_plot", "low_plot", "weekly_plot",
-                "weekday_plot", "annual_plot", "mix_plot", "monthly_plot"];
+                "weekday_plot", "annual_plot", "mix_plot", "monthly_plot", "nat_plot", "nat_cov_plot"];
   var DAY = 86400000;
 
   // ---------- The part of Shiny that interactions.js uses ----------
@@ -535,6 +535,8 @@
   }
   function route(name) {
     if (name === "live_group") load("live").then(function (x) { apply(x[radio("live_group")]); });
+    else if (name === "nat_group" || name === "nat_week")
+      load("national").then(function (x) { apply(x[radio("nat_group") + "|" + radio("nat_week")]); });
     else if (name === "cmp_year" || name === "cmp_methods") {
       load("compare").then(function (x) { apply(x[radio("cmp_year") + "|" + methodKey(checks("cmp_methods"))]); });
       if (name === "cmp_methods") withDaily(drawDaily);
